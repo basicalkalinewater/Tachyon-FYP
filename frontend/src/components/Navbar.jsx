@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useSelector } from 'react-redux'
 import "../styles/Navbar.css";
+import CartDrawer from "./cart/CartDrawer";
 
 const Navbar = () => {
     const state = useSelector(state => state.handleCart)
