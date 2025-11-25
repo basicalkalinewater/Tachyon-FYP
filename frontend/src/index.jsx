@@ -25,14 +25,13 @@ import { Toaster } from "react-hot-toast";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
-  <BrowserRouter>
-    <Provider store={store}>
+  <Provider store={store}>
+    <BrowserRouter>
       <ScrollToTop>
-
-        {/* 👇 Navbar ALWAYS rendered above all pages */}
+        {/* Navbar always visible */}
         <Navbar />
 
-        {/* 👇 Page content */}
+        {/* Page content */}
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/product" element={<Products />} />
@@ -46,10 +45,9 @@ root.render(
           <Route path="*" element={<PageNotFound />} />
           <Route path="/product/*" element={<PageNotFound />} />
         </Routes>
-
       </ScrollToTop>
-    </Provider>
 
-    <Toaster />
-  </BrowserRouter>
+      <Toaster />
+    </BrowserRouter>
+  </Provider>
 );

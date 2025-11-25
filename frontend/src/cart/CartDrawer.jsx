@@ -1,105 +1,117 @@
-// src/components/cart/CartDrawer.jsx
+// src/cart/CartDrawer.jsx
+
 import React from "react";
 import { useSelector, useDispatch } from "react-redux";
-import { addCart, delCart } from "../../redux/action";
-import { Link } from "react-router-dom";
+import { NavLink } from "react-router-dom";
+
+import {
+  selectCartItems,
+  selectCartSubtotal,
+  addItem,
+  decreaseItem,
+  removeItem,
+} from "../redux/cartSlice";
+
+import "../styles/CartDrawer.css";   // <-- your cart drawer CSS file
 
 const CartDrawer = ({ isOpen, onClose }) => {
-  const items = useSelector((state) => state.handleCart);
+  const items = useSelector(selectCartItems);
+  const subtotal = useSelector(selectCartSubtotal);
   const dispatch = useDispatch();
-
-  let subtotal = 0;
-  let totalItems = 0;
-
-  items.forEach((item) => {
-    subtotal += item.price * item.qty;
-    totalItems += item.qty;
-  });
-
-  const shipping = items.length > 0 ? 30.0 : 0.0;
-
-  const handleAdd = (item) => dispatch(addCart(item));
-  const handleRemove = (item) => dispatch(delCart(item));
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Dim overlay */}
       <div
-        className={`backdrop ${isOpen ? "backdrop-show" : ""}`}
+        className={`cart-overlay ${isOpen ? "open" : ""}`}
         onClick={onClose}
       />
 
-      {/* Drawer */}
-      <div className={`cart-drawer ${isOpen ? "cart-drawer-open" : ""}`}>
+      {/* Sliding Drawer */}
+      <div className={`cart-drawer ${isOpen ? "open" : ""}`}>
         <div className="cart-header">
-          <h5 className="mb-0">My Cart</h5>
+          <h4>Your Cart</h4>
           <button className="cart-close-btn" onClick={onClose}>
             &times;
           </button>
         </div>
 
-        <div className="cart-body">
-          {items.length === 0 ? (
-            <p className="text-muted">Your cart is empty.</p>
-          ) : (
-            items.map((item) => (
-              <div key={item.id} className="cart-item">
-                <img src={item.image} alt={item.title} />
-                <div className="cart-item-info">
-                  <div className="cart-item-title">{item.title}</div>
+        {/* If cart is empty */}
+        {items.length === 0 ? (
+          <p className="cart-empty">Your cart is empty.</p>
+        ) : (
+          <>
+            {/* Cart items */}
+            <div className="cart-items">
+              {items.map((item) => (
+                <div className="cart-item" key={item.id}>
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="cart-item-image"
+                  />
 
-                  <div className="cart-item-qty d-flex align-items-center mb-1">
-                    <button
-                      className="btn btn-sm btn-outline-secondary px-2"
-                      onClick={() => handleRemove(item)}
-                    >
-                      <i className="fas fa-minus"></i>
-                    </button>
+                  <div className="cart-item-info">
+                    <div className="cart-item-title">{item.title}</div>
 
-                    <span className="mx-3">{item.qty}</span>
+                    <div className="cart-item-price">
+                      ${item.price.toFixed(2)}
+                    </div>
 
-                    <button
-                      className="btn btn-sm btn-outline-secondary px-2"
-                      onClick={() => handleAdd(item)}
-                    >
-                      <i className="fas fa-plus"></i>
-                    </button>
-                  </div>
+                    <div className="cart-item-qty">
+                      {/* - decrease */}
+                      <button onClick={() => dispatch(decreaseItem(item.id))}>
+                        -
+                      </button>
 
-                  <div className="cart-item-meta">
-                    <span>{item.qty} x ${item.price}</span>
-                    <span><strong>${(item.qty * item.price).toFixed(2)}</strong></span>
+                      {/* quantity */}
+                      <span>{item.qty}</span>
+
+                      {/* + increase */}
+                      <button onClick={() => dispatch(addItem(item))}>
+                        +
+                      </button>
+
+                      {/* remove button */}
+                      <button
+                        className="ms-2 btn btn-link p-0 text-danger"
+                        onClick={() => dispatch(removeItem(item.id))}
+                      >
+                        remove
+                      </button>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Footer: subtotal + actions */}
+            <div className="cart-footer">
+              <div className="cart-subtotal">
+                <span>Subtotal:</span>
+                <span>${subtotal.toFixed(2)}</span>
               </div>
-            ))
-          )}
-        </div>
 
-        <div className="cart-footer">
-          <div className="cart-total mb-2">
-            <span>Items ({totalItems})</span>
-            <span>${Math.round(subtotal)}</span>
-          </div>
+              <div className="cart-actions">
+                <NavLink
+                  to="/cart"
+                  className="btn btn-outline-dark w-100 mb-2"
+                  onClick={onClose}
+                >
+                  View Cart
+                </NavLink>
 
-          <div className="cart-total mb-2">
-            <span>Shipping</span>
-            <span>${shipping}</span>
-          </div>
-
-          <div className="cart-total mb-3">
-            <strong>Total</strong>
-            <strong>${Math.round(subtotal + shipping)}</strong>
-          </div>
-
-          <Link to="/cart" className="btn btn-outline-dark w-100 mb-2" onClick={onClose}>
-            View full cart
-          </Link>
-
-          <Link to="/checkout" className="btn btn-dark w-100" onClick={onClose}>
-            Checkout
-          </Link>
-        </div>
+                <NavLink
+                  to="/checkout"
+                  className="btn btn-dark w-100"
+                  onClick={onClose}
+                >
+                  Checkout
+                </NavLink>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </>
   );
