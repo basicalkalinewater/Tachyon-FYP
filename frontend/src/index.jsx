@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider } from "react-redux";
 import store from "./redux/store";
 
+import Navbar from "./components/Navbar";  // <-- ADD THIS
+
 import {
   Home,
   Product,
@@ -24,8 +26,13 @@ import { Toaster } from "react-hot-toast";
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <BrowserRouter>
-    <ScrollToTop>
-      <Provider store={store}>
+    <Provider store={store}>
+      <ScrollToTop>
+
+        {/* 👇 Navbar ALWAYS rendered above all pages */}
+        <Navbar />
+
+        {/* 👇 Page content */}
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/product" element={<Products />} />
@@ -39,8 +46,10 @@ root.render(
           <Route path="*" element={<PageNotFound />} />
           <Route path="/product/*" element={<PageNotFound />} />
         </Routes>
-      </Provider>
-    </ScrollToTop>
+
+      </ScrollToTop>
+    </Provider>
+
     <Toaster />
   </BrowserRouter>
 );

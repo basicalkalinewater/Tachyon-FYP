@@ -1,10 +1,9 @@
 import React from 'react'
-import { Footer, Navbar } from "../components";
+import { Footer } from "../components";
 import { Link } from 'react-router-dom';
 const Register = () => {
     return (
         <>
-            <Navbar />
             <div className="container my-3 py-3">
                 <h1 className="text-center">Register</h1>
                 <hr />

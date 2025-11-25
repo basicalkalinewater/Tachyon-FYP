@@ -5,7 +5,7 @@ import Marquee from "react-fast-marquee";
 import { useDispatch } from "react-redux";
 import { addCart } from "../redux/action";
 
-import { Footer, Navbar } from "../components";
+import { Footer } from "../components";
 
 const Product = () => {
   const { id } = useParams();
@@ -170,7 +170,6 @@ const Product = () => {
   };
   return (
     <>
-      <Navbar />
       <div className="container">
         <div className="row">{loading ? <Loading /> : <ShowProduct />}</div>
         <div className="row my-5 py-5">
