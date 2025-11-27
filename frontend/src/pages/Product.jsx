@@ -5,8 +5,6 @@ import Marquee from "react-fast-marquee";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 
-import { Footer } from "../components";
-
 const Product = () => {
   const { id } = useParams();
   const [product, setProduct] = useState([]);
@@ -185,7 +183,6 @@ const Product = () => {
           </div>
         </div>
       </div>
-      <Footer />
     </>
   );
 };

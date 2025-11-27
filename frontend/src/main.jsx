@@ -5,8 +5,7 @@ import "../node_modules/bootstrap/dist/css/bootstrap.min.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider } from "react-redux";
 import store from "./redux/store";
-
-import Navbar from "./components/Navbar";  // <-- ADD THIS
+import { Navbar, ScrollToTop, Footer } from "./components";
 
 import {
   Home,
@@ -20,7 +19,7 @@ import {
   Checkout,
   PageNotFound,
 } from "./pages";
-import ScrollToTop from "./components/ScrollToTop";
+
 import { Toaster } from "react-hot-toast";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
@@ -34,7 +33,7 @@ root.render(
         {/* Page content */}
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/product" element={<Products />} />
+          <Route path="/products" element={<Products />} />
           <Route path="/product/:id" element={<Product />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -43,8 +42,8 @@ root.render(
           <Route path="/register" element={<Register />} />
           <Route path="/checkout" element={<Checkout />} />
           <Route path="*" element={<PageNotFound />} />
-          <Route path="/product/*" element={<PageNotFound />} />
         </Routes>
+        <Footer />
       </ScrollToTop>
 
       <Toaster />

@@ -1,6 +1,6 @@
 import React from "react";
 
-const Home = () => {
+const HomeHero = () => {
   return (
     <>
       <div className="hero border-1 pb-3">
@@ -27,4 +27,4 @@ const Home = () => {
   );
 };
 
-export default Home;
+export default HomeHero;

@@ -1,13 +1,11 @@
-import { Main, Product, Footer } from "../components";
+import { HomeHero } from "../components";
 
 function Home() {
   return (
     <>
-      <Main />
-      <Product />
-      <Footer />
+      <HomeHero />
     </>
-  )
+  );
 }
 
-export default Home
+export default Home;

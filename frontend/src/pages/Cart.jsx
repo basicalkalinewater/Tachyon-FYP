@@ -12,8 +12,6 @@ import {
   removeItem,
 } from "../redux/cartSlice";
 
-import { Footer } from "../components";
-
 const Cart = () => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
@@ -25,11 +23,10 @@ const Cart = () => {
         <div className="container py-5">
           <h2 className="mb-4">Your Cart</h2>
           <p>Your cart is currently empty.</p>
-          <Link to="/product" className="btn btn-dark mt-3">
+          <Link to="/products" className="btn btn-dark mt-3">
             Go Shopping
           </Link>
         </div>
-        <Footer />
       </>
     );
   }
@@ -99,7 +96,7 @@ const Cart = () => {
         </div>
 
         <div className="mt-3 d-flex justify-content-between">
-          <Link to="/product" className="btn btn-outline-secondary">
+          <Link to="/products" className="btn btn-outline-secondary">
             Continue Shopping
           </Link>
           <Link to="/checkout" className="btn btn-dark">
@@ -107,8 +104,6 @@ const Cart = () => {
           </Link>
         </div>
       </div>
-
-      <Footer />
     </>
   );
 };
