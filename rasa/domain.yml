@@ -1,0 +1,31 @@
+version: "3.1"
+
+intents:
+  - greet
+  - goodbye
+  - affirm
+  - deny
+  - faq_shipping
+  - faq_returns
+  - faq_order_status
+  - products
+
+responses:
+  utter_greet:
+    - text: "Hey there! How can I help you today?"
+  utter_goodbye:
+    - text: "Goodbye! Let me know if you need anything else."
+  utter_faq_shipping:
+    - text: "Standard shipping takes 3-5 business days. Express options are available at checkout."
+  utter_faq_returns:
+    - text: "You can start a return within 30 days if the product is in original condition."
+  utter_faq_order_status:
+    - text: "To check order status, please share your order number. I can also connect you with support."
+  utter_products:
+    - text: "We have monitors, keyboards, mice, and SSDs in stock. What are you looking for?"
+  utter_fallback:
+    - text: "I'm not sure about that yet. Could you rephrase?"
+
+session_config:
+  session_expiration_time: 60
+  carry_over_slots_to_new_session: true
