@@ -34,7 +34,13 @@ const Navbar = () => {
       >
         <div className="container">
           {/* Brand */}
-          <NavLink className="navbar-brand fw-bold fs-4 px-2" to="/">
+          <NavLink className="navbar-brand fw-bold fs-4 px-2 d-flex align-items-center" to="/">
+            <img
+              src="/assets/logo/logo.png"
+              alt="Tachyon logo"
+              className="me-2"
+              style={{ height: "28px", width: "28px", objectFit: "contain" }}
+            />
             Tachyon
           </NavLink>
 

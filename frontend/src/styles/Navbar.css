@@ -1,39 +1,23 @@
-/* Base navbar – similar to .navigation in Salinaka */
+/* Navbar styling */
 .navbar {
   width: 100%;
-  background: #f9f9f9;           /* similar to $background-color */
+  background: #f9f9f9;
   display: flex;
   align-items: center;
-  padding: 1.5rem 5rem !important; /* taller & wide horizontal padding */
+  padding: 1.25rem 3rem !important;
   box-shadow: none;
-  transition: all 0.3s ease;     /* smooth like their bezier-transition */
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
-/* When scrolled – similar idea to is-nav-scrolled */
+/* When scrolled: keep size stable, add subtle shadow/background */
 .navbar-shrink {
-  padding-top: 0.7rem !important;
-  padding-bottom: 0.7rem !important;
-  padding-left: 3rem !important;
-  padding-right: 3rem !important;
   background: #ffffff !important;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
-  /* ❌ remove transform: translateY(0); */
 }
 
-/* Slightly smaller brand text when scrolled */
-.navbar-shrink .navbar-brand {
-  font-size: 1.25rem !important;
-}
-
-.navbar-shrink .nav-link {
-  font-size: 0.9rem !important;
-}
-
-/* Media ------------------------------------------------- */
-
-/* For smaller screens, you can reduce the padding a bit
+/* Media tweaks */
 @media (max-width: 992px) {
   .navbar {
-    padding: 1rem 2rem !important;
+    padding: 1rem 1.5rem !important;
   }
-} */
+}
