@@ -1,61 +1,140 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import {
+  createCart,
+  fetchCart,
+  addItemToCart,
+  updateCartItem,
+  removeCartItem,
+} from '../api/cart';
 
-// What your cart data will look like when the app starts
-const initialState = {
-  items: []   // each item: { id, title, price, image, qty }
+const storageKey = 'cart_id';
+
+const loadStoredCartId = () => {
+  try {
+    return localStorage.getItem(storageKey);
+  } catch (err) {
+    console.warn('Unable to read cart from storage', err);
+    return null;
+  }
 };
+
+const persistCartId = (id) => {
+  try {
+    localStorage.setItem(storageKey, id);
+  } catch (err) {
+    console.warn('Unable to persist cart id', err);
+  }
+};
+
+const initialState = {
+  cartId: loadStoredCartId(),
+  items: [],
+  status: 'idle',
+  error: null,
+};
+
+const ensureCartId = async (getState) => {
+  const existing = getState().cart.cartId || loadStoredCartId();
+  if (existing) return existing;
+  const { cartId } = await createCart();
+  persistCartId(cartId);
+  return cartId;
+};
+
+export const bootstrapCart = createAsyncThunk('cart/bootstrap', async (_, { getState }) => {
+  const cartId = await ensureCartId(getState);
+  const data = await fetchCart(cartId);
+  persistCartId(cartId);
+  return { cartId, items: data.items || [] };
+});
+
+export const addItem = createAsyncThunk('cart/addItem', async (product, { getState }) => {
+  const cartId = await ensureCartId(getState);
+  const existing = getState().cart.items.find((item) => item.id === product.id);
+  const nextQty = existing ? existing.qty + 1 : 1;
+  await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+  const data = await fetchCart(cartId);
+  persistCartId(cartId);
+  return { cartId, items: data.items || [] };
+});
+
+export const decreaseItem = createAsyncThunk('cart/decreaseItem', async (productId, { getState }) => {
+  const { cart } = getState();
+  const cartId = await ensureCartId(getState);
+  const existing = cart.items.find((item) => item.id === productId);
+
+  if (!existing) return { cartId, items: cart.items };
+
+  const nextQty = existing.qty - 1;
+  if (nextQty <= 0) {
+    await removeCartItem(cartId, productId);
+  } else {
+    await updateCartItem(cartId, productId, { quantity: nextQty });
+  }
+
+  const data = await fetchCart(cartId);
+  return { cartId, items: data.items || [] };
+});
+
+export const removeItem = createAsyncThunk('cart/removeItem', async (productId, { getState }) => {
+  const cartId = await ensureCartId(getState);
+  await removeCartItem(cartId, productId);
+  const data = await fetchCart(cartId);
+  return { cartId, items: data.items || [] };
+});
 
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
   reducers: {
-    // Add item or increase qty
-    addItem(state, action) {
-      const product = action.payload;
-      const existing = state.items.find(item => item.id === product.id);
-
-      if (existing) {
-        existing.qty += 1;
-      } else {
-        state.items.push({ ...product, qty: 1 });
-      }
-    },
-
-    // Decrease qty by 1, remove if qty hits 0
-    decreaseItem(state, action) {
-      const id = action.payload;
-      const existing = state.items.find(item => item.id === id);
-      if (!existing) return;
-
-      if (existing.qty > 1) {
-        existing.qty -= 1;
-      } else {
-        state.items = state.items.filter(item => item.id !== id);
-      }
-    },
-
-    // Remove entire product from cart
-    removeItem(state, action) {
-      const id = action.payload;
-      state.items = state.items.filter(item => item.id !== id);
-    },
-
-    // Clear all cart items
     clearCart(state) {
       state.items = [];
-    }
-  }
+      state.cartId = null;
+      persistCartId('');
+    },
+  },
+  extraReducers: (builder) => {
+    const fulfilled = (state, action) => {
+      state.status = 'succeeded';
+      state.error = null;
+      state.cartId = action.payload.cartId;
+      state.items = action.payload.items;
+    };
+
+    const pending = (state) => {
+      state.status = 'loading';
+      state.error = null;
+    };
+
+    const rejected = (state, action) => {
+      state.status = 'failed';
+      state.error = action.error?.message || 'Request failed';
+    };
+
+    builder
+      .addCase(bootstrapCart.pending, pending)
+      .addCase(bootstrapCart.fulfilled, fulfilled)
+      .addCase(bootstrapCart.rejected, rejected)
+      .addCase(addItem.pending, pending)
+      .addCase(addItem.fulfilled, fulfilled)
+      .addCase(addItem.rejected, rejected)
+      .addCase(decreaseItem.pending, pending)
+      .addCase(decreaseItem.fulfilled, fulfilled)
+      .addCase(decreaseItem.rejected, rejected)
+      .addCase(removeItem.pending, pending)
+      .addCase(removeItem.fulfilled, fulfilled)
+      .addCase(removeItem.rejected, rejected);
+  },
 });
 
-// Export actions for your components
-export const { addItem, decreaseItem, removeItem, clearCart } = cartSlice.actions;
+export const { clearCart } = cartSlice.actions;
 
-// Selectors for convenience
-export const selectCartItems = state => state.cart.items;
-export const selectCartCount = state =>
+export const selectCartItems = (state) => state.cart.items;
+export const selectCartCount = (state) =>
   state.cart.items.reduce((sum, item) => sum + item.qty, 0);
-export const selectCartSubtotal = state =>
+export const selectCartSubtotal = (state) =>
   state.cart.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+export const selectCartStatus = (state) => state.cart.status;
+export const selectCartError = (state) => state.cart.error;
 
-// Export reducer to store.js
 export default cartSlice.reducer;

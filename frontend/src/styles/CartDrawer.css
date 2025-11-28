@@ -99,13 +99,16 @@
   gap: 0.35rem;
 }
 
-.cart-item-qty button {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+.cart-item-qty .qty-btn {
+  border-radius: 999px;
   border: 1px solid #ccc;
   background: #fff;
   cursor: pointer;
+}
+
+.cart-item-qty .remove-btn {
+  border: none;
+  background: none;
 }
 
 /* ===========================

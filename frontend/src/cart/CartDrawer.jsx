@@ -44,7 +44,7 @@ const CartDrawer = ({ isOpen, onClose }) => {
             {/* Cart items */}
             <div className="cart-items">
               {items.map((item) => (
-                <div className="cart-item" key={item.id}>
+                <div className="cart-item d-flex align-items-start" key={item.id}>
                   <img
                     src={item.image}
                     alt={item.title}
@@ -58,26 +58,28 @@ const CartDrawer = ({ isOpen, onClose }) => {
                       ${item.price.toFixed(2)}
                     </div>
 
-                    <div className="cart-item-qty">
-                      {/* - decrease */}
-                      <button onClick={() => dispatch(decreaseItem(item.id))}>
-                        -
+                    <div className="cart-item-qty d-flex align-items-center mt-2">
+                      <button
+                        className="qty-btn btn btn-outline-secondary btn-sm rounded-pill px-3"
+                        type="button"
+                        onClick={() => dispatch(decreaseItem(item.id))}
+                      >
+                        –
                       </button>
-
-                      {/* quantity */}
-                      <span>{item.qty}</span>
-
-                      {/* + increase */}
-                      <button onClick={() => dispatch(addItem(item))}>
+                      <span className="mx-3">{item.qty}</span>
+                      <button
+                        className="qty-btn btn btn-outline-secondary btn-sm rounded-pill px-3"
+                        type="button"
+                        onClick={() => dispatch(addItem(item))}
+                      >
                         +
                       </button>
-
-                      {/* remove button */}
                       <button
-                        className="ms-2 btn btn-link p-0 text-danger"
+                        className="remove-btn ms-3 btn btn-link text-danger p-0 text-decoration-underline"
+                        type="button"
                         onClick={() => dispatch(removeItem(item.id))}
                       >
-                        remove
+                        Remove
                       </button>
                     </div>
                   </div>

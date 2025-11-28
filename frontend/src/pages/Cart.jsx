@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import {
   selectCartItems,
   selectCartSubtotal,
+  selectCartStatus,
+  selectCartError,
   addItem,
   decreaseItem,
   removeItem,
@@ -15,9 +17,11 @@ import {
 const Cart = () => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
+  const status = useSelector(selectCartStatus);
+  const error = useSelector(selectCartError);
   const dispatch = useDispatch();
 
-  if (!items || items.length === 0) {
+  if ((!items || items.length === 0) && status !== "loading") {
     return (
       <>
         <div className="container py-5">
@@ -36,11 +40,11 @@ const Cart = () => {
       <div className="container py-5">
         <h2 className="mb-4">Your Cart</h2>
 
+        {status === "loading" && <p>Syncing with backend...</p>}
+        {error && <p className="text-danger">{error}</p>}
+
         {items.map((item) => (
-          <div
-            className="row align-items-center border-bottom py-3"
-            key={item.id}
-          >
+          <div className="row align-items-center border-bottom py-3" key={item.id}>
             <div className="col-md-2 col-4">
               <img
                 src={item.image}
@@ -52,22 +56,22 @@ const Cart = () => {
 
             <div className="col-md-4 col-8">
               <h6 className="mb-1">{item.title}</h6>
-              <small className="text-muted">
-                ${item.price.toFixed(2)} each
-              </small>
+              <small className="text-muted">${item.price.toFixed(2)} each</small>
             </div>
 
             <div className="col-md-3 col-6 mt-3 mt-md-0">
               <div className="d-flex align-items-center">
                 <button
-                  className="btn btn-outline-secondary btn-sm"
+                  className="btn btn-outline-secondary btn-sm rounded-pill px-3"
+                  type="button"
                   onClick={() => dispatch(decreaseItem(item.id))}
                 >
-                  -
+                  –
                 </button>
-                <span className="mx-2">{item.qty}</span>
+                <span className="mx-3">{item.qty}</span>
                 <button
-                  className="btn btn-outline-secondary btn-sm"
+                  className="btn btn-outline-secondary btn-sm rounded-pill px-3"
+                  type="button"
                   onClick={() => dispatch(addItem(item))}
                 >
                   +
@@ -81,7 +85,8 @@ const Cart = () => {
 
             <div className="col-md-1 col-4 mt-3 mt-md-0 text-end">
               <button
-                className="btn btn-link text-danger p-0"
+                className="btn btn-link text-danger p-0 text-decoration-underline"
+                type="button"
                 onClick={() => dispatch(removeItem(item.id))}
               >
                 Remove
