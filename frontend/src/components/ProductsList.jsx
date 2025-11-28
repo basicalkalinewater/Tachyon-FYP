@@ -125,9 +125,7 @@ const ProductsList = () => {
                   <h5 className="card-title">
                     {product.title.substring(0, 12)}...
                   </h5>
-                  <p className="card-text">
-                    {product.description.substring(0, 90)}...
-                  </p>
+                  
                 </div>
                 <ul className="list-group list-group-flush">
                   <li className="list-group-item lead">$ {product.price}</li>
