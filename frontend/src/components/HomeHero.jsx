@@ -13,11 +13,9 @@ const HomeHero = () => {
           />
           <div className="card-img-overlay d-flex align-items-center">
             <div className="container">
-              <h5 className="card-title fs-1 text fw-lighter">New Season Arrivals</h5>
+              <h5 className="card-title fs-1 text fw-lighter">One-Stop Electronics Solution</h5>
               <p className="card-text fs-5 d-none d-sm-block ">
-                This is a wider card with supporting text below as a natural
-                lead-in to additional content. This content is a little bit
-                longer.
+                Powered by Tachyon Chatbot, we bring you the latest and greatest in electronics with unparalleled customer service.
               </p>
             </div>
           </div>

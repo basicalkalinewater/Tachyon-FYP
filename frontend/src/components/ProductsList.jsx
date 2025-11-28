@@ -85,25 +85,25 @@ const ProductsList = () => {
             className="btn btn-outline-dark btn-sm m-2"
             onClick={() => filterProduct("men's clothing")}
           >
-            Men's Clothing
+            Monitor
           </button>
           <button
             className="btn btn-outline-dark btn-sm m-2"
             onClick={() => filterProduct("women's clothing")}
           >
-            Women's Clothing
+            Keyboard
           </button>
           <button
             className="btn btn-outline-dark btn-sm m-2"
             onClick={() => filterProduct("jewelery")}
           >
-            Jewelery
+            Mouse
           </button>
           <button
             className="btn btn-outline-dark btn-sm m-2"
             onClick={() => filterProduct("electronics")}
           >
-            Electronics
+            Solid State Drive
           </button>
         </div>
 

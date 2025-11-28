@@ -35,7 +35,7 @@ const Navbar = () => {
         <div className="container">
           {/* Brand */}
           <NavLink className="navbar-brand fw-bold fs-4 px-2" to="/">
-            React Ecommerce
+            Tachyon
           </NavLink>
 
           {/* Mobile toggler */}
