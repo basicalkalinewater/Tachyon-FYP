@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 
 const HomeHero = () => {
   return (
@@ -17,6 +18,9 @@ const HomeHero = () => {
               <p className="card-text fs-5 d-none d-sm-block ">
                 Powered by Tachyon Chatbot, we bring you the latest and greatest in electronics with unparalleled customer service.
               </p>
+              <Link to="/products" className="btn btn-primary rounded-pill text-white px-4 py-2 mt-3 fw-semibold">
+                Shop
+              </Link>
             </div>
           </div>
         </div>

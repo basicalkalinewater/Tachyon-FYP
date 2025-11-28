@@ -232,11 +232,11 @@ const ProductsList = () => {
                   </li>
                 </ul>
                 <div className="card-body">
-                  <Link to={"/product/" + product.id} className="btn btn-dark m-1">
-                    View Product
+                  <Link to={"/product/" + product.id} className="btn btn-primary text-white rounded-pill px-3 m-1">
+                    Learn More
                   </Link>
                   <button
-                    className="btn btn-dark m-1"
+                    className="btn btn-dark rounded-pill px-3 m-1"
                     onClick={() => {
                       toast.success("Added to cart");
                       dispatch(addItem(product));

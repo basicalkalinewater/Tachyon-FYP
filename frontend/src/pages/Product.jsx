@@ -157,8 +157,8 @@ const Product = () => {
                     <h5 className="card-title">{item.title.substring(0, 15)}...</h5>
                   </div>
                   <div className="card-body">
-                    <Link to={"/product/" + item.id} className="btn btn-dark m-1">
-                      View Product
+                    <Link to={"/product/" + item.id} className="btn btn-primary text-white rounded-pill px-3 m-1">
+                      Learn More
                     </Link>
                     <button className="btn btn-dark m-1" onClick={() => addProduct(item)}>
                       Add to Cart
