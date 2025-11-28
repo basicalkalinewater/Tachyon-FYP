@@ -6,7 +6,7 @@ import "./styles/global.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider, useDispatch } from "react-redux";
 import store from "./redux/store";
-import { Navbar, ScrollToTop, Footer } from "./components";
+import { Navbar, ScrollToTop, Footer, RasaWidget } from "./components";
 import { bootstrapCart } from "./redux/cartSlice";
 
 import {
@@ -60,6 +60,7 @@ root.render(
         </ScrollToTop>
 
         <Toaster />
+        <RasaWidget />
       </CartInitializer>
     </BrowserRouter>
   </Provider>
