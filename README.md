@@ -1,6 +1,6 @@
 # Tachyon Chatbot Commerce
 
-React + Supabase-backed storefront with carts/products API.
+React + Supabase-backed storefront with carts/products API. Backend runs on Flask (Python).
 
 ## Prerequisites
 - Node.js (npm) installed.
@@ -19,13 +19,22 @@ React + Supabase-backed storefront with carts/products API.
    ```
 
 ## Install & Run
-In one terminal:
+
+### Backend (Flask, Supabase)
 ```
 cd backend
-npm install
-npm run dev
+python -m venv .venv
+.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
+pip install -r requirements.txt
+flask --app app run --port 4000
 ```
-In another terminal:
+If the venv is already set up and dependencies installed, you can skip activation/install and just run:
+```
+cd backend
+flask --app app run --port 4000
+```
+
+### Frontend (Vite/React)
 ```
 cd frontend
 npm install
