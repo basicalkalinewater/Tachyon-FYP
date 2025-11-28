@@ -3,9 +3,15 @@ node_modules
 backend/node_modules
 frontend/node_modules
 .venv
+**/.venv
 /.DS_Store
 /.pnp
 .pnp.js
+/**/.rasa
+rasa/models
+rasa/.venv
+**/__pycache__/
+*.py[cod]
 
 # Logs
 npm-debug.log*
