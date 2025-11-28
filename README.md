@@ -20,11 +20,11 @@ React + Supabase-backed storefront with carts/products API. Backend runs on Flas
 
 ## Install & Run
 
-### Backend (Flask, Supabase)
+### Backend (Flask, Supabase) — Python 3.10
 ```
 cd backend
-python -m venv .venv
-.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
+py -3.10 -m venv .venv
+.\.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
 flask --app app run --port 4000
 ```
@@ -41,6 +41,26 @@ npm install
 npm run dev
 ```
 Open http://localhost:3000
+
+### Rasa chatbot (local) — Python 3.10
+Install Rasa in its own venv (Python 3.10):
+```
+cd rasa
+py -3.10 -m venv .venv
+.\.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
+pip install -r requirements.txt   # installs rasa==3.6.20
+```
+If the venv is already set up with Rasa installed, skip to:
+```
+cd rasa
+rasa train
+rasa run --enable-api --cors "*"   # starts on http://localhost:5005 with CORS open
+```
+Optional (if you add custom actions):
+```
+rasa run actions
+```
+Then set `VITE_RASA_URL=http://localhost:5005/webhooks/rest/webhook` in your `.env` so the web widget can talk to Rasa. Deprecation warnings during `rasa train`/`run` (SQLAlchemy/pkg_resources) are expected on 3.6.20 and can be ignored.
 
 ## Notes
 - Product images are served locally from `frontend/public/assets/...` matching the seed paths.
