@@ -95,19 +95,11 @@ const CartDrawer = ({ isOpen, onClose }) => {
               </div>
 
               <div className="cart-actions">
-                <NavLink
-                  to="/cart"
-                  className="btn btn-outline-dark w-100 mb-2"
-                  onClick={onClose}
-                >
+                <NavLink to="/cart" className="btn btn-outline-saas w-100 mb-2" onClick={onClose}>
                   View Cart
                 </NavLink>
 
-                <NavLink
-                  to="/checkout"
-                  className="btn btn-dark w-100"
-                  onClick={onClose}
-                >
+                <NavLink to="/checkout" className="btn btn-primary-saas w-100" onClick={onClose}>
                   Checkout
                 </NavLink>
               </div>

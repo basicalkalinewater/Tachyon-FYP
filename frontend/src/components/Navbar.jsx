@@ -2,20 +2,27 @@
 
 import React, { useEffect, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 
 import CartDrawer from "../cart/CartDrawer";
 import { selectCartCount } from "../redux/cartSlice";
+import { logout, selectCurrentUser } from "../redux/authSlice";
 
 import "../styles/Navbar.css";
 
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
+  const dispatch = useDispatch();
 
-  // 👇 Get total items in cart from Redux
   const cartCount = useSelector(selectCartCount);
+  const currentUser = useSelector(selectCurrentUser);
+  const dashboardRoute = "/dashboard/customer";
+  const accountLabel =
+    (currentUser?.fullName && currentUser.fullName.trim()) ||
+    currentUser?.email?.split("@")[0] ||
+    "Account";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -39,6 +46,10 @@ const Navbar = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
+  const handleLogout = () => {
+    dispatch(logout());
+  };
+
   return (
     <>
       <nav
@@ -51,11 +62,7 @@ const Navbar = () => {
           {/* Brand */}
           <NavLink className="navbar-brand d-flex align-items-center gap-2" to="/">
             <div className="brand-logo-wrapper">
-               <img
-              src="/assets/logo/logo.png"
-              alt="Tachyon logo"
-              className="brand-logo"
-            />
+              <img src="/assets/logo/logo.png" alt="Tachyon logo" className="brand-logo" />
             </div>
             <span className="brand-text">Tachyon</span>
           </NavLink>
@@ -97,20 +104,38 @@ const Navbar = () => {
 
             {/* Right side actions */}
             <div className="d-flex align-items-center gap-3">
-               <NavLink className="nav-link fw-medium" to="/login">
+              {!currentUser && (
+                <NavLink className="nav-link fw-medium" to="/login">
                   Log in
                 </NavLink>
-              
+              )}
+
+              {currentUser && (
+                <>
+                  <NavLink className="btn btn-outline-saas px-3" to={dashboardRoute}>
+                    <i className="fa fa-user-circle" aria-hidden="true" />
+                    <span className="d-none d-md-inline ms-2">{accountLabel}</span>
+                  </NavLink>
+                  <button
+                    type="button"
+                    className="btn btn-link text-decoration-none text-muted"
+                    onClick={handleLogout}
+                  >
+                    Log out
+                  </button>
+                </>
+              )}
+
               <button
                 className="btn btn-outline-saas theme-toggle p-2"
                 type="button"
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
-                style={{ width: '40px', height: '40px', padding: 0 }}
+                style={{ width: "40px", height: "40px", padding: 0 }}
               >
                 <i className={`fa fa-${theme === "dark" ? "sun-o" : "moon-o"}`} />
               </button>
-              
+
               <button
                 className="btn btn-primary-saas position-relative"
                 onClick={() => setIsCartOpen(true)}
