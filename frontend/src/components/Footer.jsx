@@ -9,7 +9,6 @@ const Footer = () => {
         <div className="row g-4 mb-5">
           <div className="col-lg-4 col-md-6">
             <Link to="/" className="d-flex align-items-center gap-2 mb-3 text-decoration-none">
-              <img src="/assets/logo/logo.png" alt="Logo" style={{ height: '32px' }} />
               <span className="fw-bold fs-4 text-white">Tachyon</span>
             </Link>
             <p className="text-muted small mb-4" style={{ maxWidth: '300px' }}>

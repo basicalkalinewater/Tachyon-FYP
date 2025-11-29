@@ -31,6 +31,10 @@ const Navbar = () => {
     localStorage.setItem("theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    document.body.classList.toggle("cart-open", isCartOpen);
+  }, [isCartOpen]);
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };

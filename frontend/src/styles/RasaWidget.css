@@ -5,6 +5,10 @@
   z-index: 1050;
 }
 
+body.cart-open .chat-widget {
+  display: none !important;
+}
+
 .chat-toggle-wrapper {
   position: relative;
   display: flex;

@@ -11,13 +11,13 @@ const HomeHero = () => {
         <div className="row align-items-center">
           <div className="col-lg-8 mx-auto text-center">
             <span className="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 mb-3 fw-semibold">
-              New Arrival: Tachyon Series X
+              New Arrival: ASUS ROG Swift 360Hz Monitor!
             </span>
             <h1 className="hero-title fw-bold mb-4">
-              The Future of <span className="text-gradient">Tachyon</span> is Here
+              <span className="text-gradient">Tachyon</span> Electronics
             </h1>
             <p className="hero-subtitle mb-5 text-muted mx-auto">
-              Experience unparalleled performance with our latest collection.
+              Experience unparalleled gaming performance with our latest collection.
               Powered by Tachyon Chatbot to bring you the best shopping experience.
             </p>
             <div className="d-flex justify-content-center gap-3">
