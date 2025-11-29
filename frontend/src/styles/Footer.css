@@ -1,51 +1,38 @@
-.footer-dark {
-  background: var(--bg-section);
-  color: var(--text);
+.footer-saas {
+  background-color: #0f172a;
+  /* Slate 900 */
+  color: #94a3b8;
+  /* Slate 400 */
 }
 
-.footer-dark h5 {
-  color: var(--text);
-  letter-spacing: 0.5px;
-}
-
-.footer-dark ul li {
-  margin-bottom: 8px;
-}
-
-.footer-dark ul li a {
-  color: var(--muted);
+.footer-link {
+  color: #94a3b8;
   text-decoration: none;
-  font-size: 14px;
+  transition: color 0.2s ease;
+  font-size: 0.95rem;
 }
 
-.footer-dark ul li a:hover {
-  color: var(--text);
-}
-
-.social-icons a {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: #1b2435;
-  color: #e6ecf4;
-  text-decoration: none;
-  font-size: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.social-icons a:hover {
-  background: #0b8cff;
+.footer-link:hover {
   color: #fff;
 }
 
-.footer-bottom {
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+.social-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  transition: all 0.2s ease;
 }
 
-.footer-bottom .badge {
-  font-size: 12px;
+.social-icon-link:hover {
+  background: var(--primary);
+  transform: translateY(-2px);
+}
+
+.border-secondary {
+  border-color: rgba(255, 255, 255, 0.1) !important;
 }

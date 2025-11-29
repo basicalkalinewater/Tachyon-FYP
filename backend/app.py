@@ -93,8 +93,10 @@ def create_product():
             "rating_count": payload.get("rating_count"),
             "specs": payload.get("specs") or {},
         }
-        res = supabase.table("products").insert(body).select("*").single().execute()
-        return jsonify(map_product(res.data)), 201
+        res = supabase.table("products").insert(body).execute()
+        if not res.data:
+             return jsonify({"error": "Failed to create product"}), 500
+        return jsonify(map_product(res.data[0])), 201
     except Exception as err:
         app.logger.error(f"create product error: {err}")
         return jsonify({"error": str(err)}), 500
@@ -121,11 +123,11 @@ def update_product(product_id):
             supabase.table("products")
             .update(body)
             .eq("id", product_id)
-            .select("*")
-            .single()
             .execute()
         )
-        return jsonify(map_product(res.data))
+        if not res.data:
+            return jsonify({"error": "Failed to update product"}), 500
+        return jsonify(map_product(res.data[0]))
     except Exception as err:
         app.logger.error(f"update product error: {err}")
         return jsonify({"error": str(err)}), 500
@@ -134,8 +136,10 @@ def update_product(product_id):
 @app.post("/api/carts")
 def create_cart():
     try:
-        res = supabase.table("carts").insert({}).select("id").single().execute()
-        return jsonify({"cartId": res.data.get("id")}), 201
+        res = supabase.table("carts").insert({}).execute()
+        if not res.data:
+            return jsonify({"error": "Failed to create cart"}), 500
+        return jsonify({"cartId": res.data[0].get("id")}), 201
     except Exception as err:
         app.logger.error(f"create cart error: {err}")
         return jsonify({"error": str(err)}), 500

@@ -1,5 +1,3 @@
-// Import 
-
 import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
@@ -139,20 +137,20 @@ const ProductsList = () => {
     return (
       <>
         <div className="buttons text-center py-5">
-          <button className="btn btn-outline-dark btn-sm m-2" onClick={() => filterProduct(null)}>
+          <button className="btn btn-outline-saas btn-sm m-2" onClick={() => filterProduct(null)}>
             All
           </button>
           {categories.map((cat) => (
             <button
               key={cat}
-              className="btn btn-outline-dark btn-sm m-2"
+              className="btn btn-outline-saas btn-sm m-2"
               onClick={() => filterProduct(cat)}
             >
               {cat === "ssd"
                 ? "NVMe SSD"
                 : cat
-                ? cat.charAt(0).toUpperCase() + cat.slice(1)
-                : ""}
+                  ? cat.charAt(0).toUpperCase() + cat.slice(1)
+                  : ""}
             </button>
           ))}
         </div>
@@ -161,12 +159,12 @@ const ProductsList = () => {
           <div className="text-center pb-4">
             {Object.entries(specOptions).map(([key, options]) => (
               <div key={key} className="mb-2">
-                <span className="mr-2 text-uppercase small">
+                <span className="mr-2 text-uppercase small fw-bold text-muted">
                   {key === "capacity_gb"
                     ? "Capacity"
                     : key === "polling_hz"
-                    ? "Polling Rate"
-                    : key.replace(/_/g, " ")}
+                      ? "Polling Rate"
+                      : key.replace(/_/g, " ")}
                   :
                 </span>
                 {options.map((opt) => {
@@ -176,14 +174,13 @@ const ProductsList = () => {
                         ? `${opt / 1000}TB`
                         : `${opt}GB`
                       : key === "polling_hz"
-                      ? `${opt}Hz`
-                      : opt;
+                        ? `${opt}Hz`
+                        : opt;
                   return (
                     <button
                       key={opt}
-                      className={`btn btn-outline-dark btn-sm m-1 ${
-                        specFilters[key] === opt ? "active" : ""
-                      }`}
+                      className={`btn btn-sm m-1 ${specFilters[key] === opt ? "btn-primary-saas" : "btn-outline-saas"
+                        }`}
                       onClick={() => handleSpecFilterChange(key, opt)}
                     >
                       {label}
@@ -198,52 +195,42 @@ const ProductsList = () => {
         {filter.map((product) => {
           return (
             <div id={product.id} key={product.id} className="col-md-4 col-sm-6 col-xs-8 col-12 mb-4">
-              <div className="card text-center h-100" key={product.id}>
-                <img className="card-img-top p-3" src={product.image} alt="Card" height={300} />
-                <div className="card-body">
-                  <h5 className="card-title">{product.title}</h5>
-                  {product.specs && (
-                    <ul className="list-unstyled small text-muted text-start">
-                      {product.specs.panel_type && <li>Panel: {product.specs.panel_type}</li>}
-                      {product.specs.refresh_hz && <li>Refresh: {product.specs.refresh_hz}Hz</li>}
-                      {product.specs.screen_size_inches && (
-                        <li>Size: {product.specs.screen_size_inches}"</li>
-                      )}
-                      {product.specs.size && <li>Size: {product.specs.size}</li>}
-                      {product.specs.switch_type && <li>Switch: {product.specs.switch_type}</li>}
-                      {product.specs.connection && (
-                        <li>
-                          Connection:{" "}
-                          {Array.isArray(product.specs.connection)
-                            ? product.specs.connection.join(", ")
-                            : product.specs.connection}
-                        </li>
-                      )}
-                      {product.specs.polling_hz && <li>Polling: {product.specs.polling_hz}Hz</li>}
-                      {product.specs.capacity_gb && <li>Capacity: {product.specs.capacity_gb}GB</li>}
-                      {product.specs.interface && <li>Interface: {product.specs.interface}</li>}
-                      {product.specs.read_mb_s && <li>Read: {product.specs.read_mb_s} MB/s</li>}
-                    </ul>
-                  )}
+              <div className="card-saas h-100 d-flex flex-column" key={product.id}>
+                <div className="p-4 d-flex align-items-center justify-content-center bg-white border-bottom border-light" style={{ height: "280px" }}>
+                  <img className="img-fluid" src={product.image} alt={product.title} style={{ maxHeight: "200px", objectFit: "contain" }} />
                 </div>
-                <ul className="list-group list-group-flush">
-                  <li className="list-group-item lead">
-                    <strong>${product.price}</strong>
-                  </li>
-                </ul>
-                <div className="card-body">
-                  <Link to={"/product/" + product.id} className="btn btn-primary text-white rounded-pill px-3 m-1">
-                    Learn More
-                  </Link>
-                  <button
-                    className="btn btn-dark rounded-pill px-3 m-1"
-                    onClick={() => {
-                      toast.success("Added to cart");
-                      dispatch(addItem(product));
-                    }}
-                  >
-                    Add to Cart
-                  </button>
+                <div className="card-body d-flex flex-column p-4">
+                  <h5 className="card-title fw-bold mb-1 text-truncate" title={product.title}>{product.title}</h5>
+                  <p className="text-muted small mb-3 text-capitalize">{product.category}</p>
+
+                  {product.specs && (
+                    <div className="mb-3 small text-muted">
+                      {/* Show only key specs to keep it clean */}
+                      {product.specs.screen_size_inches && <div>Size: {product.specs.screen_size_inches}"</div>}
+                      {product.specs.capacity_gb && <div>Capacity: {product.specs.capacity_gb}GB</div>}
+                      {product.specs.switch_type && <div>Switch: {product.specs.switch_type}</div>}
+                    </div>
+                  )}
+
+                  <div className="mt-auto">
+                    <div className="d-flex align-items-center justify-content-between mb-3">
+                      <span className="fs-5 fw-bold text-primary">${product.price}</span>
+                    </div>
+                    <div className="d-grid gap-2">
+                      <button
+                        className="btn btn-primary-saas btn-sm"
+                        onClick={() => {
+                          toast.success("Added to cart");
+                          dispatch(addItem(product));
+                        }}
+                      >
+                        Add to Cart
+                      </button>
+                      <Link to={"/product/" + product.id} className="btn btn-outline-saas btn-sm">
+                        Details
+                      </Link>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -255,11 +242,11 @@ const ProductsList = () => {
 
   return (
     <>
-      <div className="container my-3 py-3">
+      <div className="container my-5 py-3">
         <div className="row">
-          <div className="col-12">
-            <h2 className="display-5 text-center">Latest Products</h2>
-            <hr />
+          <div className="col-12 text-center mb-5">
+            <h2 className="display-5 fw-bold">Latest Products</h2>
+            <p className="text-muted">Explore our cutting-edge collection</p>
           </div>
         </div>
         <div className="row justify-content-center">

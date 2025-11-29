@@ -41,11 +41,19 @@ const ensureCartId = async (getState) => {
   return cartId;
 };
 
+const normalizeItems = (items) => {
+  if (!Array.isArray(items)) return [];
+  return items.map((item) => ({
+    ...item,
+    qty: item.qty || item.quantity || 0,
+  }));
+};
+
 export const bootstrapCart = createAsyncThunk('cart/bootstrap', async (_, { getState }) => {
   const cartId = await ensureCartId(getState);
   const data = await fetchCart(cartId);
   persistCartId(cartId);
-  return { cartId, items: data.items || [] };
+  return { cartId, items: normalizeItems(data.items) };
 });
 
 export const addItem = createAsyncThunk('cart/addItem', async (product, { getState }) => {
@@ -55,7 +63,7 @@ export const addItem = createAsyncThunk('cart/addItem', async (product, { getSta
   await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
   const data = await fetchCart(cartId);
   persistCartId(cartId);
-  return { cartId, items: data.items || [] };
+  return { cartId, items: normalizeItems(data.items) };
 });
 
 export const decreaseItem = createAsyncThunk('cart/decreaseItem', async (productId, { getState }) => {
@@ -73,14 +81,14 @@ export const decreaseItem = createAsyncThunk('cart/decreaseItem', async (product
   }
 
   const data = await fetchCart(cartId);
-  return { cartId, items: data.items || [] };
+  return { cartId, items: normalizeItems(data.items) };
 });
 
 export const removeItem = createAsyncThunk('cart/removeItem', async (productId, { getState }) => {
   const cartId = await ensureCartId(getState);
   await removeCartItem(cartId, productId);
   const data = await fetchCart(cartId);
-  return { cartId, items: data.items || [] };
+  return { cartId, items: normalizeItems(data.items) };
 });
 
 const cartSlice = createSlice({

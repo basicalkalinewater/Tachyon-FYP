@@ -1,37 +1,75 @@
-.hero-outer {
-  background: url("/assets/hero/hero.png") center/cover no-repeat #0b1228;
+.hero-section {
+  min-height: 85vh;
+  /* Even richer background for light mode */
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
   position: relative;
   overflow: hidden;
-  padding: 6rem 0; /* taller hero */
-  min-height: 80vh;
-  display: flex;
-  align-items: center;
-  cursor: pointer;
 }
 
-.hero-content {
+/* Add decorative blobs for visual interest */
+.hero-section::before {
+  content: '';
+  position: absolute;
+  top: -10%;
+  right: -10%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(60px);
+  z-index: 0;
+}
+
+.hero-section::after {
+  content: '';
+  position: absolute;
+  bottom: -10%;
+  left: -10%;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(60px);
+  z-index: 0;
+}
+
+/* Ensure content stays on top */
+.hero-section .container {
   position: relative;
   z-index: 1;
 }
 
-.hero-graphic {
-  max-width: 420px;
-  width: 100%;
-  filter: brightness(0.7) drop-shadow(0 12px 45px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 24px rgba(64, 128, 255, 0.3));
+/* Dark mode adjustments */
+.theme-dark .hero-section {
+  background: transparent;
+  /* Let the dark body background show */
+}
+
+.theme-dark .hero-section::before {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
+}
+
+.theme-dark .hero-section::after {
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.1) 0%, transparent 70%);
 }
 
 .hero-title {
-  font-size: clamp(32px, 5vw, 44px);
-  color: #f5f7ff;
+  font-size: clamp(2.5rem, 5vw, 4.5rem);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
 }
 
 .hero-subtitle {
-  font-size: clamp(16px, 3vw, 20px);
-  color: #d6ddff;
-  max-width: 720px;
-  margin: 8px auto 0;
+  font-size: 1.25rem;
+  max-width: 600px;
+  line-height: 1.6;
 }
 
-.hero-cta {
-  box-shadow: 0 8px 18px rgba(11, 140, 255, 0.35);
+.bg-primary-subtle {
+  background-color: rgba(99, 102, 241, 0.1) !important;
+}
+
+.text-primary {
+  color: var(--primary) !important;
 }

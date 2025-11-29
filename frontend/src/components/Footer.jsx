@@ -4,52 +4,67 @@ import "../styles/Footer.css";
 
 const Footer = () => {
   return (
-    <footer className="footer-dark">
-      <div className="container py-5">
-        <div className="row g-4">
-          <div className="col-md-3 col-sm-6">
-            <h5 className="fw-bold text-uppercase">About Us</h5>
-            <ul className="list-unstyled mt-3">
-              <li><Link to="/about">Our Story</Link></li>
-            </ul>
-          </div>
-          <div className="col-md-3 col-sm-6">
-            <h5 className="fw-bold text-uppercase">Customer Support</h5>
-            <ul className="list-unstyled mt-3">
-              <li><Link to="/shipping-returns">Shipping & Returns</Link></li>
-              <li><Link to="/faq">FAQ</Link></li>
-            </ul>
-          </div>
-          <div className="col-md-3 col-sm-6">
-            <h5 className="fw-bold text-uppercase">Help Center</h5>
-            <ul className="list-unstyled mt-3">
-              <li><Link to="/contact">Contact Us</Link></li>
-            </ul>
-          </div>
-          <div className="col-md-3 col-sm-6">
-            <h5 className="fw-bold text-uppercase">Connect with Us</h5>
-            <div className="social-icons my-3">
-              {['facebook', 'twitter', 'instagram'].map((icon) => (
-                <a key={icon} href="#" aria-label={icon}>
-                  <i className={`fa fa-${icon === 'tiktok' ? 'music' : icon}`} />
+    <footer className="footer-saas pt-5 pb-3">
+      <div className="container">
+        <div className="row g-4 mb-5">
+          <div className="col-lg-4 col-md-6">
+            <Link to="/" className="d-flex align-items-center gap-2 mb-3 text-decoration-none">
+              <img src="/assets/logo/logo.png" alt="Logo" style={{ height: '32px' }} />
+              <span className="fw-bold fs-4 text-white">Tachyon</span>
+            </Link>
+            <p className="text-muted small mb-4" style={{ maxWidth: '300px' }}>
+              Empowering your digital lifestyle with cutting-edge electronics and AI-driven support.
+            </p>
+            <div className="d-flex gap-3">
+              {['facebook', 'twitter', 'instagram', 'linkedin'].map((icon) => (
+                <a key={icon} href="#" className="social-icon-link" aria-label={icon}>
+                  <i className={`fa fa-${icon}`} />
                 </a>
               ))}
             </div>
-            <p className="small mb-2">Want $20 Off? Sign up for our Newsletter.</p>
-            <p className="small mb-3">Sign up for email updates and be the first to know!</p>
-            <button className="btn btn-danger rounded-pill px-3">Get in the loop!</button>
           </div>
-        </div>
-        <div className="footer-bottom mt-4 pt-3 d-flex flex-wrap justify-content-between align-items-center">
-          <div className="d-flex align-items-center">
-            <div className="small text">
-              <Link to="/privacy" className="text">Privacy Policy</Link> &nbsp;|&nbsp;
-              <Link to="/terms" className="text">Terms & Conditions</Link> &nbsp;|&nbsp;
-              <Link to="/accessibility" className="text">Accessibility Statement</Link>
+
+          <div className="col-lg-2 col-md-6">
+            <h6 className="fw-bold text-white mb-3">Shop</h6>
+            <ul className="list-unstyled">
+              <li className="mb-2"><Link to="/products" className="footer-link">All Products</Link></li>
+              <li className="mb-2"><Link to="/products?cat=monitor" className="footer-link">Monitors</Link></li>
+              <li className="mb-2"><Link to="/products?cat=keyboard" className="footer-link">Keyboards</Link></li>
+              <li className="mb-2"><Link to="/products?cat=mouse" className="footer-link">Mice</Link></li>
+            </ul>
+          </div>
+
+          <div className="col-lg-2 col-md-6">
+            <h6 className="fw-bold text-white mb-3">Support</h6>
+            <ul className="list-unstyled">
+              <li className="mb-2"><Link to="/contact" className="footer-link">Contact Us</Link></li>
+              <li className="mb-2"><Link to="/faq" className="footer-link">FAQs</Link></li>
+              <li className="mb-2"><Link to="/shipping-returns" className="footer-link">Shipping</Link></li>
+              <li className="mb-2"><Link to="/accessibility" className="footer-link">Accessibility</Link></li>
+            </ul>
+          </div>
+
+          <div className="col-lg-4 col-md-6">
+            <h6 className="fw-bold text-white mb-3">Stay Updated</h6>
+            <p className="text-muted small mb-3">Subscribe to our newsletter for the latest tech news and exclusive offers.</p>
+            <div className="input-group mb-3">
+              <input type="email" className="form-control border-0" placeholder="Enter your email" aria-label="Email" />
+              <button className="btn btn-primary-saas" type="button">Subscribe</button>
             </div>
           </div>
-          <div className="small text">
-            Tachyon Chatbot � 2025. All rights reserved.
+        </div>
+
+        <div className="border-top border-secondary pt-4">
+          <div className="row align-items-center">
+            <div className="col-md-6 text-center text-md-start mb-3 mb-md-0">
+              <p className="small text-muted mb-0">&copy; 2025 Tachyon. All rights reserved.</p>
+            </div>
+            <div className="col-md-6 text-center text-md-end">
+              <ul className="list-inline mb-0 small">
+                <li className="list-inline-item"><Link to="/privacy" className="footer-link">Privacy</Link></li>
+                <li className="list-inline-item ms-3"><Link to="/terms" className="footer-link">Terms</Link></li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>

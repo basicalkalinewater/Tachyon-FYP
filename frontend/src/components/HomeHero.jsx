@@ -6,22 +6,36 @@ const HomeHero = () => {
   const navigate = useNavigate();
 
   return (
-    <section
-      className="hero-outer text-white text-center py-5"
-      role="button"
-      onClick={() => navigate("/products")}
-    >
-      <div className="container d-flex flex-column align-items-center hero-content">
-        <h1 className="hero-title fw-bold">One-Stop Electronics Solution</h1>
-        <p className="hero-subtitle fw-semibold">
-          Powered by Tachyon Chatbot, we bring you the latest and greatest in electronics with unparalleled customer service.
-        </p>
-        <Link
-          to="/products"
-          className="btn btn-primary rounded-pill text-white px-4 py-2 mt-3 fw-semibold hero-cta"
-        >
-          Shop
-        </Link>
+    <section className="hero-section d-flex align-items-center">
+      <div className="container">
+        <div className="row align-items-center">
+          <div className="col-lg-8 mx-auto text-center">
+            <span className="badge bg-primary-subtle text-primary rounded-pill px-3 py-2 mb-3 fw-semibold">
+              New Arrival: Tachyon Series X
+            </span>
+            <h1 className="hero-title fw-bold mb-4">
+              The Future of <span className="text-gradient">Electronics</span> is Here
+            </h1>
+            <p className="hero-subtitle mb-5 text-muted mx-auto">
+              Experience unparalleled performance with our latest collection.
+              Powered by advanced AI to bring you the best shopping experience.
+            </p>
+            <div className="d-flex justify-content-center gap-3">
+              <Link
+                to="/products"
+                className="btn btn-primary-saas btn-lg"
+              >
+                Shop Now <i className="fa fa-arrow-right ms-2" />
+              </Link>
+              <Link
+                to="/about"
+                className="btn btn-outline-saas btn-lg"
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );

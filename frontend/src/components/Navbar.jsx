@@ -38,25 +38,27 @@ const Navbar = () => {
   return (
     <>
       <nav
-        className={`navbar navbar-expand-lg navbar-light bg-light sticky-top ${
-          isScrolled ? "navbar-shrink" : ""
+        className={`navbar navbar-expand-lg sticky-top ${
+          isScrolled ? "glass-panel py-2" : "bg-transparent py-4"
         }`}
+        style={{ transition: "all 0.3s ease" }}
       >
         <div className="container">
           {/* Brand */}
-          <NavLink className="navbar-brand fw-bold fs-4 px-2 d-flex align-items-center" to="/">
-            <img
+          <NavLink className="navbar-brand d-flex align-items-center gap-2" to="/">
+            <div className="brand-logo-wrapper">
+               <img
               src="/assets/logo/logo.png"
               alt="Tachyon logo"
-              className="me-2"
-              style={{ height: "28px", width: "28px", objectFit: "contain" }}
+              className="brand-logo"
             />
-            Tachyon
+            </div>
+            <span className="brand-text">Tachyon</span>
           </NavLink>
 
           {/* Mobile toggler */}
           <button
-            className="navbar-toggler mx-2"
+            className="navbar-toggler border-0"
             type="button"
             data-bs-toggle="collapse"
             data-bs-target="#navbarSupportedContent"
@@ -69,7 +71,7 @@ const Navbar = () => {
 
           {/* Links + Cart button */}
           <div className="collapse navbar-collapse" id="navbarSupportedContent">
-            <ul className="navbar-nav ms-auto mb-2 mb-lg-0">
+            <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4">
               <li className="nav-item">
                 <NavLink className="nav-link" to="/">
                   Home
@@ -83,34 +85,45 @@ const Navbar = () => {
               </li>
 
               <li className="nav-item">
-                <NavLink className="nav-link" to="/login">
-                  Account
+                <NavLink className="nav-link" to="/about">
+                  About
                 </NavLink>
               </li>
             </ul>
 
-            {/* Cart button (right side) */}
-            <div className="d-flex align-items-center ms-lg-3 mt-2 mt-lg-0 gap-2">
+            {/* Right side actions */}
+            <div className="d-flex align-items-center gap-3">
+               <NavLink className="nav-link fw-medium" to="/login">
+                  Log in
+                </NavLink>
+              
               <button
-                className="btn btn-outline-secondary theme-toggle"
+                className="btn btn-outline-saas theme-toggle p-2"
                 type="button"
                 onClick={toggleTheme}
                 aria-label="Toggle theme"
+                style={{ width: '40px', height: '40px', padding: 0 }}
               >
                 <i className={`fa fa-${theme === "dark" ? "sun-o" : "moon-o"}`} />
               </button>
+              
               <button
-                className="btn btn-outline-dark cart-btn"
+                className="btn btn-primary-saas position-relative"
                 onClick={() => setIsCartOpen(true)}
               >
-                <i className="fa fa-shopping-cart me-2" />
-                Cart ({cartCount})
+                <i className="fa fa-shopping-cart" />
+                <span className="d-none d-md-inline">Cart</span>
+                {cartCount > 0 && (
+                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light">
+                    {cartCount}
+                    <span className="visually-hidden">items in cart</span>
+                  </span>
+                )}
               </button>
             </div>
           </div>
         </div>
       </nav>
-
       {/* Cart Drawer component */}
       <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
     </>

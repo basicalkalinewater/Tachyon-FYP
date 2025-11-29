@@ -79,7 +79,7 @@ const Product = () => {
         <div className="container my-5 py-2">
           <div className="row">
             <div className="col-md-6 col-sm-12 py-3">
-              <div className="product-image-wrap">
+              <div className="product-image-wrap p-4 bg-white rounded-4 border border-light shadow-sm">
                 {product.image && (
                   <InnerImageZoom
                     src={product.image}
@@ -93,46 +93,51 @@ const Product = () => {
               </div>
             </div>
             <div className="col-md-6 col-md-6 py-5">
-              <h4 className="text-uppercase text-muted">{product.category}</h4>
-              <h1 className="display-5">{product.title}</h1>
-              <p className="lead">
-                {product.rating} <i className="fa fa-star"></i>
+              <h4 className="text-uppercase text-primary fw-bold small mb-2">{product.category}</h4>
+              <h1 className="display-5 fw-bold mb-3">{product.title}</h1>
+              <p className="lead mb-4">
+                {product.rating} <i className="fa fa-star text-warning"></i>
               </p>
-              <h3 className="display-6  my-4">
-                <strong>${product.price}</strong>
+              <h3 className="display-6 fw-bold text-primary mb-4">
+                ${product.price}
               </h3>
-              <p className="lead">{product.description}</p>
+              <p className="lead text-muted mb-5">{product.description}</p>
               {product.specs && (
-                <ul className="list-unstyled text-muted">
-                  {product.specs.panel_type && <li><strong>Panel:</strong> {product.specs.panel_type}</li>}
-                  {product.specs.refresh_hz && <li><strong>Refresh:</strong> {product.specs.refresh_hz}Hz</li>}
-                  {product.specs.screen_size_inches && (
-                    <li><strong>Size:</strong> {product.specs.screen_size_inches}"</li>
-                  )}
-                  {product.specs.resolution && <li><strong>Resolution:</strong> {product.specs.resolution}</li>}
-                  {product.specs.size && <li><strong>Size:</strong> {product.specs.size}</li>}
-                  {product.specs.switch_type && <li><strong>Switch:</strong> {product.specs.switch_type}</li>}
-                  {product.specs.connection && (
-                    <li>
-                      <strong>Connection:</strong>{" "}
-                      {Array.isArray(product.specs.connection)
-                        ? product.specs.connection.join(", ")
-                        : product.specs.connection}
-                    </li>
-                  )}
-                  {product.specs.polling_hz && <li><strong>Polling:</strong> {product.specs.polling_hz}Hz</li>}
-                  {product.specs.capacity_gb && <li><strong>Capacity:</strong> {product.specs.capacity_gb}GB</li>}
-                  {product.specs.interface && <li><strong>Interface:</strong> {product.specs.interface}</li>}
-                  {product.specs.read_mb_s && <li><strong>Read:</strong> {product.specs.read_mb_s} MB/s</li>}
-                  {product.specs.write_mb_s && <li><strong>Write:</strong> {product.specs.write_mb_s} MB/s</li>}
-                </ul>
+                <div className="bg-light p-4 rounded-4 mb-5 border border-light">
+                  <h6 className="fw-bold mb-3">Specifications</h6>
+                  <ul className="list-unstyled text-muted mb-0 small">
+                    {product.specs.panel_type && <li className="mb-2"><strong>Panel:</strong> {product.specs.panel_type}</li>}
+                    {product.specs.refresh_hz && <li className="mb-2"><strong>Refresh:</strong> {product.specs.refresh_hz}Hz</li>}
+                    {product.specs.screen_size_inches && (
+                      <li className="mb-2"><strong>Size:</strong> {product.specs.screen_size_inches}"</li>
+                    )}
+                    {product.specs.resolution && <li className="mb-2"><strong>Resolution:</strong> {product.specs.resolution}</li>}
+                    {product.specs.size && <li className="mb-2"><strong>Size:</strong> {product.specs.size}</li>}
+                    {product.specs.switch_type && <li className="mb-2"><strong>Switch:</strong> {product.specs.switch_type}</li>}
+                    {product.specs.connection && (
+                      <li className="mb-2">
+                        <strong>Connection:</strong>{" "}
+                        {Array.isArray(product.specs.connection)
+                          ? product.specs.connection.join(", ")
+                          : product.specs.connection}
+                      </li>
+                    )}
+                    {product.specs.polling_hz && <li className="mb-2"><strong>Polling:</strong> {product.specs.polling_hz}Hz</li>}
+                    {product.specs.capacity_gb && <li className="mb-2"><strong>Capacity:</strong> {product.specs.capacity_gb}GB</li>}
+                    {product.specs.interface && <li className="mb-2"><strong>Interface:</strong> {product.specs.interface}</li>}
+                    {product.specs.read_mb_s && <li className="mb-2"><strong>Read:</strong> {product.specs.read_mb_s} MB/s</li>}
+                    {product.specs.write_mb_s && <li className="mb-2"><strong>Write:</strong> {product.specs.write_mb_s} MB/s</li>}
+                  </ul>
+                </div>
               )}
-              <button className="btn btn-outline-dark" onClick={() => addProduct(product)}>
-                Add to Cart
-              </button>
-              <Link to="/cart" className="btn btn-dark mx-3">
-                Go to Cart
-              </Link>
+              <div className="d-flex gap-3">
+                <button className="btn btn-outline-saas btn-lg px-4" onClick={() => addProduct(product)}>
+                  Add to Cart
+                </button>
+                <Link to="/cart" className="btn btn-primary-saas btn-lg px-4">
+                  Go to Cart
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -160,21 +165,23 @@ const Product = () => {
     return (
       <>
         <div className="py-4 my-4">
-          <div className="d-flex">
+          <div className="d-flex gap-4">
             {similarProducts.map((item) => {
               return (
-                <div key={item.id} className="card text-center similar-card">
-                  <img className="card-img-top p-3 similar-image" src={item.image} alt="Card" />
-                  <div className="card-body">
-                    <h5 className="card-title">{item.title.substring(0, 15)}...</h5>
+                <div key={item.id} className="card-saas h-100 d-flex flex-column" style={{ minWidth: "280px" }}>
+                  <div className="p-4 d-flex align-items-center justify-content-center bg-white border-bottom border-light" style={{ height: "220px" }}>
+                    <img className="img-fluid" src={item.image} alt={item.title} style={{ maxHeight: "180px", objectFit: "contain" }} />
                   </div>
-                  <div className="card-body">
-                    <Link to={"/product/" + item.id} className="btn btn-primary text-white rounded-pill px-3 m-1">
-                      Learn More
-                    </Link>
-                    <button className="btn btn-dark m-1" onClick={() => addProduct(item)}>
-                      Add to Cart
-                    </button>
+                  <div className="card-body d-flex flex-column p-4">
+                    <h5 className="card-title fw-bold mb-1 text-truncate" title={item.title}>{item.title}</h5>
+                    <div className="mt-auto pt-3">
+                      <Link to={"/product/" + item.id} className="btn btn-outline-saas w-100 btn-sm mb-2">
+                        View Details
+                      </Link>
+                      <button className="btn btn-primary-saas w-100 btn-sm" onClick={() => addProduct(item)}>
+                        Add to Cart
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
