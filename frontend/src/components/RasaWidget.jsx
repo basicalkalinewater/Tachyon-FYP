@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import "../styles/RasaWidget.css";
 
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
@@ -19,10 +19,22 @@ const RasaWidget = () => {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef(null);
+  const [isDark, setIsDark] = useState(() =>
+    typeof document !== "undefined" && document.body.classList.contains("theme-dark")
+  );
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(() => {
+      setIsDark(document.body.classList.contains("theme-dark"));
+    });
+    observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   const sendMessage = async (text) => {
     if (!text.trim()) return;
@@ -101,9 +113,13 @@ const RasaWidget = () => {
           </div>
         )}
         <div className="chat-toggle-wrapper">
-          <div className="chat-bubble">Need more help? Use our chatbot!</div>
+          <div className="chat-bubble">
+            <span className="me-1">
+            </span>
+            Need more help? Use our chatbot!
+          </div>
           <button className="chat-toggle-btn" onClick={() => setOpen((p) => !p)} aria-label="Toggle chat">
-            <span role="img" aria-label="chat">😊</span>
+            <span role="img" aria-label="chat">{isDark ? "🌙" : "😊"}</span>
           </button>
         </div>
       </div>
