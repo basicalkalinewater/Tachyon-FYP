@@ -11,7 +11,7 @@ const Login = () => {
           <div className="col-md-4 col-lg-4 col-sm-8 mx-auto">
             <form>
               <div class="my-3">
-                <label for="display-4">Email address</label>
+                <label for="display-4">Email Address</label>
                 <input
                   type="email"
                   class="form-control"

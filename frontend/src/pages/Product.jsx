@@ -5,6 +5,9 @@ import Marquee from "react-fast-marquee";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProductById, fetchProducts } from "../api/products";
+import InnerImageZoom from "react-inner-image-zoom";
+import "react-inner-image-zoom/lib/InnerImageZoom/styles.css";
+import "../styles/Product.css";
 
 const Product = () => {
   const { id } = useParams();
@@ -72,13 +75,18 @@ const Product = () => {
         <div className="container my-5 py-2">
           <div className="row">
             <div className="col-md-6 col-sm-12 py-3">
-              <img
-                className="img-fluid"
-                src={product.image}
-                alt={product.title}
-                width="400px"
-                height="400px"
-              />
+              <div className="product-image-wrap">
+                {product.image && (
+                  <InnerImageZoom
+                    src={product.image}
+                    zoomSrc={product.image}
+                    alt={product.title}
+                    zoomType="hover"
+                    zoomScale={1.8}
+                    className="product-image-zoom"
+                  />
+                )}
+              </div>
             </div>
             <div className="col-md-6 col-md-6 py-5">
               <h4 className="text-uppercase text-muted">{product.category}</h4>

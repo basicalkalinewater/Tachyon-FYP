@@ -83,16 +83,24 @@ const Navbar = () => {
                   Contact
                 </NavLink>
               </li>
+
+              <li className="nav-item">
+                <NavLink className="nav-link" to="/login">
+                  Account
+                </NavLink>
+              </li>
             </ul>
 
             {/* Cart button (right side) */}
-            <button
-              className="btn btn-outline-dark ms-lg-3 mt-2 mt-lg-0 cart-btn"
-              onClick={() => setIsCartOpen(true)}
-            >
-              <i className="fa fa-shopping-cart me-2" />
-              Cart ({cartCount})
-            </button>
+            <div className="d-flex align-items-center ms-lg-3 mt-2 mt-lg-0">
+              <button
+                className="btn btn-outline-dark cart-btn"
+                onClick={() => setIsCartOpen(true)}
+              >
+                <i className="fa fa-shopping-cart me-2" />
+                Cart ({cartCount})
+              </button>
+            </div>
           </div>
         </div>
       </nav>
