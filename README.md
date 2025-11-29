@@ -67,3 +67,9 @@ Then set `VITE_RASA_URL=http://localhost:5005/webhooks/rest/webhook` in your `.e
 ## Notes
 - Product images are served locally from `frontend/public/assets/...` matching the seed paths.
 - Cart state persists via Supabase (cart id stored in localStorage).
+
+### Sample User Login
+``` 
+customer@example.com customer123
+
+```
