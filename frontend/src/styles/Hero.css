@@ -1,6 +1,5 @@
 .hero-section {
   min-height: 85vh;
-  /* Even richer background for light mode */
   background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
   position: relative;
   overflow: hidden;
@@ -41,8 +40,7 @@
 
 /* Dark mode adjustments */
 .theme-dark .hero-section {
-  background: transparent;
-  /* Let the dark body background show */
+  background: #0b1220;
 }
 
 .theme-dark .hero-section::before {
@@ -57,7 +55,7 @@
   font-size: clamp(2.5rem, 5vw, 4.5rem);
   line-height: 1.1;
   letter-spacing: -0.02em;
-  color: var(--text-main);
+  color: var(--text);
 }
 
 .hero-subtitle {

@@ -13,12 +13,13 @@
 }
 
 .chat-bubble {
-  background: #0b8cff;
+  background: var(--accent);
   color: #fff;
   padding: 8px 12px;
   border-radius: 16px;
   font-size: 13px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--card-shadow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chat-toggle-btn {
@@ -26,25 +27,33 @@
   height: 56px;
   border-radius: 50%;
   border: none;
-  background: linear-gradient(135deg, #0b8cff, #5c6cf4);
+  background: linear-gradient(135deg, var(--accent), #5c6cf4);
   color: #fff;
   font-size: 24px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-bubble:hover,
+.chat-toggle-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
 }
 
 .chat-window {
   width: 320px;
   max-height: 480px;
-  background: #fff;
+  background: var(--bg-section);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   margin-bottom: 12px;
+  box-shadow: var(--card-shadow);
 }
 
 .chat-header {
-  background: #0b1228;
+  background: var(--accent);
   color: #fff;
   padding: 12px;
   display: flex;
@@ -57,13 +66,18 @@
   background: transparent;
   color: #fff;
   font-size: 20px;
+  transition: transform 0.1s ease;
+}
+
+.chat-close:hover {
+  transform: scale(1.05);
 }
 
 .chat-body {
   flex: 1;
   padding: 12px;
   overflow-y: auto;
-  background: #f8f9fb;
+  background: #fff;
 }
 
 .chat-message {
@@ -75,7 +89,7 @@
 }
 
 .chat-message.bot {
-  background: #e9ecf5;
+  background: #f3f5f8;
   color: #111;
   align-self: flex-start;
 }
@@ -108,4 +122,20 @@
   border: 1px solid #ccc;
   border-radius: 10px;
   padding: 8px 10px;
+  background: #fff;
+  color: #111;
+}
+
+.chat-quick-replies .btn {
+  background: #fff;
+  color: #0b8cff;
+  border: 1px solid #0b8cff;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.chat-quick-replies .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(11, 140, 255, 0.25);
+  background: #0b8cff;
+  color: #fff;
 }

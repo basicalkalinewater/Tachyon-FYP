@@ -14,11 +14,11 @@ const HomeHero = () => {
               New Arrival: Tachyon Series X
             </span>
             <h1 className="hero-title fw-bold mb-4">
-              The Future of <span className="text-gradient">Electronics</span> is Here
+              The Future of <span className="text-gradient">Tachyon</span> is Here
             </h1>
             <p className="hero-subtitle mb-5 text-muted mx-auto">
               Experience unparalleled performance with our latest collection.
-              Powered by advanced AI to bring you the best shopping experience.
+              Powered by Tachyon Chatbot to bring you the best shopping experience.
             </p>
             <div className="d-flex justify-content-center gap-3">
               <Link
