@@ -1,10 +1,12 @@
-# Tachyon Chatbot Commerce
+# FYP-25-S4-25 Tachyon Chatbot 
 
-React + Supabase-backed storefront with carts/products API. Backend runs on Flask (Python).
+React + Supabase-backed storefront with carts/products API. 
+Backend runs on Flask (Python).
 
 ## Prerequisites
 - Node.js (npm) installed.
 - Supabase project with a SQL role that can run the provided schema/seed.
+- Python 3.10 
 
 ## Setup
 1) Clone and open the repo.
