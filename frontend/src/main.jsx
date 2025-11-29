@@ -20,6 +20,11 @@ import {
   Register,
   Checkout,
   PageNotFound,
+  Faq,
+  ShippingReturns,
+  Privacy,
+  Terms,
+  Accessibility,
 } from "./pages";
 
 import { Toaster } from "react-hot-toast";
@@ -40,23 +45,32 @@ root.render(
     <BrowserRouter>
       <CartInitializer>
         <ScrollToTop>
-          {/* Navbar always visible */}
-          <Navbar />
+          <div className="app-shell">
+            {/* Navbar always visible */}
+            <Navbar />
 
-          {/* Page content */}
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/products" element={<Products />} />
-            <Route path="/product/:id" element={<Product />} />
-            <Route path="/about" element={<AboutPage />} />
-            <Route path="/contact" element={<ContactPage />} />
-            <Route path="/cart" element={<Cart />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/checkout" element={<Checkout />} />
-            <Route path="*" element={<PageNotFound />} />
-          </Routes>
-          <Footer />
+            {/* Page content */}
+            <main className="app-main">
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/products" element={<Products />} />
+                <Route path="/product/:id" element={<Product />} />
+                <Route path="/about" element={<AboutPage />} />
+                <Route path="/contact" element={<ContactPage />} />
+                <Route path="/cart" element={<Cart />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/checkout" element={<Checkout />} />
+                <Route path="/faq" element={<Faq />} />
+                <Route path="/shipping-returns" element={<ShippingReturns />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                <Route path="/accessibility" element={<Accessibility />} />
+                <Route path="*" element={<PageNotFound />} />
+              </Routes>
+            </main>
+            <Footer />
+          </div>
         </ScrollToTop>
 
         <Toaster />

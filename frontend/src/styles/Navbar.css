@@ -38,3 +38,12 @@
     padding: 1rem 1.5rem !important;
   }
 }
+
+.theme-toggle {
+  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

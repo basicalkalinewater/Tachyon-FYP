@@ -12,6 +12,7 @@ import "../styles/Navbar.css";
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "light");
 
   // 👇 Get total items in cart from Redux
   const cartCount = useSelector(selectCartCount);
@@ -24,6 +25,15 @@ const Navbar = () => {
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle("theme-dark", theme === "dark");
+    localStorage.setItem("theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   return (
     <>
@@ -73,18 +83,6 @@ const Navbar = () => {
               </li>
 
               <li className="nav-item">
-                <NavLink className="nav-link" to="/about">
-                  About
-                </NavLink>
-              </li>
-
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/contact">
-                  Contact
-                </NavLink>
-              </li>
-
-              <li className="nav-item">
                 <NavLink className="nav-link" to="/login">
                   Account
                 </NavLink>
@@ -92,7 +90,15 @@ const Navbar = () => {
             </ul>
 
             {/* Cart button (right side) */}
-            <div className="d-flex align-items-center ms-lg-3 mt-2 mt-lg-0">
+            <div className="d-flex align-items-center ms-lg-3 mt-2 mt-lg-0 gap-2">
+              <button
+                className="btn btn-outline-secondary theme-toggle"
+                type="button"
+                onClick={toggleTheme}
+                aria-label="Toggle theme"
+              >
+                <i className={`fa fa-${theme === "dark" ? "sun-o" : "moon-o"}`} />
+              </button>
               <button
                 className="btn btn-outline-dark cart-btn"
                 onClick={() => setIsCartOpen(true)}

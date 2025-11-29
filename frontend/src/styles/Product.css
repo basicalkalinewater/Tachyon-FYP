@@ -31,3 +31,17 @@
 .product-image-wrap .iiz__zoom-img {
   object-fit: contain;
 }
+
+.similar-card {
+  width: 230px;
+  margin: 0 12px;
+  flex: 0 0 auto;
+  border-radius: 12px;
+}
+
+.similar-image {
+  height: 180px;
+  width: 100%;
+  object-fit: contain;
+  background: #fff;
+}

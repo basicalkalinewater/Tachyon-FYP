@@ -1,16 +1,16 @@
 .featured-section {
-  background: linear-gradient(135deg, rgba(11, 18, 40, 0.08), rgba(11, 18, 40, 0.18));
+  background: var(--bg-section);
 }
 
 .featured-section h2,
 .featured-section p {
-  color: #0b1228;
+  color: var(--text);
 }
 
 .feature-card {
   border: none;
   border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--card-shadow);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -41,4 +41,13 @@
 
 .feature-card .card-title {
   min-height: 48px;
+}
+
+.feature-card .btn {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.feature-card .btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(11, 140, 255, 0.25);
 }

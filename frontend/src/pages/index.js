@@ -8,3 +8,8 @@ export { default as Login } from './Login';
 export { default as Register } from './Register';
 export { default as Checkout } from './Checkout';
 export { default as PageNotFound } from './PageNotFound';
+export { default as Faq } from './Faq';
+export { default as ShippingReturns } from './ShippingReturns';
+export { default as Privacy } from './Privacy';
+export { default as Terms } from './Terms';
+export { default as Accessibility } from './Accessibility';
