@@ -6,7 +6,11 @@ const HomeHero = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="hero-section d-flex align-items-center">
+    <section
+      className="hero-section d-flex align-items-center"
+      role="button"
+      onClick={() => navigate("/products")}
+    >
       <div className="container">
         <div className="row align-items-center">
           <div className="col-lg-8 mx-auto text-center">
@@ -24,14 +28,9 @@ const HomeHero = () => {
               <Link
                 to="/products"
                 className="btn btn-primary-saas btn-lg"
+                onClick={() => navigate("/products")}
               >
-                Shop Now <i className="fa fa-arrow-right ms-2" />
-              </Link>
-              <Link
-                to="/about"
-                className="btn btn-outline-saas btn-lg"
-              >
-                Learn More
+                Shop <i className="fa fa-arrow-right ms-2" />
               </Link>
             </div>
           </div>
