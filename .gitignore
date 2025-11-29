@@ -17,3 +17,16 @@ rasa/.venv
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+
+# Ignore Rasa project
+rasa/
+
+# Ignore Python virtual environments
+.venv/
+venv/
+env/
+
+# Ignore Python caches
+__pycache__/
+*.pyc
