@@ -103,9 +103,11 @@ const Product = () => {
               </h3>
               <p className="lead text-muted mb-5">{product.description}</p>
               {product.specs && (
-                <div className="bg-light p-4 rounded-4 mb-5 border border-light">
-                  <h6 className="fw-bold mb-3">Specifications</h6>
-                  <ul className="list-unstyled text-muted mb-0 small">
+                <div className="p-4 rounded-4 mb-5 border border-light" style={{ backgroundColor: "var(--bg-card)" }}>
+                  <h6 className="fw-bold mb-3" style={{ color: "var(--text-main)" }}>
+                    Specifications
+                  </h6>
+                  <ul className="list-unstyled mb-0 small" style={{ color: "var(--text-muted)" }}>
                     {product.specs.panel_type && <li className="mb-2"><strong>Panel:</strong> {product.specs.panel_type}</li>}
                     {product.specs.refresh_hz && <li className="mb-2"><strong>Refresh:</strong> {product.specs.refresh_hz}Hz</li>}
                     {product.specs.screen_size_inches && (

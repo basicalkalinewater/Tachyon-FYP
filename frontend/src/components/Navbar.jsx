@@ -11,7 +11,7 @@ import { logout, selectCurrentUser } from "../redux/authSlice";
 import "../styles/Navbar.css";
 
 const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(() => (typeof window !== "undefined" ? window.scrollY > 20 : false));
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const dispatch = useDispatch();
@@ -26,10 +26,14 @@ const Navbar = () => {
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
+      const y = window.scrollY;
+      // Hysteresis to avoid rapid toggling at the threshold
+      const next = y > 40 ? true : y < 10 ? false : isScrolled;
+      setIsScrolled((prev) => (prev === next ? prev : next));
     };
 
-    window.addEventListener("scroll", handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 

@@ -1,6 +1,7 @@
 /* Navbar styling */
 .navbar {
   z-index: 1030;
+  will-change: background, padding, box-shadow;
 }
 
 .brand-text {
