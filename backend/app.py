@@ -1,3 +1,9 @@
+"""
+Flask REST API that fronts Supabase tables for products and carts.
+- CORS is enabled for the Vite frontend.
+- Supabase client is initialized once and reused.
+"""
+
 import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -9,6 +15,7 @@ supabase = get_supabase()
 
 
 def map_product(row):
+    """Normalize DB product row into the shape the frontend expects."""
     return {
         "id": row.get("id"),
         "title": row.get("title"),
@@ -23,6 +30,10 @@ def map_product(row):
 
 
 def map_cart_items(cart_id):
+    """
+    Fetch cart items with joined product rows and normalize the shape.
+    Raises on Supabase errors so the route can return a 500 with the message.
+    """
     res = (
         supabase.table("cart_items")
         .select(
@@ -45,11 +56,13 @@ def map_cart_items(cart_id):
 
 @app.get("/health")
 def health():
+    """Simple healthcheck."""
     return jsonify({"status": "ok"})
 
 
 @app.get("/api/products")
 def get_products():
+    """List products ordered by created_at desc."""
     try:
         res = (
             supabase.table("products")
@@ -65,6 +78,7 @@ def get_products():
 
 @app.get("/api/products/<product_id>")
 def get_product(product_id):
+    """Fetch a single product by id."""
     try:
         res = supabase.table("products").select("*").eq("id", product_id).single().execute()
         if not res.data:
@@ -77,6 +91,7 @@ def get_product(product_id):
 
 @app.post("/api/products")
 def create_product():
+    """Create a new product; requires title and price."""
     try:
         payload = request.get_json(force=True)
         title = payload.get("title")
@@ -104,6 +119,7 @@ def create_product():
 
 @app.put("/api/products/<product_id>")
 def update_product(product_id):
+    """Partial update of a product by id."""
     try:
         payload = request.get_json(force=True)
         body = {}
@@ -135,6 +151,7 @@ def update_product(product_id):
 
 @app.post("/api/carts")
 def create_cart():
+    """Create an empty cart and return its id."""
     try:
         res = supabase.table("carts").insert({}).execute()
         if not res.data:
@@ -147,6 +164,7 @@ def create_cart():
 
 @app.get("/api/carts/<cart_id>")
 def get_cart(cart_id):
+    """Return cart items for a given cart id (404 if not found)."""
     try:
         res = supabase.table("carts").select("id").eq("id", cart_id).single().execute()
         if not res.data:
@@ -160,6 +178,7 @@ def get_cart(cart_id):
 
 @app.post("/api/carts/<cart_id>/items")
 def add_cart_item(cart_id):
+    """Upsert a cart item (add or bump quantity)."""
     try:
         payload = request.get_json(force=True)
         product_id = payload.get("product_id")
@@ -181,6 +200,7 @@ def add_cart_item(cart_id):
 
 @app.patch("/api/carts/<cart_id>/items/<product_id>")
 def update_cart_item(cart_id, product_id):
+    """Update quantity for a specific product in the cart."""
     try:
         payload = request.get_json(force=True)
         quantity = payload.get("quantity")
@@ -198,6 +218,7 @@ def update_cart_item(cart_id, product_id):
 
 @app.delete("/api/carts/<cart_id>/items/<product_id>")
 def delete_cart_item(cart_id, product_id):
+    """Remove a product from the cart."""
     try:
         supabase.table("cart_items").delete().eq("cart_id", cart_id).eq("product_id", product_id).execute()
         items = map_cart_items(cart_id)
