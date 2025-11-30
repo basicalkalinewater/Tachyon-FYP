@@ -53,3 +53,13 @@ nlu:
       - what products do you have
       - show products
       - list items
+      - product
+      - products
+      - list products
+  
+  - intent: action_fetch_specific_product
+    examples: |
+      - Show me [ASUS ROG Swift PG27AQN](product_title)
+      - I want [Razer Viper V3 Pro](product_title)
+      - Do you have [LG UltraGear 27GN950-B](product_title)?
+      - Find [Dell AW2723DF](product_title)

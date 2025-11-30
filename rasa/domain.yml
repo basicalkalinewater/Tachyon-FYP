@@ -26,6 +26,15 @@ responses:
   utter_fallback:
     - text: "I'm not sure about that yet. Could you rephrase?"
 
+slots:
+  product_title:
+    type: text
+    influence_conversation: false
+
+actions:
+  - action_fetch_products
+  - action_fetch_specific_product
+
 session_config:
   session_expiration_time: 60
   carry_over_slots_to_new_session: true

@@ -1,0 +1,12 @@
+version: "3.1"
+
+rules:
+  - rule: Show products
+    steps:
+      - intent: products
+      - action: action_fetch_products
+
+  - rule: Fetch specific product
+    steps:
+      - intent: fetch_specific_product
+      - action: action_fetch_specific_product

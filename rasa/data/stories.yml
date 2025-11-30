@@ -10,9 +10,14 @@ stories:
       - intent: faq_order_status
       - action: utter_faq_order_status
 
-  - story: greet and products
-    steps:
-      - intent: greet
-      - action: utter_greet
-      - intent: products
-      - action: utter_products
+  # - story: greet and products
+  #   steps:
+  #     - intent: greet
+  #     - action: utter_greet
+  #     - intent: products
+  #     - action: utter_products
+
+  # - story: list products
+  #   steps:
+  #     - intent: products
+  #     - action: action_fetch_products
