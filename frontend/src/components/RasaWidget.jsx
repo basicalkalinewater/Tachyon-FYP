@@ -67,6 +67,23 @@ const RasaWidget = () => {
     if (!sending) sendMessage(input);
   };
 
+  const formatMarkdown = (text) => {
+    if (!text) return "";
+    const escapeHtml = (str) =>
+      str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    const escaped = escapeHtml(text);
+    const withLinks = escaped.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+    return withLinks.replace(/\n/g, "<br />");
+  };
+
   return (
     <>
       <div className={`chat-widget ${open ? "open" : ""}`}>
@@ -81,7 +98,11 @@ const RasaWidget = () => {
             <div className="chat-body">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-message ${msg.from}`}>
-                  {msg.text}
+                  {msg.from === "bot" ? (
+                    <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
+                  ) : (
+                    msg.text
+                  )}
                 </div>
               ))}
               <div ref={messagesEndRef} />

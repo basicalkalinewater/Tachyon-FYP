@@ -9,6 +9,10 @@ intents:
   - faq_returns
   - faq_order_status
   - products
+  - fetch_specific_product
+
+entities:
+  - product_title
 
 responses:
   utter_greet:
@@ -30,6 +34,9 @@ slots:
   product_title:
     type: text
     influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: product_title
 
 actions:
   - action_fetch_products

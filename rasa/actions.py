@@ -1,3 +1,6 @@
+import os
+from typing import Any, Dict, List, Text
+
 import requests
 from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
@@ -31,11 +34,19 @@ class ActionFetchProducts(Action):
                 dispatcher.utter_message(text="No products found.")
                 return []
 
-            # Replace 'title' with your actual column name
-            product_names = [item.get("title", "Unnamed product") for item in data]
+            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
+            product_links = []
+            for item in data:
+                title = item.get("title", "Unnamed product")
+                product_id = item.get("id")
+                if product_id:
+                    url = f"{frontend_base}/product/{product_id}"
+                    product_links.append(f"- [{title}]({url})")
+                else:
+                    product_links.append(f"- {title}")
 
             dispatcher.utter_message(
-                text="Here are the products:\n- " + "\n- ".join(product_names)
+                text="Here are the products:\n" + "\n".join(product_links)
             )
 
         except Exception as e:
@@ -53,7 +64,7 @@ class ActionFetchSpecificProduct(Action):
     ) -> List[Dict[Text, Any]]:
 
         # Get the product name from the slot
-        product_query = tracker.get_slot("title")
+        product_query = tracker.get_slot("title") or tracker.get_slot("product_title")
         if not product_query:
             dispatcher.utter_message(text="Please tell me which product you want to see.")
             return []
@@ -85,9 +96,19 @@ class ActionFetchSpecificProduct(Action):
                 )
                 return []
 
-            product_names = [item.get("title", "Unnamed product") for item in filtered_products]
+            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
+            product_links = []
+            for item in filtered_products:
+                title = item.get("title", "Unnamed product")
+                product_id = item.get("id")
+                if product_id:
+                    url = f"{frontend_base}/product/{product_id}"
+                    product_links.append(f"- [{title}]({url})")
+                else:
+                    product_links.append(f"- {title}")
+
             dispatcher.utter_message(
-                text="Here is what I found:\n- " + "\n- ".join(product_names)
+                text="Here is what I found:\n" + "\n".join(product_links)
             )
 
         except Exception as e:
