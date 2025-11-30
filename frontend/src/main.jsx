@@ -6,7 +6,7 @@ import "./styles/global.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Provider, useDispatch } from "react-redux";
 import store from "./redux/store";
-import { Navbar, ScrollToTop, Footer, RasaWidget } from "./components";
+import { Navbar, ScrollToTop, Footer, RasaWidget, ProtectedRoute } from "./components";
 import { bootstrapCart } from "./redux/cartSlice";
 
 import {
@@ -25,6 +25,7 @@ import {
   Privacy,
   Terms,
   Accessibility,
+  CustomerDashboard,
 } from "./pages";
 
 import { Toaster } from "react-hot-toast";
@@ -66,6 +67,9 @@ root.render(
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
                 <Route path="/accessibility" element={<Accessibility />} />
+                <Route element={<ProtectedRoute allowedRoles={["customer"]} />}>
+                  <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+                </Route>
                 <Route path="*" element={<PageNotFound />} />
               </Routes>
             </main>

@@ -27,6 +27,10 @@ Backend runs on Flask (Python).
 cd backend
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
+
+# If got Activate.ps1 error - Powershell 
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
 pip install -r requirements.txt
 flask --app app run --port 4000
 ```
@@ -37,6 +41,7 @@ flask --app app run --port 4000
 ```
 
 ### Frontend (Vite/React)
+- Make sure to have Node.js installed (!!!) or else npm will not work
 ```
 cd frontend
 npm install
@@ -51,6 +56,8 @@ cd rasa
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt   # installs rasa==3.6.20
+
+If error trying to install rasa package, try upgrading pip
 ```
 If the venv is already set up with Rasa installed, skip to:
 ```
@@ -67,3 +74,9 @@ Then set `VITE_RASA_URL=http://localhost:5005/webhooks/rest/webhook` in your `.e
 ## Notes
 - Product images are served locally from `frontend/public/assets/...` matching the seed paths.
 - Cart state persists via Supabase (cart id stored in localStorage).
+
+### Sample User Login
+``` 
+customer@example.com customer123
+
+```

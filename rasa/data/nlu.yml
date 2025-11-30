@@ -44,7 +44,7 @@ nlu:
 
   - intent: faq_order_status
     examples: |
-      - where is my order
+      - where is my order?
       - order status
       - track my order
 
