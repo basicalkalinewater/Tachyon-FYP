@@ -3,45 +3,59 @@ version: "3.1"
 intents:
   - greet
   - goodbye
-  - affirm
-  - deny
-  - faq_shipping
-  - faq_returns
-  - faq_order_status
-  - products
-  - fetch_specific_product
+  - fetch_all_products
+  - fetch_products_with_filters
 
 entities:
-  - product_title
-
-responses:
-  utter_greet:
-    - text: "Hey there! How can I help you today?"
-  utter_goodbye:
-    - text: "Goodbye! Let me know if you need anything else."
-  utter_faq_shipping:
-    - text: "Standard shipping takes 3-5 business days. Express options are available at checkout."
-  utter_faq_returns:
-    - text: "You can start a return within 30 days if the product is in original condition."
-  utter_faq_order_status:
-    - text: "To check order status, please share your order number. I can also connect you with support."
-  utter_products:
-    - text: "We have monitors, keyboards, mice, and SSDs in stock. What are you looking for?"
-  utter_fallback:
-    - text: "I'm not sure about that yet. Could you rephrase?"
+  - product_category
+  - product_price
+  - product_specs
 
 slots:
-  product_title:
+  product_category:
     type: text
     influence_conversation: false
     mappings:
       - type: from_entity
-        entity: product_title
+        entity: product_category
+
+  product_price:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: product_price
+
+  product_specs:
+    type: text
+    influence_conversation: false
+    mappings:
+      # NLU extracts 'Wireless' or 'IPS' as product_specs
+      - type: from_entity
+        entity: product_specs
+      # Allow the user to type in specs if the entity extraction fails
+      # - type: from_text
+      #   ignore_if_not_set: true
+
+responses:
+  utter_greet:
+    - text: "Hello! How can I help you today?"
+  utter_goodbye:
+    - text: "Goodbye! Have a nice day!"
+  utter_ask_product_category:
+    - text: "What category of products are you interested in?"
+  utter_ask_product_price:
+    - text: "What is your budget or price range?"
+  utter_ask_product_specs:
+    - text: "Do you have any specific requirements or specifications in mind?"
+
+forms:
+  product_filter_form:
+    # Only the category is required for the initial search to prevent fetching ALL products.
+    required_slots:
+      - product_category
+    # product_price and product_specs are now OPTIONAL for form submission.
 
 actions:
-  - action_fetch_products
-  - action_fetch_specific_product
-
-session_config:
-  session_expiration_time: 60
-  carry_over_slots_to_new_session: true
+  - action_fetch_all_products
+  - action_fetch_products_with_filters

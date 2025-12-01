@@ -1,12 +1,19 @@
 version: "3.1"
 
 rules:
-  - rule: Show products
+  - rule: Fetch all products without filters
     steps:
-      - intent: products
-      - action: action_fetch_products
+      - intent: fetch_all_products
+      - action: action_fetch_all_products
 
-  - rule: Fetch specific product
+  - rule: Activate product filter form
     steps:
-      - intent: fetch_specific_product
-      - action: action_fetch_specific_product
+      - intent: fetch_products_with_filters
+      - action: product_filter_form
+      - active_loop: product_filter_form
+
+  - rule: Submit product filter form
+    steps:
+      - action: product_filter_form
+      - active_loop: null
+      - action: action_fetch_products_with_filters

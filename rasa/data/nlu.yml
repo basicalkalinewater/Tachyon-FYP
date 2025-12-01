@@ -6,8 +6,6 @@ nlu:
       - hi
       - hello
       - hey
-      - good morning
-      - good evening
 
   - intent: goodbye
     examples: |
@@ -15,51 +13,20 @@ nlu:
       - goodbye
       - see you
 
-  - intent: affirm
+  - intent: fetch_all_products
     examples: |
-      - yes
-      - yup
-      - sure
-      - correct
-
-  - intent: deny
-    examples: |
-      - no
-      - nope
-      - not really
-
-  - intent: faq_shipping
-    examples: |
-      - how long is shipping
-      - shipping time
-      - delivery time
-      - shipping options
-
-  - intent: faq_returns
-    examples: |
-      - what is your return policy
-      - can I return
-      - how do I return
-      - refunds
-
-  - intent: faq_order_status
-    examples: |
-      - where is my order?
-      - order status
-      - track my order
-
-  - intent: products
-    examples: |
-      - what products do you have
-      - show products
-      - list items
-      - product
+      - Show me all products
+      - I want to see all available products
+      - List all products
       - products
-      - list products
-  
-  - intent: fetch_specific_product
+      - what products do you have
+      - what are you selling
+
+  - intent: fetch_products_with_filters
     examples: |
-      - Show me [ASUS ROG Swift PG27AQN](product_title)
-      - I want [Razer Viper V3 Pro](product_title)
-      - Do you have [LG UltraGear 27GN950-B](product_title)?
-      - Find [Dell AW2723DF](product_title)
+      - Show me [monitor](product_category) under [500](product_price)
+      - I want a [keyboard](product_category) with [Wireless](product_specs) connection
+      - Do you have [ssd](product_category) in the [100-300](product_price) range?
+      - Find [mouse](product_category) below [250](product_price)
+      - Show me a [keyboard](product_category) under [150](product_price)
+      - I need a [monitor](product_category) with [IPS](product_specs) panel type
