@@ -7,11 +7,22 @@ import "../styles/dashboard.css"; // reuse the SAME dashboard styling
 
 // Support dashboard sections
 const SUPPORT_SECTIONS = [
-  { id: "inbox", label: "Incoming Chats", group: "Chat Management" },
+  { id: "inbox",    label: "Incoming Chats",  group: "Chat Management" },
   { id: "assigned", label: "My Active Chats", group: "Chat Management" },
-  { id: "history", label: "Chat History", group: "Chat Management" },
-  { id: "profile", label: "My Profile", group: "Account" },
+  { id: "history",  label: "Chat History",    group: "Chat Management" },
+  { id: "profile",  label: "My Profile",      group: "Account" },
 ];
+
+// Group sections by their `group` name (NO hooks here)
+const GROUPED_SUPPORT_SECTIONS = SUPPORT_SECTIONS.reduce((groups, section) => {
+  const existing = groups.find((g) => g.group === section.group);
+  if (existing) {
+    existing.items.push(section);
+  } else {
+    groups.push({ group: section.group, items: [section] });
+  }
+  return groups;
+}, []);
 
 const CustomerSupportDashboard = () => {
   const dispatch = useDispatch();
@@ -23,6 +34,12 @@ const CustomerSupportDashboard = () => {
     dispatch(logout());
     toast.success("Logged out successfully");
   };
+
+  const displayEmail = user?.email || "";
+  const displayName =
+    (user?.fullName && user.fullName.trim()) ||
+    displayEmail ||
+    "Support Agent";
 
   // Placeholder renderers — later you’ll replace with real components
   const renderSection = () => {
@@ -68,8 +85,12 @@ const CustomerSupportDashboard = () => {
             </p>
             <h3 className="mb-3">Support Agent Details</h3>
             <p className="text-muted">This is a read-only section for now.</p>
-            <p><strong>Name:</strong> {user?.fullName || user?.email}</p>
-            <p><strong>Email:</strong> {user?.email}</p>
+            <p>
+              <strong>Name:</strong> {displayName}
+            </p>
+            <p>
+              <strong>Email:</strong> {displayEmail}
+            </p>
           </section>
         );
       default:
@@ -77,13 +98,9 @@ const CustomerSupportDashboard = () => {
     }
   };
 
-  const displayName =
-    user?.fullName?.trim() || user?.email || "Support Agent";
-
   return (
     <div className="container py-5 dashboard-container">
       <div className="dashboard-layout">
-
         {/* Sidebar */}
         <aside className="dashboard-sidebar card-saas">
           <div className="mb-4">
@@ -91,29 +108,27 @@ const CustomerSupportDashboard = () => {
               Support Agent
             </p>
             <h4 className="mb-0">{displayName}</h4>
-            <p className="text-muted mb-0">{user?.email}</p>
+            <p className="text-muted mb-0">{displayEmail}</p>
           </div>
 
-          {SUPPORT_SECTIONS.map(({ group }) => (
+          {GROUPED_SUPPORT_SECTIONS.map(({ group, items }) => (
             <div className="sidebar-group" key={group}>
               <p className="text-muted text-uppercase small fw-semibold mb-2">
                 {group}
               </p>
               <nav className="dashboard-nav">
-                {SUPPORT_SECTIONS.filter((s) => s.group === group).map(
-                  (section) => (
-                    <button
-                      key={section.id}
-                      type="button"
-                      className={`sidebar-link ${
-                        activeSection === section.id ? "active" : ""
-                      }`}
-                      onClick={() => setActiveSection(section.id)}
-                    >
-                      {section.label}
-                    </button>
-                  )
-                )}
+                {items.map((section) => (
+                  <button
+                    key={section.id}
+                    type="button"
+                    className={`sidebar-link ${
+                      activeSection === section.id ? "active" : ""
+                    }`}
+                    onClick={() => setActiveSection(section.id)}
+                  >
+                    {section.label}
+                  </button>
+                ))}
               </nav>
             </div>
           ))}

@@ -22,7 +22,7 @@ const Navbar = () => {
   currentUser?.role === "customer"
     ? "/dashboard/customer"
     : currentUser?.role === "support" 
-    ? "/dashboard/support"
+    ? "/dashboard/customer-support"
     : "/"; 
 
   const accountLabel =

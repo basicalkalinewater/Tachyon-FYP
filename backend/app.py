@@ -516,11 +516,12 @@ def delete_cart_item(cart_id, product_id):
 
 @app.post("/api/auth/login")
 def login():
-    """Basic email/password auth that returns the user's role."""
+    """Basic email/password auth that returns the user's role and redirect target."""
     try:
         payload = request.get_json(force=True)
         email = (payload.get("email") or "").strip().lower()
         password = payload.get("password")
+
         if not email or not password:
             return jsonify({"error": "email and password are required"}), 400
 
@@ -528,13 +529,28 @@ def login():
         if not user_row or not password_matches(password, user_row.get("password_hash")):
             return jsonify({"error": "Invalid email or password"}), 401
 
-        user = sanitize_user(user_row)
-        profile_data = fetch_customer_profile(user)
-        user["fullName"] = profile_data.get("fullName") or user.get("email")
-        if user["role"] != "customer":
-            return jsonify({"error": "Admin dashboard is coming soon. Customer logins only for now."}), 403
-        redirect_to = "/dashboard/customer"
+        user = sanitize_user(user_row)  # { id, email, role, fullName? }
+
+        role = user.get("role")
+
+        # Load customer profile only for customers
+        if role == "customer":
+            profile_data = fetch_customer_profile(user)
+            user["fullName"] = profile_data.get("fullName") or user.get("email")
+        else:
+            user["fullName"] = user.get("fullName") or user.get("email")
+
+        # Redirect logic based on your DB roles
+        if role == "customer":
+            redirect_to = "/dashboard/customer"
+        elif role == "support":
+            redirect_to = "/dashboard/support"
+        else:
+            # For now admin is blocked
+            return jsonify({"error": "Admin dashboard coming soon."}), 403
+
         return jsonify({"user": user, "redirectTo": redirect_to})
+
     except Exception as err:
         app.logger.error(f"login error: {err}")
         return jsonify({"error": str(err)}), 500
