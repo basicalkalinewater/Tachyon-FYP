@@ -5,12 +5,14 @@ intents:
   - goodbye
   - fetch_all_products
   - fetch_products_with_filters
+  - faq_link
+  - return_policy_link
 
 entities:
   - product_category
   - product_price
   - product_specs
-
+  - product_brand
 slots:
   product_category:
     type: text
@@ -37,6 +39,13 @@ slots:
       # - type: from_text
       #   ignore_if_not_set: true
 
+  product_brand:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: product_brand
+
 responses:
   utter_greet:
     - text: "Hello! How can I help you today?"
@@ -48,14 +57,20 @@ responses:
     - text: "What is your budget or price range?"
   utter_ask_product_specs:
     - text: "Do you have any specific requirements or specifications in mind?"
+  utter_faq_link:
+    - text: "I can help with that! Please click the link below to visit our dedicated FAQ page.\n[Frequently Asked Questions]({link})"
+  utter_return_policy_link:
+    - text: "You can read about our return policy here: [Return Policy Link]({link})"
 
 forms:
   product_filter_form:
     # Only the category is required for the initial search to prevent fetching ALL products.
     required_slots:
       - product_category
-    # product_price and product_specs are now OPTIONAL for form submission.
+    # product_price, product_brand and product_specs are now OPTIONAL for form submission.
 
 actions:
   - action_fetch_all_products
   - action_fetch_products_with_filters
+  - action_faq_link
+  - action_return_policy_link

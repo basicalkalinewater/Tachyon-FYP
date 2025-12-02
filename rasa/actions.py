@@ -11,7 +11,8 @@ from rasa_sdk.events import SlotSet
 # Set up logger
 logger = logging.getLogger(__name__)
 
-SUPABASE_URL = "https://uexvsnwbgnuxkgkaenjp.supabase.co/rest/v1/products"
+# NOTE: REPLACE WITH YOUR CONFIRMED, WORKING KEY
+SUPABASE_URL = "https://uexvsnwbgnuxkgkaenjp.supabase.co/rest/v1/product_stock_view"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVleHZzbndiZ251eGtna2FlbmpwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDIzNDMzOSwiZXhwIjoyMDc5ODEwMzM5fQ.wejc693CUXVf-aymTQMZUkzpeIcH-oOKR-bdtesZQbI"
 
 headers = {
@@ -36,8 +37,10 @@ class ActionFetchProductsWithFilters(Action):
         product_category = tracker.get_slot("product_category")
         product_price = tracker.get_slot("product_price")
         product_specs_text = tracker.get_slot("product_specs")
-        
+        product_brand = tracker.get_slot("product_brand")
+    
         category_key = product_category.lower() if product_category else None
+        brand_key = product_brand.lower() if product_brand else None
 
         # --- 1. Parse Price Range ---
         lower, upper = 0, float('inf')
@@ -60,22 +63,31 @@ class ActionFetchProductsWithFilters(Action):
             response = requests.get(SUPABASE_URL, headers=headers)
             if response.status_code != 200:
                 dispatcher.utter_message(text=f"Failed to fetch products: {response.status_code}")
-                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None)]
+                # Clear all slots
+                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None), SlotSet("product_brand", None)]
 
             data = response.json()
             data = data.get("data") if isinstance(data, dict) and "data" in data else data
 
             if not isinstance(data, list) or len(data) == 0:
                 dispatcher.utter_message(text="No products found in the database.")
-                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None)]
+                # Clear all slots
+                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None), SlotSet("product_brand", None)]
 
             # --- 4. Filter Products ---
             filtered_products = []
             for item in data:
-                category = item.get("category", "").lower()
                 
-                # Category Filter
+                # Category Filter (Robust Substring Match)
+                # Ensure value is treated as string, even if DB returns None/Null.
+                category = str(item.get("category") or "").lower()
                 if category_key and category_key not in category:
+                    continue
+
+                # Brand Filter (Robust Substring Match)
+                # Ensure value is treated as string, even if DB returns None/Null.
+                brand = str(item.get("Brand") or "").lower()
+                if brand_key and brand_key not in brand:
                     continue
                 
                 # Price Filter
@@ -86,53 +98,10 @@ class ActionFetchProductsWithFilters(Action):
                     
                 if product_price and not (lower <= price <= upper):
                     continue
-
-                # Specs Filter
-                match = True
                 
-                # Handling the simple value spec (like "IPS" from user input)
-                if product_specs_text and category_key:
-                    spec_value = product_specs_text.lower()
-                    valid_specs_keys = CATEGORY_SPECS.get(category_key, [])
-                    found_spec = False
-                    
-                    for spec_key in valid_specs_keys:
-                        # FIX APPLIED HERE: Access the nested 'specs' dictionary first
-                        specs_data = item.get('specs', {})
-                        prod_val = specs_data.get(spec_key)
-
-                        if prod_val is None: continue
-                        
-                        # Check 1: Value is a list
-                        if isinstance(prod_val, list):
-                            if spec_value in [v.lower() for v in prod_val]:
-                                found_spec = True
-                                break
-                                
-                        # Check 2: Value is a string (e.g., "IPS")
-                        elif isinstance(prod_val, str):
-                            if spec_value in prod_val.lower():
-                                found_spec = True
-                                break
-                                
-                        # Check 3: Value is a number
-                        elif isinstance(prod_val, (int, float)):
-                            if str(prod_val) == spec_value:
-                                found_spec = True
-                                break
-                    
-                    if not found_spec:
-                        # You can remove this temporary logger after confirming the fix
-                        logger.warning(
-                            f"FILTER FAIL: Product '{item.get('title', 'N/A')}' (Cat: {category}) "
-                            f"did not match spec '{spec_value}' (Checking keys: {valid_specs_keys})."
-                            f"Actual specs data: {specs_data}"
-                        )
-                        match = False
+                # Specs Filter: TEMPORARILY DISABLED (as planned)
+                pass 
                 
-                if not match:
-                    continue
-
                 filtered_products.append(item)
 
             # --- 5. Prepare Response and Clear Slots ---
@@ -140,6 +109,9 @@ class ActionFetchProductsWithFilters(Action):
                 msg_parts = []
                 if product_category:
                     msg_parts.append(f"category '{product_category}'")
+                
+                if product_brand:
+                    msg_parts.append(f"Brand '{product_brand}'")
                 
                 price_filter_msg = ""
                 if product_price: 
@@ -158,23 +130,28 @@ class ActionFetchProductsWithFilters(Action):
                 
                 dispatcher.utter_message(text=f"No products found matching {' and '.join(msg_parts) if msg_parts else 'your criteria'}.")
                 
-                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None)]
+                # Clear all slots
+                return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None), SlotSet("product_brand", None)]
 
             # --- SUCCESS PATH ---
             frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
             
-            product_links = []  
+            product_links = []
             
             for item in filtered_products:
                 title = item.get("title", "Unnamed product")
                 product_id = item.get("id")
                 price = item.get("price", 'N/A')
+                
+                # STOCK: Extract stock and create dynamic message
+                stock = item.get("quantity_available", 0)
+                stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
 
                 if product_id:
                     url = f"{frontend_base}/product/{product_id}"
-                    product_links.append(f"- [{title}]({url}) - ${price}")
+                    product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
                 else:
-                    product_links.append(f"- {title} - ${price}")
+                    product_links.append(f"- {title} - ${price}{stock_msg}")
 
             dispatcher.utter_message(
                 text="Here is what I found:\n" + "\n".join(product_links)
@@ -184,11 +161,11 @@ class ActionFetchProductsWithFilters(Action):
             logger.error(f"Error in action_fetch_products_with_filters: {e}", exc_info=True)
             dispatcher.utter_message(text=f"Error processing your request. Please try again.")
             
-        return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None)]
-
+        # Clear all slots
+        return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None), SlotSet("product_brand", None)]
 
 # ----------------------------------------------------------------------
-# ActionFetchAllProducts
+# ActionFetchAllProducts (Corrected for stock display)
 # ----------------------------------------------------------------------
 
 class ActionFetchAllProducts(Action):
@@ -219,11 +196,15 @@ class ActionFetchAllProducts(Action):
                 product_id = item.get("id")
                 price = item.get("price", 'N/A')
                 
+                # STOCK: Extract stock and create dynamic message
+                stock = item.get("quantity_available", 0)
+                stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
+                
                 if product_id:
                     url = f"{frontend_base}/product/{product_id}"
-                    product_links.append(f"- [{title}]({url}) - ${price}")
+                    product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
                 else:
-                    product_links.append(f"- {title} - ${price}")
+                    product_links.append(f"- {title} - ${price}{stock_msg}")
 
             dispatcher.utter_message(
                 text="Here are all the products we have:\n" + "\n".join(product_links)
@@ -233,4 +214,28 @@ class ActionFetchAllProducts(Action):
             logger.error(f"Error in action_fetch_all_products: {e}", exc_info=True)
             dispatcher.utter_message(text=f"An unexpected error occurred while fetching all products. Please check the logs.")
             
+        return []
+    
+# ----------------------------------------------------------------------
+# ActionSendFAQLink
+# ----------------------------------------------------------------------
+class ActionSendFAQLink(Action):
+    def name(self) -> Text:
+        return "action_faq_link"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        faq_url = "http://localhost:3000/faq"
+        dispatcher.utter_template("utter_faq_link", tracker, link=faq_url)
+        return []
+    
+# ----------------------------------------------------------------------
+# ActionReturnPolicyLink
+# ----------------------------------------------------------------------
+class ActionReturnPolicyLink(Action):
+    def name(self) -> Text:
+        return "action_return_policy_link"
+    
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
+        return_policy_url = "http://localhost:3000/shipping-returns"
+        dispatcher.utter_template("utter_return_policy_link", tracker, link=return_policy_url)
         return []
