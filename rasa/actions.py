@@ -8,6 +8,9 @@ from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
 from rasa_sdk.events import SlotSet
 
+# Import live-agent handoff action so the action server registers it
+from liveagent_action import ActionHandoffToLiveAgent
+
 # Set up logger
 logger = logging.getLogger(__name__)
 
@@ -239,3 +242,9 @@ class ActionReturnPolicyLink(Action):
         return_policy_url = "http://localhost:3000/shipping-returns"
         dispatcher.utter_template("utter_return_policy_link", tracker, link=return_policy_url)
         return []
+
+
+# Explicitly reference the imported handoff action to avoid lint/unused removal
+class HandoffToAgent(ActionHandoffToLiveAgent):
+    """Alias to keep the action server registering the handoff action."""
+    pass
