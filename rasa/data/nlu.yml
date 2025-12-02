@@ -108,3 +108,12 @@ nlu:
       - Where can I find the return policy?
       - return policy
       - returns
+
+  - intent: request_live_agent
+    examples: |
+      - I want to speak with a live agent
+      - Connect me to a human
+      - I need to talk to support
+      - Let me chat with a real person
+      - Transfer me to an agent
+      - hand me off to a human please

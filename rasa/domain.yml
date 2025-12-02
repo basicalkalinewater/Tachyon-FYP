@@ -7,6 +7,7 @@ intents:
   - fetch_products_with_filters
   - faq_link
   - return_policy_link
+  - request_live_agent
 
 entities:
   - product_category
@@ -74,3 +75,4 @@ actions:
   - action_fetch_products_with_filters
   - action_faq_link
   - action_return_policy_link
+  - action_handoff_to_agent

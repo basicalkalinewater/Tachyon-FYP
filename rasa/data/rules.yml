@@ -27,3 +27,8 @@ rules:
     steps:
       - intent: return_policy_link
       - action: action_return_policy_link
+
+  - rule: Handoff to live agent
+    steps:
+      - intent: request_live_agent
+      - action: action_handoff_to_agent
