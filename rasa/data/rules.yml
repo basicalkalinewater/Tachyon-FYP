@@ -1,0 +1,29 @@
+version: "3.1"
+
+rules:
+  - rule: Fetch all products without filters
+    steps:
+      - intent: fetch_all_products
+      - action: action_fetch_all_products
+
+  - rule: Activate product filter form
+    steps:
+      - intent: fetch_products_with_filters
+      - action: product_filter_form
+      - active_loop: product_filter_form
+
+  - rule: Submit product filter form
+    steps:
+      - action: product_filter_form
+      - active_loop: null
+      - action: action_fetch_products_with_filters
+
+  - rule: Provide FAQ link
+    steps:
+      - intent: faq_link
+      - action: action_faq_link
+
+  - rule: Provide return policy link
+    steps:
+      - intent: return_policy_link
+      - action: action_return_policy_link

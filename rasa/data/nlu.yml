@@ -1,0 +1,110 @@
+version: "3.1"
+
+nlu:
+  - intent: greet
+    examples: |
+      - hi
+      - hello
+      - hey
+
+  - intent: goodbye
+    examples: |
+      - bye
+      - goodbye
+      - see you
+
+  - intent: fetch_all_products
+    examples: |
+      - Show me all products
+      - I want to see all available products
+      - List all products
+      - products
+      - what products do you have
+      - what are you selling
+
+# Fetch products depending on user-specified filters, can be single or multiple filters.
+# Enhance single filter intents to support multiple filters in one intent. (blk 1-4)
+
+  - intent: fetch_products_with_filters
+    examples: |
+      - Show me [monitor](product_category)
+      - What [ssd](product_category) do you have?
+      - I would like to see all your [keyboard](product_category)
+      - List the [mouse](product_category) you sell
+
+      - Do you have any [Razer](product_brand) products?
+      - Show me products from [Logitech](product_brand)
+      - I want to see [Dell](product_brand) items
+      - List all [LG](product_brand) products
+
+      - Can I see products under [300](product_price)?
+      - Show me items below [150](product_price)
+      - I want to find products in the [100-400](product_price) range
+      - Find products priced under [250](product_price)
+
+      - I want a product with [Wireless](product_specs) connection
+      - Show me items that have [IPS](product_specs) panel type
+      - Find products with [PCIe 4.0](product_specs) interface
+      - Do you have screens with [360](product_specs) refresh rate?
+
+      - I need a monitor(product_category) with [1920x1080](product_specs) resolution
+      - Do you have any keyboard(product_category) with [Tactile](product_specs) switches?
+      - Show me [ssd](product_category) products from [Samsung](product_brand)
+      - Find me a [mouse](product_category) with [2000](product_specs) polling_hz.
+
+      - Show me [ssd](product_category) that are under [300](product_price)
+      - I am looking for a [monitor](product_category) between [200-500](product_price)
+      - What [keyboard](product_category) are available below [150](product_price)?
+      - Find [mouse](product_category) products priced under [100](product_price)
+
+      - Find a [Dell](product_brand) monitor that has [IPS](product_specs) panel type
+      - Show me [Logitech](product_brand) keyboard with [Tactile](product_specs) switches
+      - I want a [Samsung](product_brand) ssd with [PCIe 4.0](product_specs) interface
+      - Do you have a [Razer](product_brand) mouse with [106](product_specs) weight grams?
+
+      - Show me items under [100](product_price) that have [Wireless](product_specs) connection
+      - I want products below[500](product_price) with [1920x1080](product_specs) resolution
+      - Find products in the [200-400](product_price) range that have [IPS](product_specs) panel type
+      - Do you have products under [300](product_price) with [Tactile](product_specs) switches?
+
+      - I need a [monitor](product_category) under [300](product_price) with [IPS](product_specs) panel type
+      - Show me a [keyboard](product_category) below [150](product_price) that has [Wireless](product_specs) connection
+      - Find a [ssd](product_category) in the [200-400](product_price) range with [PCIe 4.0](product_specs) interface
+      - Do you have a [mouse](product_category) under [100](product_price) with [2000](product_specs) polling_hz?
+
+      - Find me a [Razer](product_brand) monitor under [500](product_price) with [360](product_specs) refresh rate
+      - Show me a [Dell](product_brand) keyboard below [200](product_price) that has [Tactile](product_specs) switches
+      - I want a [Samsung](product_brand) ssd in the [250-400](product_price) range with [PCIe 4.0](product_specs) interface
+      - Do you have a [Logitech](product_brand) mouse under [150](product_price) with [2000](product_specs) polling_hz?
+
+      - I want a [Logitech](product_brand) keyboard(product_category) under [200](product_price) that has [Wireless](product_specs) connection
+      - Show me a [Dell](product_brand) monitor(product_category) below [500](product_price) with [1920x1080](product_specs) resolution
+      - Find me a [Samsung](product_brand) ssd(product_category) in the [300-400](product_price) range with [PCIe 4.0](product_specs) interface
+      - Do you have a [Razer](product_brand) mouse(product_category) under [150](product_price) with [2000](product_specs) polling_hz?
+      - Give me [monitor](product_category) from [Dell](product_brand) under [500](product_price) with [1920x1080](product_specs) resolution
+      - I want a [keyboard](product_category) from [Logitech](product_brand) below [200](product_price) that has [Wireless](product_specs) connection
+      - I want to buy [Wireless](product_specs) [mouse](product_category) from [Razer](product_brand) under [150](product_price)
+      - Show me [ssd](product_category) with [PCIe 4.0](product_specs) from [Samsung](product_brand) in the [300-400](product_price) range
+
+
+
+
+
+  - intent: faq_link
+    examples: |
+      - Where can I find more information?
+      - Do you have a FAQ section?
+      - I need more details about your products
+      - Can you provide a link to the FAQ?
+      - Where is the FAQ page?
+      - faq
+      - FAQs
+
+  - intent: return_policy_link
+    examples: |
+      - What is your return policy?
+      - How do I return a product?
+      - Can you provide information on returns?
+      - Where can I find the return policy?
+      - return policy
+      - returns

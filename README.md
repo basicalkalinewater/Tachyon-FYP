@@ -51,15 +51,32 @@ cd rasa
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt   # installs rasa==3.6.20
+<<<<<<< HEAD
+=======
+
+If error trying to install rasa package, try upgrading pip (in the .venv)
+>>>>>>> f0e03935cfeebe81b84e59cace3916f2d4fbc206
 ```
 If the venv is already set up with Rasa installed, skip to:
 ```
 cd rasa
 rasa train
 rasa run --enable-api --cors "*"   # starts on http://localhost:5005 with CORS open
+
 ```
-Optional (if you add custom actions):
+In another terminal run: 
 ```
+cd rasa 
+.\.venv\Scripts\activate
+rasa run actions
+``` 
+
+
+
+
+cd rasa
+py -3.10 -m venv .venv 
+.\.venv\Scripts\activate
 rasa run actions
 ```
 Then set `VITE_RASA_URL=http://localhost:5005/webhooks/rest/webhook` in your `.env` so the web widget can talk to Rasa. Deprecation warnings during `rasa train`/`run` (SQLAlchemy/pkg_resources) are expected on 3.6.20 and can be ignored.

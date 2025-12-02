@@ -1,0 +1,23 @@
+# version: "3.1"
+
+# stories:
+#   - story: handle faqs
+#     steps:
+#       - intent: faq_shipping
+#       - action: utter_faq_shipping
+#       - intent: faq_returns
+#       - action: utter_faq_returns
+#       - intent: faq_order_status
+#       - action: utter_faq_order_status
+
+  # - story: greet and products
+  #   steps:
+  #     - intent: greet
+  #     - action: utter_greet
+  #     - intent: products
+  #     - action: utter_products
+
+  # - story: list products
+  #   steps:
+  #     - intent: products
+  #     - action: action_fetch_products

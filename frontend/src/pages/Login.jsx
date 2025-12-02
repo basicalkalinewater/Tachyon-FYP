@@ -22,11 +22,18 @@ const Login = () => {
   const error = useSelector(selectAuthError);
 
   useEffect(() => {
-    if (currentUser) {
-      const next = currentUser.role === "customer" ? "/dashboard/customer" : "/dashboard/admin";
-      navigate(next, { replace: true });
+  if (currentUser) {
+    const roleToRoute = {
+      customer: "/dashboard/customer",
+      admin: "/dashboard/admin",
+      support: "/dashboard/customer-support",
+    };
+
+    const next = roleToRoute[currentUser.role] || "/";
+    navigate(next, { replace: true });
     }
   }, [currentUser, navigate]);
+
 
   const handleChange = (evt) => {
     const { name, value } = evt.target;

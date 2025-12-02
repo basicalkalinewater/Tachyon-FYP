@@ -18,7 +18,13 @@ const Navbar = () => {
 
   const cartCount = useSelector(selectCartCount);
   const currentUser = useSelector(selectCurrentUser);
-  const dashboardRoute = "/dashboard/customer";
+  const dashboardRoute =
+  currentUser?.role === "customer"
+    ? "/dashboard/customer"
+    : currentUser?.role === "support" 
+    ? "/dashboard/customer-support"
+    : "/"; 
+
   const accountLabel =
     (currentUser?.fullName && currentUser.fullName.trim()) ||
     currentUser?.email?.split("@")[0] ||
