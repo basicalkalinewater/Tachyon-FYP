@@ -3,17 +3,23 @@ Flask REST API that fronts Supabase tables for products and carts.
 - CORS is enabled for the Vite frontend.
 - Supabase client is initialized once and reused.
 """
-
 import os
-import secrets
-from datetime import datetime
-from flask import Flask, jsonify, request
+from dotenv import load_dotenv
+
+# ✅ Load .env before any imports that depend on it
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
+print("DATABASE_URL loaded:", os.getenv("DATABASE_URL"))  # optional check
+
+from flask import Flask
 from flask_cors import CORS
 from supabase_client import get_supabase
+from live_agent_api import live_agent_bp
+
 
 app = Flask(__name__)
 CORS(app)
 supabase = get_supabase()
+app.register_blueprint(live_agent_bp, url_prefix="/support")
 
 
 def map_product(row):
