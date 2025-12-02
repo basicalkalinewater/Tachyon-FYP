@@ -17,3 +17,13 @@ rules:
       - action: product_filter_form
       - active_loop: null
       - action: action_fetch_products_with_filters
+
+  - rule: Provide FAQ link
+    steps:
+      - intent: faq_link
+      - action: action_faq_link
+
+  - rule: Provide return policy link
+    steps:
+      - intent: return_policy_link
+      - action: action_return_policy_link
