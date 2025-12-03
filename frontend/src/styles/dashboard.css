@@ -2,6 +2,10 @@
   color: var(--text-main);
 }
 
+.theme-dark .dashboard-container {
+  color: var(--text-main);
+}
+
 .dashboard-layout {
   display: grid;
   grid-template-columns: minmax(220px, 280px) 1fr;
@@ -139,6 +143,64 @@
   border-color: var(--border-light) !important;
   background: var(--bg-card);
   border-radius: var(--radius-md);
+}
+
+.theme-dark .card-saas {
+  background: var(--bg-card);
+  border-color: var(--border-light);
+  box-shadow: none;
+}
+
+.theme-dark .dashboard-section {
+  background: var(--bg-card);
+}
+
+.theme-dark .sidebar-link {
+  color: var(--text-main);
+  border-color: var(--border-light);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-dark .sidebar-link:hover,
+.theme-dark .sidebar-link.active {
+  background: rgba(99, 102, 241, 0.14);
+  border-color: var(--primary);
+  color: #e0e7ff;
+}
+
+.theme-dark .form-control {
+  background-color: #0b1220;
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+}
+
+.theme-dark .form-control::placeholder {
+  color: var(--text-light);
+}
+
+.theme-dark .table {
+  color: var(--text-main);
+  background: var(--bg-card);
+}
+
+.theme-dark .table thead th {
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border-light);
+}
+
+.theme-dark .table tbody tr {
+  color: var(--text-main);
+  background: rgba(15, 23, 42, 0.4);
+  border-color: var(--border-light);
+}
+
+.theme-dark .table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.6);
+}
+
+.theme-dark .status-badge {
+  border: 1px solid var(--border-light);
 }
 
 @media (max-width: 991px) {
