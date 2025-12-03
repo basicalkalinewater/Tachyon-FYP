@@ -17,7 +17,7 @@ TEST_AGENT_ID = "046820b1-e032-4fa0-a64b-4bebe71d0739"
 # -----------------------------
 # Load .env from PROJECT ROOT
 # -----------------------------
-env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
+env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
 load_dotenv(env_path)
 print("DB_HOST:", os.getenv("DB_HOST"))
 

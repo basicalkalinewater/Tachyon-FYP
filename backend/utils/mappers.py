@@ -1,0 +1,68 @@
+def map_product(row):
+    """Normalize DB product row into the shape the frontend expects."""
+    return {
+        "id": row.get("id"),
+        "title": row.get("title"),
+        "description": row.get("description"),
+        "price": float(row.get("price", 0)),
+        "image": row.get("image_url"),
+        "category": row.get("category"),
+        "rating": row.get("rating"),
+        "rating_count": row.get("rating_count"),
+        "specs": row.get("specs") or {},
+    }
+
+
+def map_address(row):
+    return {
+        "id": row.get("id"),
+        "label": row.get("label"),
+        "recipient": row.get("recipient"),
+        "line1": row.get("line1"),
+        "line2": row.get("line2") or "",
+        "city": row.get("city"),
+        "postalCode": row.get("postal_code"),
+        "country": row.get("country"),
+        "phone": row.get("phone"),
+        "isDefault": row.get("is_default", False),
+    }
+
+
+def map_payment(row):
+    return {
+        "id": row.get("id"),
+        "brand": row.get("brand"),
+        "last4": row.get("last4"),
+        "expiry": row.get("expiry"),
+        "nickname": row.get("nickname") or "",
+        "isDefault": row.get("is_default", False),
+    }
+
+
+def map_order(row):
+    items = row.get("customer_order_item") or []
+    return {
+        "orderId": row.get("order_code"),
+        "date": row.get("placed_at"),
+        "status": row.get("status"),
+        "total": float(row.get("total", 0)),
+        "items": [
+            {
+                "name": item.get("product_name"),
+                "qty": item.get("quantity", 1),
+                "price": float(item.get("unit_price", 0)),
+            }
+            for item in items
+        ],
+    }
+
+
+def map_rma(row):
+    return {
+        "rmaId": row.get("rma_code"),
+        "createdOn": row.get("created_at"),
+        "product": row.get("product_name"),
+        "status": row.get("status"),
+        "issue": row.get("issue"),
+        "lastUpdate": row.get("updated_at"),
+    }

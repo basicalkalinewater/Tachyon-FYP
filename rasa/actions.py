@@ -1,6 +1,7 @@
 import os
 import re
 import logging
+from pathlib import Path
 from typing import Any, Dict, List, Text
 
 import requests
@@ -14,9 +15,20 @@ from liveagent_action import ActionHandoffToLiveAgent
 # Set up logger
 logger = logging.getLogger(__name__)
 
-# NOTE: REPLACE WITH YOUR CONFIRMED, WORKING KEY
-SUPABASE_URL = "https://uexvsnwbgnuxkgkaenjp.supabase.co/rest/v1/product_stock_view"
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVleHZzbndiZ251eGtna2FlbmpwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDIzNDMzOSwiZXhwIjoyMDc5ODEwMzM5fQ.wejc693CUXVf-aymTQMZUkzpeIcH-oOKR-bdtesZQbI"
+# Load environment variables (prefers repo-root .env)
+try:
+    from dotenv import load_dotenv
+
+    DOTENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+    load_dotenv(DOTENV_PATH)
+except Exception as exc:
+    logger.warning("Could not load .env file: %s", exc)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL") or os.getenv("SUPABASE_REST_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    logger.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in the action server environment/.env")
 
 headers = {
     "apikey": SUPABASE_KEY,
@@ -41,6 +53,10 @@ class ActionFetchProductsWithFilters(Action):
         product_price = tracker.get_slot("product_price")
         product_specs_text = tracker.get_slot("product_specs")
         product_brand = tracker.get_slot("product_brand")
+
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            dispatcher.utter_message(text="Product search is unavailable right now (missing Supabase configuration).")
+            return [SlotSet("product_category", None), SlotSet("product_price", None), SlotSet("product_specs", None), SlotSet("product_brand", None)]
     
         category_key = product_category.lower() if product_category else None
         brand_key = product_brand.lower() if product_brand else None
@@ -177,6 +193,10 @@ class ActionFetchAllProducts(Action):
 
     def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[Dict[Text, Any]]:
         dispatcher.utter_message(text="Fetching all available products...")
+
+        if not SUPABASE_URL or not SUPABASE_KEY:
+            dispatcher.utter_message(text="Product search is unavailable right now (missing Supabase configuration).")
+            return []
         
         try:
             response = requests.get(SUPABASE_URL, headers=headers)
