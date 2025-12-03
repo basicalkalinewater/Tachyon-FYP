@@ -201,7 +201,7 @@ const CustomerSupportDashboard = () => {
   };
 
   const renderSessionList = (emptyLabel) => (
-    <div className="card-saas">
+    <div className="card-saas h-100 p-3">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <div>
           <p className="text-muted text-uppercase small fw-semibold mb-1">
@@ -273,8 +273,8 @@ const CustomerSupportDashboard = () => {
       : "Summary not sent";
 
     return (
-      <div className="card-saas h-100 d-flex flex-column">
-        <div className="d-flex justify-content-between align-items-start mb-3">
+      <div className="card-saas h-100 d-flex flex-column p-3">
+        <div className="d-flex justify-content-between align-items-start mb-3 gap-3">
           <div>
             <p className="text-muted text-uppercase small fw-semibold mb-1">
               Session {selectedSession.id}
@@ -295,7 +295,8 @@ const CustomerSupportDashboard = () => {
           </div>
           {canClaim && (
             <button
-              className="btn btn-primary"
+              className="btn btn-primary mt-1 px-3"
+              style={{ minWidth: "140px" }}
               onClick={() => handleClaim(selectedSession.id)}
             >
               Claim session
@@ -326,7 +327,9 @@ const CustomerSupportDashboard = () => {
                   }`}
                   >
                     <div className="small fw-semibold mb-1">
-                      {msg.sender_role === "agent" ? "Agent" : "Customer"}
+                      {msg.sender_role === "agent"
+                        ? formatAgentName(selectedSession)
+                        : formatCustomerName(selectedSession)}
                     </div>
                     <div>{msg.message}</div>
                   </div>
