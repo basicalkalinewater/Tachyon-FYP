@@ -57,6 +57,11 @@ const CustomerSupportDashboard = () => {
   const displayName =
     (user?.fullName && user.fullName.trim()) || displayEmail || "Support Agent";
 
+  const formatCustomerName = (session) =>
+    session?.customer_full_name || session?.customer_email || "Customer";
+  const formatAgentName = (session) =>
+    session?.agent_full_name || session?.agent_email || "Support Agent";
+
   const sectionStatus = useMemo(() => {
     if (activeSection === "history") return "closed";
     if (activeSection === "assigned") return "in_progress";
@@ -213,12 +218,12 @@ const CustomerSupportDashboard = () => {
       ) : sessions.length === 0 ? (
         <p className="text-muted small mb-0">{emptyLabel}</p>
       ) : (
-        <div className="list-group">
+        <div className="list-group support-list">
           {sessions.map((session) => (
             <button
               key={session.id}
               type="button"
-              className={`list-group-item list-group-item-action ${
+              className={`list-group-item list-group-item-action support-list-item ${
                 selectedSession?.id === session.id ? "active" : ""
               }`}
               onClick={() => handleSelectSession(session.id)}
@@ -227,16 +232,16 @@ const CustomerSupportDashboard = () => {
                 <div>
                   <div className="fw-semibold">Chat #{session.id}</div>
                   <div className="text-muted small">
-                    Customer: {session.customer_email || "Unknown"}
+                    Customer: {formatCustomerName(session)}
                   </div>
                 </div>
                 <span className="badge bg-secondary text-uppercase">
                   {session.status}
                 </span>
               </div>
-              {session.agent_email && (
+              {(session.agent_full_name || session.agent_email) && (
                 <div className="text-muted small mt-1">
-                  Assigned to {session.agent_email}
+                  Assigned to {formatAgentName(session)}
                 </div>
               )}
             </button>
@@ -275,14 +280,14 @@ const CustomerSupportDashboard = () => {
               Session {selectedSession.id}
             </p>
             <h4 className="mb-1">
-              {selectedSession.customer_email || "New customer"}
+              {formatCustomerName(selectedSession)}
             </h4>
             <p className="text-muted small mb-0">
               Status: {selectedSession.status}
-              {selectedSession.agent_email
-                ? ` • Assigned to ${selectedSession.agent_email}`
-                : " • Unassigned"}
-              {selectedSession.resolution_tag ? ` • Resolution: ${selectedSession.resolution_tag}` : ""}
+              {selectedSession.agent_id
+                ? ` - Assigned to ${formatAgentName(selectedSession)}`
+                : " - Unassigned"}
+              {selectedSession.resolution_tag ? ` - Resolution: ${selectedSession.resolution_tag}` : ""}
             </p>
             {selectedSession.summary_email_sent !== undefined && (
               <p className="text-muted small mb-0">{summarySentLabel}</p>
@@ -314,11 +319,11 @@ const CustomerSupportDashboard = () => {
                   className={`mb-3 ${msg.sender_role === "agent" ? "text-end" : ""}`}
                 >
                   <div
-                    className={`d-inline-block p-2 rounded ${
-                      msg.sender_role === "agent"
-                        ? "bg-primary text-white"
-                        : "bg-light"
-                    }`}
+                  className={`d-inline-block p-2 rounded support-message ${
+                    msg.sender_role === "agent"
+                      ? "support-message-agent"
+                      : "support-message-customer"
+                  }`}
                   >
                     <div className="small fw-semibold mb-1">
                       {msg.sender_role === "agent" ? "Agent" : "Customer"}
@@ -402,10 +407,10 @@ const CustomerSupportDashboard = () => {
               {sessions.map((s) => (
                 <tr key={s.id}>
                   <td>#{s.id}</td>
-                  <td>{s.customer_email || "Unknown"}</td>
-                  <td>{s.agent_email || "Unassigned"}</td>
+                  <td>{formatCustomerName(s)}</td>
+                  <td>{formatAgentName(s)}</td>
                   <td className="text-capitalize">{s.status}</td>
-                  <td>{s.resolution_tag || "—"}</td>
+                  <td>{s.resolution_tag || "N/A"}</td>
                   <td>
                     {s.summary_email_sent
                       ? s.summary_email_sent_at

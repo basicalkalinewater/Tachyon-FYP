@@ -305,10 +305,14 @@ def list_sessions(status: Optional[str]):
               s.last_updated,
               s.notes,
               cu.email  AS customer_email,
-              ag.email  AS agent_email
+              ag.email  AS agent_email,
+              cp.full_name  AS customer_full_name,
+              coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
             LEFT JOIN app_user ag ON ag.id = s.agent_id
+            LEFT JOIN customer_profile cp ON cp.user_id = s.customer_id
+            LEFT JOIN live_agent_profile lap ON lap.user_id = s.agent_id
             WHERE s.status = ANY(%s)
             ORDER BY s.last_updated DESC
             LIMIT 50;
@@ -341,10 +345,14 @@ def get_session(session_id: str):
               s.notes,
               s.rasa_sender_id,
               cu.email AS customer_email,
-              ag.email AS agent_email
+              ag.email AS agent_email,
+              cp.full_name  AS customer_full_name,
+              coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
             LEFT JOIN app_user ag ON ag.id = s.agent_id
+            LEFT JOIN customer_profile cp ON cp.user_id = s.customer_id
+            LEFT JOIN live_agent_profile lap ON lap.user_id = s.agent_id
             WHERE s.id = %s;
             """,
             (session_id,),
@@ -519,10 +527,14 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             SELECT
               s.id, s.status, s.resolution_tag,
               cu.email AS customer_email,
-              ag.email AS agent_email
+              ag.email AS agent_email,
+              cp.full_name  AS customer_full_name,
+              coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
             LEFT JOIN app_user ag ON ag.id = s.agent_id
+            LEFT JOIN customer_profile cp ON cp.user_id = s.customer_id
+            LEFT JOIN live_agent_profile lap ON lap.user_id = s.agent_id
             WHERE s.id = %s;
             """,
             (session_id,),
