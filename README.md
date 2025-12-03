@@ -60,7 +60,7 @@ cd rasa
 # If you already have a Python 3.10 venv with Rasa installed, activate it and skip venv/pip.
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or: source .venv/bin/activate
-pip install -r requirements.txt   # installs rasa==3.6.20
+pip install -r requirements.txt   # installs rasa==3.6.20 plus python-dotenv
 rasa train
 rasa run --enable-api --cors "*"   # http://localhost:5005
 ```
