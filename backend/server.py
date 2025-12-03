@@ -8,7 +8,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 
 from .supabase_client import get_supabase
-from .services.live_agent_api import live_agent_bp
+from .routes.live_cust_support import live_cust_support_bp
 from .routes.products import products_bp
 from .routes.carts import carts_bp
 from .routes.auth import auth_bp
@@ -27,7 +27,7 @@ def create_app() -> Flask:
     app.config["SUPABASE"] = supabase
 
     # Blueprints by function/domain
-    app.register_blueprint(live_agent_bp, url_prefix="/support")
+    app.register_blueprint(live_cust_support_bp, url_prefix="/support")
     app.register_blueprint(products_bp, url_prefix="/api/products")
     app.register_blueprint(carts_bp, url_prefix="/api/carts")
     app.register_blueprint(auth_bp, url_prefix="/api/auth")

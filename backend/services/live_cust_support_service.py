@@ -1,29 +1,31 @@
-import os
-import time
 import json
+import os
+import smtplib
+import time
 from contextlib import contextmanager
+from email.message import EmailMessage
+from pathlib import Path
+from typing import Optional
 
 import psycopg2
 import requests
-import smtplib
-from email.message import EmailMessage
+from flask import Response, jsonify, stream_with_context
 from psycopg2.extras import RealDictCursor
-from flask import Blueprint, jsonify, request, Response, stream_with_context
 from dotenv import load_dotenv
 
-
-TEST_CUSTOMER_ID = "923a82b6-7213-452d-b887-d795fd8cbcdc"
-TEST_AGENT_ID = "046820b1-e032-4fa0-a64b-4bebe71d0739"
-# -----------------------------
-# Load .env from PROJECT ROOT
-# -----------------------------
-env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+# Load configuration from repo root
+env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(env_path)
-print("DB_HOST:", os.getenv("DB_HOST"))
 
-# -----------------------------
-# DB connection configuration
-# -----------------------------
+# Optional defaults when incoming handoff has no mapped IDs yet
+FALLBACK_CUSTOMER_ID = os.getenv("LIVE_CUST_SUPPORT_FALLBACK_CUSTOMER_ID") or os.getenv(
+    "LIVE_AGENT_FALLBACK_CUSTOMER_ID"
+)
+FALLBACK_AGENT_ID = os.getenv("LIVE_CUST_SUPPORT_FALLBACK_AGENT_ID") or os.getenv(
+    "LIVE_AGENT_FALLBACK_AGENT_ID"
+)
+
+# Database credentials
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST"),
     "port": os.environ.get("DB_PORT", 5432),
@@ -31,35 +33,25 @@ DB_CONFIG = {
     "user": os.environ.get("DB_USER", "postgres"),
     "password": os.environ.get("DB_PASSWORD"),
 }
-print("DB_CONFIG:", DB_CONFIG)  # <-- Add this line temporarily to confirm
+
+# External integrations
 RASA_RELAY_URL = os.getenv("RASA_RELAY_URL", "http://localhost:5005/webhooks/rest/webhook")
-# Direct push endpoint to inject agent messages as bot events into the conversation tracker
-RASA_PUSH_URL = os.getenv(
-    "RASA_PUSH_URL",
-    "http://localhost:5005/conversations/{sender_id}/tracker/events",
-)
-RASA_FORWARD_URL = os.getenv(
-    "RASA_FORWARD_URL",
-    "http://localhost:4000/support/sessions/from_rasa/message",
-)
+RASA_PUSH_URL = os.getenv("RASA_PUSH_URL", "http://localhost:5005/conversations/{sender_id}/tracker/events")
+RASA_FORWARD_URL = os.getenv("RASA_FORWARD_URL", "http://localhost:4000/support/sessions/from_rasa/message")
 SMTP_HOST = os.getenv("SMTP_HOST")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM", SMTP_USER or "no-reply@example.com")
 
-# Basic sanity check
 missing = [k for k, v in DB_CONFIG.items() if v in (None, "") and k != "sslmode"]
 if missing:
     raise RuntimeError(f"Missing DB config values in .env: {', '.join(missing)}")
 
-live_agent_bp = Blueprint("live_agent", __name__)
-
-# Rest of your code stays the same...
 
 @contextmanager
 def get_db():
-    """Open a DB connection and auto-commit/rollback."""
+    """Yield a Postgres connection with auto-commit/rollback."""
     conn = psycopg2.connect(**DB_CONFIG)
     try:
         yield conn
@@ -71,7 +63,6 @@ def get_db():
         conn.close()
 
 
-# Small helper to make JSON responses consistent
 def ok(data=None):
     return jsonify({"success": True, "data": data})
 
@@ -81,13 +72,14 @@ def error(message, status=400):
 
 
 def format_chat_summary(session_row, messages, resolution_tag):
-    """Compose a simple text summary email body."""
-    lines = []
-    lines.append("Hi,")
-    lines.append("")
-    lines.append("Here is a summary of your recent support chat:")
-    lines.append(f"- Chat ID: {session_row.get('id')}")
-    lines.append(f"- Status: {session_row.get('status')}")
+    """Compose a plain-text summary email for a chat session."""
+    lines = [
+        "Hi,",
+        "",
+        "Here is a summary of your recent support chat:",
+        f"- Chat ID: {session_row.get('id')}",
+        f"- Status: {session_row.get('status')}",
+    ]
     if resolution_tag:
         lines.append(f"- Resolution: {resolution_tag}")
     lines.append("")
@@ -104,7 +96,7 @@ def format_chat_summary(session_row, messages, resolution_tag):
 
 
 def send_summary_email(to_email, subject, body):
-    """Send summary email via SMTP; returns True/False."""
+    """Send a summary email; return True/False depending on success."""
     if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD and to_email):
         print("WARN: SMTP config or recipient missing; skipping summary email")
         return False
@@ -119,34 +111,16 @@ def send_summary_email(to_email, subject, body):
             smtp.login(SMTP_USER, SMTP_PASSWORD)
             smtp.send_message(msg)
         return True
-    except Exception as e:
-        print("WARN: failed to send summary email:", e)
+    except Exception as exc:
+        print("WARN: failed to send summary email:", exc)
         return False
 
 
-# -------------------------------------------------------------------
-# RASA HANDOFF: Create new chat session when user requests human agent
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/from_rasa")
-def create_session_from_rasa():
-    """
-    POST /support/sessions/from_rasa
-    Called by Rasa when user says "I want to talk to human".
-    Creates chat session + first message.
-    """
-    data = request.get_json(force=True, silent=True) or {}
-
-    sender_id = data.get("sender_id")         # Rasa conversation ID
-    last_message = data.get("last_message")   # user's message text
-
-    if not sender_id or not last_message:
-        return error("sender_id and last_message are required")
-
+def create_session_from_rasa(sender_id: str, last_message: str):
+    """Create a new chat session when Rasa escalates to a human."""
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # 1) Create session (customer_id unknown yet → NULL)
             cur.execute(
                 """
                 INSERT INTO chat_sessions (
@@ -159,12 +133,11 @@ def create_session_from_rasa():
                 VALUES (%s, %s, 'pending', %s, NOW())
                 RETURNING id;
                 """,
-                (TEST_CUSTOMER_ID, TEST_AGENT_ID, sender_id,),
+                (FALLBACK_CUSTOMER_ID, FALLBACK_AGENT_ID, sender_id),
             )
             session_row = cur.fetchone()
             session_id = session_row["id"]
 
-            # 2) Insert first customer message
             cur.execute(
                 """
                 INSERT INTO chat_messages (
@@ -177,41 +150,21 @@ def create_session_from_rasa():
                 VALUES (%s, 'customer', %s, %s, FALSE)
                 RETURNING id;
                 """,
-                (session_id, TEST_CUSTOMER_ID, last_message),
+                (session_id, FALLBACK_CUSTOMER_ID, last_message),
             )
             message_row = cur.fetchone()
 
-        return ok({
-            "session_id": session_id,
-            "first_message_id": message_row["id"],
-            "note": "Session created from Rasa handoff"
-        })
-
-    except Exception as e:
-        print("ERROR create_session_from_rasa:", e)
-        return error(str(e), status=500)
+        return ok({"session_id": session_id, "first_message_id": message_row["id"], "note": "Session created from Rasa handoff"})
+    except Exception as exc:
+        print("ERROR create_session_from_rasa:", exc)
+        return error(str(exc), status=500)
 
 
-# -------------------------------------------------------------------
-# Append a customer message to an existing session by Rasa sender_id
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/from_rasa/message")
-def append_message_from_rasa():
-    """
-    POST /support/sessions/from_rasa/message
-    body: { "sender_id": "<rasa sender>", "last_message": "..." }
-    Finds the latest open session for that sender and appends the message.
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    sender_id = data.get("sender_id")
-    last_message = data.get("last_message")
-    if not sender_id or not last_message:
-        return error("sender_id and last_message are required")
-
+def append_message_from_rasa(sender_id: str, last_message: str):
+    """Append a customer message to the latest open session for a sender."""
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-
             cur.execute(
                 """
                 SELECT id, customer_id
@@ -228,7 +181,7 @@ def append_message_from_rasa():
                 return error("No open session for this sender", status=404)
 
             session_id = session["id"]
-            customer_id = session["customer_id"] or TEST_CUSTOMER_ID
+            customer_id = session["customer_id"] or FALLBACK_CUSTOMER_ID
 
             cur.execute(
                 """
@@ -247,37 +200,20 @@ def append_message_from_rasa():
             )
             cur.fetchone()
 
-            cur.execute(
-                "UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;",
-                (session_id,),
-            )
+            cur.execute("UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;", (session_id,))
 
         return ok({"session_id": session_id})
-    except Exception as e:
-        print("ERROR append_message_from_rasa:", e)
-        return error(str(e), status=500)
+    except Exception as exc:
+        print("ERROR append_message_from_rasa:", exc)
+        return error(str(exc), status=500)
 
 
-# -------------------------------------------------------------------
-# Direct customer channel: append a customer message by session id
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/<session_id>/customer/messages")
-def send_customer_message(session_id):
-    """
-    POST /support/sessions/<session_id>/customer/messages
-    body: { "message": "text", "customer_id": "<uuid>"? }
-    Appends a customer message to an open session. Useful when bypassing Rasa.
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    message = data.get("message")
-    customer_id = data.get("customer_id") or TEST_CUSTOMER_ID
-    if not message:
-        return error("message is required")
-
+def send_customer_message(session_id: str, message: str, customer_id: Optional[str]):
+    """Append a direct customer message to a session."""
+    customer_id = customer_id or FALLBACK_CUSTOMER_ID
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-
             cur.execute(
                 """
                 SELECT id
@@ -307,26 +243,17 @@ def send_customer_message(session_id):
             )
             row = cur.fetchone()
 
-            cur.execute(
-                "UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;",
-                (session_id,),
-            )
+            cur.execute("UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;", (session_id,))
 
         return ok({"message_id": row["id"], "created_at": row["created_at"]})
-    except Exception as e:
-        print("ERROR send_customer_message:", e)
-        return error(str(e), status=500)
+    except Exception as exc:
+        print("ERROR send_customer_message:", exc)
+        return error(str(exc), status=500)
 
 
-# -------------------------------------------------------------------
-# SSE stream for session messages (lightweight push)
-# -------------------------------------------------------------------
-@live_agent_bp.get("/sessions/<session_id>/stream")
-def stream_session(session_id):
-    """
-    SSE stream of new messages for a session.
-    Emits JSON array of new messages when they arrive.
-    """
+def stream_session(session_id: str):
+    """Return an SSE Response that streams new messages for a session."""
+
     def event_stream():
         last_id = 0
         while True:
@@ -346,29 +273,18 @@ def stream_session(session_id):
                     if rows:
                         last_id = rows[-1]["id"]
                         yield f"data: {json.dumps(rows, default=str)}\n\n"
-            except Exception as e:
-                print("WARN: stream error:", e)
+            except Exception as exc:
+                print("WARN: stream error:", exc)
             time.sleep(1)
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
 
-# -------------------------------------------------------------------
-# 24: View list of incoming chats escalated from chatbot
-#     (pending / in_progress sessions with basic info)
-# -------------------------------------------------------------------
-@live_agent_bp.get("/sessions")
-def list_sessions():
-    """
-    GET /support/sessions?status=pending|in_progress|closed
-    Default: pending + in_progress
-    """
-    status = request.args.get("status")
-
+def list_sessions(status: Optional[str]):
+    """List sessions; defaults to pending and in_progress."""
     if status:
         statuses = [status]
     else:
-        # default view: open chats
         statuses = ["pending", "in_progress"]
 
     with get_db() as conn:
@@ -404,19 +320,10 @@ def list_sessions():
     return ok(rows)
 
 
-# -------------------------------------------------------------------
-# 25 + 27: View single session & its messages (full history)
-# -------------------------------------------------------------------
-@live_agent_bp.get("/sessions/<session_id>")
-def get_session(session_id):
-    """
-    GET /support/sessions/<session_id>
-    Returns session info + ordered message history.
-    """
+def get_session(session_id: str):
+    """Fetch a single session plus its ordered message history."""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # session metadata
         cur.execute(
             """
             SELECT
@@ -446,7 +353,6 @@ def get_session(session_id):
         if not session:
             return error("Session not found", status=404)
 
-        # message history
         cur.execute(
             """
             SELECT
@@ -467,25 +373,10 @@ def get_session(session_id):
     return ok({"session": session, "messages": messages})
 
 
-# -------------------------------------------------------------------
-# 26: Claim a session (mark as in_progress, assign agent)
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/<session_id>/claim")
-def claim_session(session_id):
-    """
-    POST /support/sessions/<session_id>/claim
-    body: { "agent_id": "<uuid>" }
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
-
-    if not agent_id:
-        return error("agent_id is required")
-
+def claim_session(session_id: str, agent_id: str):
+    """Assign a session to an agent and notify the user via Rasa if possible."""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # only allow claim if pending
         cur.execute(
             """
             UPDATE chat_sessions
@@ -499,69 +390,41 @@ def claim_session(session_id):
             (agent_id, session_id),
         )
         row = cur.fetchone()
-
         if not row:
-            return error(
-                "Session not found or already claimed by another agent", status=409
-            )
+            return error("Session not found or already claimed by another agent", status=409)
 
-        # fetch agent email for the acknowledgement
         agent_email = None
         if agent_id:
             cur.execute("SELECT email FROM app_user WHERE id = %s;", (agent_id,))
             agent_row = cur.fetchone()
             agent_email = agent_row.get("email") if agent_row else None
 
-    # push a "connected" message back to the customer's chat (via Rasa REST channel)
     rasa_sender_id = row.get("rasa_sender_id")
     if rasa_sender_id:
         agent_name = agent_email or "a support agent"
         try:
             requests.post(
                 RASA_RELAY_URL,
-                json={
-                    "sender": rasa_sender_id,
-                    "message": f"You are now connected to {agent_name}.",
-                },
+                json={"sender": rasa_sender_id, "message": f"You are now connected to {agent_name}."},
                 timeout=2,
             )
-        except Exception as relay_err:
-            print("WARN: failed to relay claim notice to Rasa:", relay_err)
+        except Exception as exc:
+            print("WARN: failed to relay claim notice to Rasa:", exc)
 
     return ok(row)
 
 
-# -------------------------------------------------------------------
-# 27: Send real-time message from agent
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/<session_id>/messages")
-def send_agent_message(session_id):
-    """
-    POST /support/sessions/<session_id>/messages
-    body: { "agent_id": "<uuid>", "message": "text here" }
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
-    message = data.get("message")
-
-    if not agent_id or not message:
-        return error("agent_id and message are required")
-
+def send_agent_message(session_id: str, agent_id: str, message: str):
+    """Push a real-time agent message into a session and mirror it back to Rasa."""
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-
-            # verify session exists and capture rasa sender for push relay
-            cur.execute(
-                "SELECT id, rasa_sender_id FROM chat_sessions WHERE id = %s;",
-                (session_id,),
-            )
+            cur.execute("SELECT id, rasa_sender_id FROM chat_sessions WHERE id = %s;", (session_id,))
             session_row = cur.fetchone()
             if not session_row:
                 return error("Session not found", status=404)
             rasa_sender_id = session_row.get("rasa_sender_id")
 
-            # Try variant with sender_type column (if your table has it)
             try:
                 cur.execute(
                     """
@@ -579,7 +442,6 @@ def send_agent_message(session_id):
                     (session_id, agent_id, message),
                 )
             except psycopg2.errors.UndefinedColumn:
-                # Table has no sender_type column → fallback to older schema
                 conn.rollback()
                 cur = conn.cursor(cursor_factory=RealDictCursor)
                 cur.execute(
@@ -598,51 +460,26 @@ def send_agent_message(session_id):
                 )
 
             msg = cur.fetchone()
+            cur.execute("UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;", (session_id,))
 
-            # bump last_updated on session
-            cur.execute(
-                "UPDATE chat_sessions SET last_updated = NOW() WHERE id = %s;",
-                (session_id,),
-            )
-
-        # Attempt to relay the agent message back into the user's chat via Rasa HTTP API
         if rasa_sender_id:
             push_url = RASA_PUSH_URL.replace("{sender_id}", rasa_sender_id)
-            # Post a bot event directly to the tracker so it shows up in conversation history
             payload = {"event": "bot", "text": message, "metadata": {"source": "agent"}}
             try:
                 requests.post(push_url, json=payload, timeout=6)
-            except Exception as relay_err:
-                print("WARN: failed to relay agent message to Rasa:", relay_err)
+            except Exception as exc:
+                print("WARN: failed to relay agent message to Rasa:", exc)
 
         return ok(msg)
-
-    except Exception as e:
-        print("ERROR send_agent_message:", e)
-        return error(str(e), status=500)
-
+    except Exception as exc:
+        print("ERROR send_agent_message:", exc)
+        return error(str(exc), status=500)
 
 
-# -------------------------------------------------------------------
-# 29: End chat with resolution tag
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/<session_id>/resolve")
-def resolve_session(session_id):
-    """
-    POST /support/sessions/<session_id>/resolve
-    body: { "agent_id": "<uuid>", "resolution_tag": "Refund issued" }
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
-    resolution_tag = data.get("resolution_tag", "")
-
-    if not agent_id:
-        return error("agent_id is required")
-
+def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
+    """Close a session with a resolution tag and email a summary to the customer."""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # try to update resolution_tag if column exists
         try:
             cur.execute(
                 """
@@ -677,7 +514,6 @@ def resolve_session(session_id):
         if not row:
             return error("Session not found", status=404)
 
-        # fetch participant emails for summary
         cur.execute(
             """
             SELECT
@@ -693,7 +529,6 @@ def resolve_session(session_id):
         )
         session_meta = cur.fetchone() or {}
 
-        # fetch messages for transcript
         cur.execute(
             """
             SELECT sender_role, sender_type, message, created_at
@@ -713,7 +548,6 @@ def resolve_session(session_id):
             body=email_body,
         )
 
-        # persist summary email metadata
         cur.execute(
             """
             UPDATE chat_sessions
@@ -729,31 +563,10 @@ def resolve_session(session_id):
     return ok(row)
 
 
-# -------------------------------------------------------------------
-# 31: Flag questions the chatbot struggles with
-# -------------------------------------------------------------------
-@live_agent_bp.post("/sessions/<session_id>/flags")
-def flag_question(session_id):
-    """
-    POST /support/sessions/<session_id>/flags
-    body: {
-      "agent_id": "<uuid>",
-      "message_id": <bigint>,
-      "reason": "Bot did not understand product compatibility question"
-    }
-    """
-    data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
-    message_id = data.get("message_id")
-    reason = data.get("reason")
-
-    if not agent_id or not message_id or not reason:
-        return error("agent_id, message_id and reason are required")
-
+def flag_question(session_id: str, agent_id: str, message_id, reason: str):
+    """Flag a message the bot struggled with for follow-up analysis."""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
-
-        # ensure session + message exist and belong together
         cur.execute(
             """
             SELECT 1
@@ -765,7 +578,6 @@ def flag_question(session_id):
         if not cur.fetchone():
             return error("Message not found for this session", status=404)
 
-        # insert flag
         cur.execute(
             """
             INSERT INTO chat_flags (

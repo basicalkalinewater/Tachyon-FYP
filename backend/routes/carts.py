@@ -2,12 +2,13 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..services.cart_service import map_cart_items
 
+# Blueprint for cart endpoints; registered under /api/carts
 carts_bp = Blueprint("carts", __name__)
 
 
 @carts_bp.post("/")
 def create_cart():
-    """Create an empty cart and return its id."""
+    # Create an empty cart and return its id
     supabase = current_app.config["SUPABASE"]
     try:
         res = supabase.table("carts").insert({}).execute()
@@ -21,7 +22,7 @@ def create_cart():
 
 @carts_bp.get("/<cart_id>")
 def get_cart(cart_id):
-    """Return cart items for a given cart id (404 if not found)."""
+    # Return cart items for a given cart id (404 if not found)
     supabase = current_app.config["SUPABASE"]
     try:
         res = supabase.table("carts").select("id").eq("id", cart_id).single().execute()
@@ -36,7 +37,7 @@ def get_cart(cart_id):
 
 @carts_bp.post("/<cart_id>/items")
 def add_cart_item(cart_id):
-    """Upsert a cart item (add or bump quantity)."""
+    # Upsert a cart item (add or bump quantity)
     supabase = current_app.config["SUPABASE"]
     try:
         payload = request.get_json(force=True)
@@ -59,7 +60,7 @@ def add_cart_item(cart_id):
 
 @carts_bp.patch("/<cart_id>/items/<product_id>")
 def update_cart_item(cart_id, product_id):
-    """Update quantity for a specific product in the cart."""
+    # Update quantity for a specific product in the cart
     supabase = current_app.config["SUPABASE"]
     try:
         payload = request.get_json(force=True)
@@ -78,7 +79,7 @@ def update_cart_item(cart_id, product_id):
 
 @carts_bp.delete("/<cart_id>/items/<product_id>")
 def delete_cart_item(cart_id, product_id):
-    """Remove a product from the cart."""
+    # Remove a product from the cart
     supabase = current_app.config["SUPABASE"]
     try:
         supabase.table("cart_items").delete().eq("cart_id", cart_id).eq("product_id", product_id).execute()

@@ -1,12 +1,13 @@
 from flask import Blueprint, current_app, jsonify, request
 from ..utils.mappers import map_product
 
+# Blueprint for product endpoints; registered under /api/products
 products_bp = Blueprint("products", __name__)
 
 
 @products_bp.get("/")
 def get_products():
-    """List products ordered by created_at desc."""
+    # List all products sorted by newest first
     supabase = current_app.config["SUPABASE"]
     try:
         res = (
@@ -23,7 +24,7 @@ def get_products():
 
 @products_bp.get("/<product_id>")
 def get_product(product_id):
-    """Fetch a single product by id."""
+    # Fetch a single product by id; 404 if it does not exist
     supabase = current_app.config["SUPABASE"]
     try:
         res = supabase.table("products").select("*").eq("id", product_id).single().execute()
@@ -37,7 +38,7 @@ def get_product(product_id):
 
 @products_bp.post("/")
 def create_product():
-    """Create a new product; requires title and price."""
+    # Create a product; requires title and price
     supabase = current_app.config["SUPABASE"]
     try:
         payload = request.get_json(force=True)
@@ -66,7 +67,7 @@ def create_product():
 
 @products_bp.put("/<product_id>")
 def update_product(product_id):
-    """Partial update of a product by id."""
+    # Partial update of a product by id
     supabase = current_app.config["SUPABASE"]
     try:
         payload = request.get_json(force=True)
