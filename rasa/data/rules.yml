@@ -32,3 +32,12 @@ rules:
     steps:
       - intent: request_live_agent
       - action: action_handoff_to_agent
+
+  - rule: Forward messages during handoff
+    condition:
+      - slot_was_set:
+          - handoff_active: true
+    steps:
+      - intent: nlu_fallback
+      - action: action_forward_to_agent
+      - action: action_listen

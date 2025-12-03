@@ -9,6 +9,7 @@ import {
   sendAgentMessage,
   resolveSession,
 } from "../api/support";
+import { SUPPORT_BASE_URL } from "../api/client";
 
 import "../styles/dashboard.css"; // reuse the SAME dashboard styling
 
@@ -43,6 +44,8 @@ const CustomerSupportDashboard = () => {
   const [resolutionTag, setResolutionTag] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [summaryEmailInfo, setSummaryEmailInfo] = useState({ sent: false, sentAt: null });
+  const [eventSource, setEventSource] = useState(null);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -80,16 +83,21 @@ const CustomerSupportDashboard = () => {
     }
   }, [activeSection, agentId, sectionStatus, selectedSession]);
 
-  const loadSessionDetail = async (sessionId) => {
-    setLoadingDetail(true);
+  const loadSessionDetail = async (sessionId, silent = false) => {
+    if (!silent) setLoadingDetail(true);
     try {
       const data = await fetchSessionDetail(sessionId);
       setSelectedSession(data.session);
       setMessages(data.messages || []);
+      setResolutionTag(data.session?.resolution_tag || "");
+      setSummaryEmailInfo({
+        sent: Boolean(data.session?.summary_email_sent),
+        sentAt: data.session?.summary_email_sent_at || null,
+      });
     } catch (err) {
       toast.error(err.message || "Failed to load session");
     } finally {
-      setLoadingDetail(false);
+      if (!silent) setLoadingDetail(false);
     }
   };
 
@@ -98,7 +106,43 @@ const CustomerSupportDashboard = () => {
   }, [loadSessions]);
 
   const handleSelectSession = (sessionId) => {
-    loadSessionDetail(sessionId);
+    // close prior stream
+    if (eventSource) {
+      eventSource.close();
+      setEventSource(null);
+    }
+    loadSessionDetail(sessionId).then(() => {
+      const es = new EventSource(`${SUPPORT_BASE_URL}/sessions/${sessionId}/stream`);
+      es.onmessage = (ev) => {
+        try {
+          const newMessages = JSON.parse(ev.data);
+          if (Array.isArray(newMessages) && newMessages.length > 0) {
+            setMessages((prev) => {
+              const lastId = prev.length ? prev[prev.length - 1].id : 0;
+              const mapped = newMessages
+                .filter((m) => !lastId || m.id > lastId)
+                .map((m) => ({
+                  id: m.id,
+                  sender_role: m.sender_role,
+                  sender_id: m.sender_id,
+                  message: m.message,
+                  is_bot: m.is_bot,
+                  created_at: m.created_at,
+                }));
+            if (!mapped.length) return prev;
+              return [...prev, ...mapped];
+            });
+          }
+        } catch {
+          // ignore parse errors
+        }
+      };
+      es.onerror = () => {
+        es.close();
+        setEventSource(null);
+      };
+      setEventSource(es);
+    });
   };
 
   const handleClaim = async (sessionId) => {
@@ -217,8 +261,11 @@ const CustomerSupportDashboard = () => {
     }
 
     const isClaimedByMe =
-      selectedSession.agent_id && selectedSession.agent_id === user?.id;
+      selectedSession.agent_id && selectedSession.agent_id === agentId;
     const canClaim = selectedSession.status === "pending";
+    const summarySentLabel = summaryEmailInfo.sent
+      ? `Summary emailed${summaryEmailInfo.sentAt ? ` at ${new Date(summaryEmailInfo.sentAt).toLocaleString()}` : ""}`
+      : "Summary not sent";
 
     return (
       <div className="card-saas h-100 d-flex flex-column">
@@ -235,7 +282,11 @@ const CustomerSupportDashboard = () => {
               {selectedSession.agent_email
                 ? ` • Assigned to ${selectedSession.agent_email}`
                 : " • Unassigned"}
+              {selectedSession.resolution_tag ? ` • Resolution: ${selectedSession.resolution_tag}` : ""}
             </p>
+            {selectedSession.summary_email_sent !== undefined && (
+              <p className="text-muted small mb-0">{summarySentLabel}</p>
+            )}
           </div>
           {canClaim && (
             <button
@@ -343,6 +394,8 @@ const CustomerSupportDashboard = () => {
                 <th>Customer</th>
                 <th>Agent</th>
                 <th>Status</th>
+                <th>Resolution</th>
+                <th>Summary Email</th>
               </tr>
             </thead>
             <tbody>
@@ -352,6 +405,14 @@ const CustomerSupportDashboard = () => {
                   <td>{s.customer_email || "Unknown"}</td>
                   <td>{s.agent_email || "Unassigned"}</td>
                   <td className="text-capitalize">{s.status}</td>
+                  <td>{s.resolution_tag || "—"}</td>
+                  <td>
+                    {s.summary_email_sent
+                      ? s.summary_email_sent_at
+                        ? new Date(s.summary_email_sent_at).toLocaleString()
+                        : "Sent"
+                      : "Not sent"}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Text
 import requests
 from rasa_sdk import Action, Tracker
 from rasa_sdk.executor import CollectingDispatcher
-from rasa_sdk.events import SlotSet
+from rasa_sdk.events import SlotSet, EventType
 
 # Import live-agent handoff action so the action server registers it
 from liveagent_action import ActionHandoffToLiveAgent
@@ -246,5 +246,50 @@ class ActionReturnPolicyLink(Action):
 
 # Explicitly reference the imported handoff action to avoid lint/unused removal
 class HandoffToAgent(ActionHandoffToLiveAgent):
-    """Alias to keep the action server registering the handoff action."""
-    pass
+    """Alias that also marks handoff as active in the conversation."""
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        events = super().run(dispatcher, tracker, domain) or []
+        events.append(SlotSet("handoff_active", True))
+        return events
+
+
+class ActionForwardToAgent(Action):
+    """Forward all subsequent user messages to the live agent session."""
+
+    def name(self) -> Text:
+        return "action_forward_to_agent"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        last_user_message = tracker.latest_message.get("text", "")
+        sender_id = tracker.sender_id
+        backend_url = os.getenv(
+            "LIVE_AGENT_FORWARD_URL",
+            "http://localhost:4000/support/sessions/from_rasa/message",
+        )
+
+        payload = {
+            "sender_id": sender_id,
+            "last_message": last_user_message,
+        }
+
+        try:
+            resp = requests.post(backend_url, json=payload, timeout=3)
+            print(
+                f"[action_forward_to_agent] POST {backend_url} "
+                f"status={resp.status_code} body={resp.text}"
+            )
+        except Exception as e:
+            print(f"[action_forward_to_agent] backend call failed: {e}")
+
+        dispatcher.utter_message(text="Your message has been sent to a live agent.")
+        return []

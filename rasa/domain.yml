@@ -7,7 +7,9 @@ intents:
   - fetch_products_with_filters
   - faq_link
   - return_policy_link
+  - bot_handoff
   - request_live_agent
+  - nlu_fallback
 
 entities:
   - product_category
@@ -47,6 +49,13 @@ slots:
       - type: from_entity
         entity: product_brand
 
+  handoff_active:
+    type: bool
+    influence_conversation: true
+    initial_value: false
+    mappings:
+      - type: custom
+
 responses:
   utter_greet:
     - text: "Hello! How can I help you today?"
@@ -76,3 +85,4 @@ actions:
   - action_faq_link
   - action_return_policy_link
   - action_handoff_to_agent
+  - action_forward_to_agent

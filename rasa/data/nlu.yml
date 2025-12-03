@@ -117,3 +117,18 @@ nlu:
       - Let me chat with a real person
       - Transfer me to an agent
       - hand me off to a human please
+      - I want to talk to a live agent
+      - can I speak with a live agent now?
+      - talk to a human agent
+      - connect me with live chat support
+      - get me a real person
+      - I want human support
+      - route me to an agent
+
+  - intent: bot_handoff
+    examples: |
+      - talk to the agent
+      - keep chatting with the agent
+      - message for the agent
+      - pass this to the agent
+      - send this to the human
