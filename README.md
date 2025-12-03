@@ -44,7 +44,7 @@ cd backend
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or: source .venv/bin/activate
 pip install -r requirements.txt
-flask --app backend.server run --port 4000
+flask --app server run --port 4000
 ```
 
 ## Frontend (Vite/React)
