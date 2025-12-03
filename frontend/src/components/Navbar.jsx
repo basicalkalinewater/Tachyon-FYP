@@ -18,6 +18,7 @@ const Navbar = () => {
 
   const cartCount = useSelector(selectCartCount);
   const currentUser = useSelector(selectCurrentUser);
+  const isSupport = currentUser?.role === "support";
   const dashboardRoute =
   currentUser?.role === "customer"
     ? "/dashboard/customer"
@@ -92,25 +93,27 @@ const Navbar = () => {
 
           {/* Links + Cart button */}
           <div className="collapse navbar-collapse" id="navbarSupportedContent">
-            <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4">
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/">
-                  Home
-                </NavLink>
-              </li>
+            {!isSupport && (
+              <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4">
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/">
+                    Home
+                  </NavLink>
+                </li>
 
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/products">
-                  Products
-                </NavLink>
-              </li>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/products">
+                    Products
+                  </NavLink>
+                </li>
 
-              <li className="nav-item">
-                <NavLink className="nav-link" to="/about">
-                  About
-                </NavLink>
-              </li>
-            </ul>
+                <li className="nav-item">
+                  <NavLink className="nav-link" to="/about">
+                    About
+                  </NavLink>
+                </li>
+              </ul>
+            )}
 
             {/* Right side actions */}
             <div className="d-flex align-items-center gap-3">
@@ -146,25 +149,27 @@ const Navbar = () => {
                 <i className={`fa fa-${theme === "dark" ? "sun-o" : "moon-o"}`} />
               </button>
 
-              <button
-                className="btn btn-primary-saas position-relative"
-                onClick={() => setIsCartOpen(true)}
-              >
-                <i className="fa fa-shopping-cart" />
-                <span className="d-none d-md-inline">Cart</span>
-                {cartCount > 0 && (
-                  <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light">
-                    {cartCount}
-                    <span className="visually-hidden">items in cart</span>
-                  </span>
-                )}
-              </button>
+              {!isSupport && (
+                <button
+                  className="btn btn-primary-saas position-relative"
+                  onClick={() => setIsCartOpen(true)}
+                >
+                  <i className="fa fa-shopping-cart" />
+                  <span className="d-none d-md-inline">Cart</span>
+                  {cartCount > 0 && (
+                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light">
+                      {cartCount}
+                      <span className="visually-hidden">items in cart</span>
+                    </span>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </div>
       </nav>
       {/* Cart Drawer component */}
-      <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+      {!isSupport && <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />}
     </>
   );
 };
