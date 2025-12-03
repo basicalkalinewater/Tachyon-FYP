@@ -47,7 +47,7 @@ body.cart-open .chat-widget {
 .chat-window {
   width: 320px;
   max-height: 480px;
-  background: var(--bg-section);
+  background: var(--bg-card);
   border-radius: 16px;
   overflow: hidden;
   display: flex;
@@ -81,7 +81,7 @@ body.cart-open .chat-widget {
   flex: 1;
   padding: 12px;
   overflow-y: auto;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .chat-message {
@@ -110,28 +110,28 @@ body.cart-open .chat-widget {
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 12px;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .chat-input {
   display: flex;
   gap: 8px;
   padding: 12px;
-  border-top: 1px solid #eee;
-  background: #fff;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-card);
 }
 
 .chat-input input {
   flex: 1;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-light);
   border-radius: 10px;
   padding: 8px 10px;
-  background: #fff;
-  color: #111;
+  background: var(--bg-body);
+  color: var(--text-main);
 }
 
 .chat-quick-replies .btn {
-  background: #fff;
+  background: var(--bg-card);
   color: #0b8cff;
   border: 1px solid #0b8cff;
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
@@ -142,4 +142,61 @@ body.cart-open .chat-widget {
   box-shadow: 0 8px 16px rgba(11, 140, 255, 0.25);
   background: #0b8cff;
   color: #fff;
+}
+
+.theme-dark .chat-window {
+  background: #0f172a;
+  border: 1px solid #1f2a44;
+}
+
+.theme-dark .chat-header {
+  background: var(--primary);
+}
+
+.theme-dark .chat-body {
+  background: #0f172a;
+}
+
+.theme-dark .chat-message.bot {
+  background: #16233a;
+  color: var(--text-main);
+}
+
+.theme-dark .chat-message.user {
+  background: #2563eb;
+  color: #fff;
+}
+
+.theme-dark .chat-quick-replies {
+  background: #0f172a;
+}
+
+.theme-dark .chat-quick-replies .btn {
+  background: #0f172a;
+  color: #93c5fd;
+  border-color: #2563eb;
+}
+
+.theme-dark .chat-quick-replies .btn:hover {
+  background: #2563eb;
+  color: #fff;
+}
+
+.theme-dark .chat-input {
+  background: #0f172a;
+  border-top: 1px solid #1f2a44;
+}
+
+.theme-dark .chat-input input {
+  background: #11182a;
+  color: var(--text-main);
+  border-color: #1f2a44;
+}
+
+.theme-dark .chat-input input::placeholder {
+  color: var(--text-light);
+}
+
+.theme-dark .chat-toggle-btn {
+  background: linear-gradient(135deg, #2563eb, #5c6cf4);
 }

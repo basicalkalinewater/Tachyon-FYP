@@ -168,6 +168,15 @@
   color: #e0e7ff;
 }
 
+.theme-dark .dashboard-section {
+  background: transparent;
+}
+
+.theme-dark .card-saas {
+  background: #131b2b;
+  border-color: #24304a;
+}
+
 .theme-dark .form-control {
   background-color: #0b1220;
   color: var(--text-main);
@@ -201,6 +210,92 @@
 
 .theme-dark .status-badge {
   border: 1px solid var(--border-light);
+}
+
+.theme-dark .dashboard-section,
+.theme-dark .card-saas {
+  color: var(--text-main);
+}
+
+.theme-dark .dashboard-section .text-muted,
+.theme-dark .card-saas .text-muted {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark .table td,
+.theme-dark .table th {
+  color: var(--text-main);
+}
+
+.theme-dark .form-control,
+.theme-dark textarea,
+.theme-dark input {
+  background-color: #0b1220 !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-light) !important;
+}
+
+.theme-dark .form-control::placeholder,
+.theme-dark textarea::placeholder,
+.theme-dark input::placeholder {
+  color: var(--text-light) !important;
+}
+
+.theme-dark textarea {
+  background-color: #11182a !important;
+}
+
+.theme-dark .support-list {
+  background: transparent;
+}
+
+.theme-dark .support-list-item {
+  background: rgba(15, 23, 42, 0.25);
+  border-color: var(--border-light);
+  color: var(--text-main);
+}
+
+.theme-dark .support-list-item.active {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: var(--primary);
+  color: #e0e7ff;
+}
+
+.theme-dark .support-list-item .text-muted {
+  color: #cbd5e1 !important;
+}
+
+.theme-dark .support-list-item .badge {
+  background: #1e293b;
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+}
+
+.support-message {
+  border: 1px solid var(--border-light);
+}
+
+.support-message-customer {
+  background: #f1f5f9;
+  color: var(--text-main);
+}
+
+.support-message-agent {
+  background: var(--primary);
+  color: #fff;
+}
+
+.theme-dark .support-message-customer {
+  background: #152037;
+  color: var(--text-main);
+}
+
+.theme-dark .support-message {
+  border-color: #3b4a68;
+}
+
+.theme-dark .btn {
+  color: var(--text-main);
 }
 
 @media (max-width: 991px) {
