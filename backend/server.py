@@ -21,6 +21,8 @@ def create_app() -> Flask:
     load_dotenv(dotenv_path=env_path)
 
     app = Flask(__name__)
+    # Avoid redirecting /path to /path/ which breaks CORS preflights
+    app.url_map.strict_slashes = False
     CORS(app)
 
     supabase = get_supabase()

@@ -2,6 +2,21 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..services import customer_service
 
+
+def fetch_agent_profile(supabase, user_id: str):
+    """Fetch support agent profile (full_name) from live_agent_profile."""
+    try:
+        res = (
+            supabase.table("live_agent_profile")
+            .select("full_name")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return res.data or {}
+    except Exception:
+        return {}
+
 # Blueprint for auth endpoints; registered under /api/auth
 auth_bp = Blueprint("auth", __name__)
 
@@ -29,6 +44,9 @@ def login():
         if role == "customer":
             profile_data = customer_service.fetch_customer_profile(supabase, user)
             user["fullName"] = profile_data.get("fullName") or user.get("email")
+        elif role == "support":
+            profile_data = fetch_agent_profile(supabase, user.get("id"))
+            user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
