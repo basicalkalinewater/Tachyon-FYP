@@ -11,7 +11,7 @@ import {
 } from "../api/support";
 import { SUPPORT_BASE_URL } from "../api/client";
 
-import "../styles/dashboard.css"; // reuse the SAME dashboard styling
+import "../styles/support-dashboard.css"; // dedicated styling for support dashboard
 
 // Support dashboard sections
 const SUPPORT_SECTIONS = [
@@ -36,6 +36,14 @@ const CustomerSupportDashboard = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectCurrentUser);
 
+  const RESOLUTION_PRESETS = [
+    "resolved",
+    "info_provided",
+    "refund_issued",
+    "cancelled",
+    "escalated",
+  ];
+
   const [activeSection, setActiveSection] = useState("inbox");
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -46,6 +54,7 @@ const CustomerSupportDashboard = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [summaryEmailInfo, setSummaryEmailInfo] = useState({ sent: false, sentAt: null });
   const [eventSource, setEventSource] = useState(null);
+  const hasSelection = Boolean(selectedSession);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -110,6 +119,14 @@ const CustomerSupportDashboard = () => {
     loadSessions();
   }, [loadSessions]);
 
+  const stats = useMemo(() => {
+    const total = sessions.length;
+    const claimed = sessions.filter((s) => s.status === "in_progress").length;
+    const closed = sessions.filter((s) => s.status === "closed").length;
+    const pending = sessions.filter((s) => s.status === "pending").length;
+    return { total, claimed, closed, pending };
+  }, [sessions]);
+
   const handleSelectSession = (sessionId) => {
     // close prior stream
     if (eventSource) {
@@ -134,7 +151,7 @@ const CustomerSupportDashboard = () => {
                   is_bot: m.is_bot,
                   created_at: m.created_at,
                 }));
-            if (!mapped.length) return prev;
+              if (!mapped.length) return prev;
               return [...prev, ...mapped];
             });
           }
@@ -154,6 +171,7 @@ const CustomerSupportDashboard = () => {
     try {
       await claimSession(sessionId, agentId);
       toast.success("Session claimed");
+      setActiveSection("assigned");
       await loadSessions();
       await loadSessionDetail(sessionId);
     } catch (err) {
@@ -174,8 +192,6 @@ const CustomerSupportDashboard = () => {
     try {
       await sendAgentMessage(selectedSession.id, agentId, messageText.trim());
       setMessageText("");
-      await loadSessionDetail(selectedSession.id);
-      await loadSessions();
     } catch (err) {
       toast.error(err.message || "Failed to send message");
     }
@@ -193,6 +209,7 @@ const CustomerSupportDashboard = () => {
       await resolveSession(selectedSession.id, agentId, resolutionTag.trim());
       toast.success("Session closed");
       setResolutionTag("");
+      setActiveSection("history");
       await loadSessions();
       await loadSessionDetail(selectedSession.id);
     } catch (err) {
@@ -201,12 +218,10 @@ const CustomerSupportDashboard = () => {
   };
 
   const renderSessionList = (emptyLabel) => (
-    <div className="card-saas h-100 p-3">
-      <div className="d-flex justify-content-between align-items-center mb-3">
+    <div className="card-saas h-100 p-3 support-panel" aria-label="Chat queue">
+      <div className="panel-header">
         <div>
-          <p className="text-muted text-uppercase small fw-semibold mb-1">
-            Handover Queue
-          </p>
+          <p className="eyebrow">Handover Queue</p>
           <h5 className="mb-0">Rasa escalations</h5>
         </div>
         <button className="btn btn-outline-saas btn-sm" onClick={loadSessions}>
@@ -218,17 +233,16 @@ const CustomerSupportDashboard = () => {
       ) : sessions.length === 0 ? (
         <p className="text-muted small mb-0">{emptyLabel}</p>
       ) : (
-        <div className="list-group support-list">
+        <div className="support-list" role="list">
           {sessions.map((session) => (
             <button
               key={session.id}
               type="button"
-              className={`list-group-item list-group-item-action support-list-item ${
-                selectedSession?.id === session.id ? "active" : ""
-              }`}
+              className={`support-list-item ${selectedSession?.id === session.id ? "active" : ""}`}
               onClick={() => handleSelectSession(session.id)}
+              aria-pressed={selectedSession?.id === session.id}
             >
-              <div className="d-flex justify-content-between align-items-center">
+              <div className="d-flex justify-content-between align-items-center mb-1">
                 <div>
                   <div className="fw-semibold">Chat #{session.id}</div>
                   <div className="text-muted small">
@@ -240,8 +254,13 @@ const CustomerSupportDashboard = () => {
                 </span>
               </div>
               {(session.agent_full_name || session.agent_email) && (
-                <div className="text-muted small mt-1">
+                <div className="text-muted small">
                   Assigned to {formatAgentName(session)}
+                </div>
+              )}
+              {sectionStatus === "pending" && session.queue_position && (
+                <div className="text-muted small">
+                  Queue position: #{session.queue_position}
                 </div>
               )}
             </button>
@@ -254,7 +273,7 @@ const CustomerSupportDashboard = () => {
   const renderChatDetail = () => {
     if (!selectedSession) {
       return (
-        <div className="card-saas h-100 d-flex align-items-center justify-content-center text-center">
+        <div className="card-saas h-100 d-flex align-items-center justify-content-center text-center support-chat-card">
           <div>
             <p className="text-muted mb-1">Select a session to view messages.</p>
             <p className="small text-muted mb-0">
@@ -273,7 +292,7 @@ const CustomerSupportDashboard = () => {
       : "Summary not sent";
 
     return (
-      <div className="card-saas h-100 d-flex flex-column p-3">
+      <div className="card-saas h-100 d-flex flex-column p-3 support-chat-card">
         <div className="d-flex justify-content-between align-items-start mb-3 gap-3">
           <div>
             <p className="text-muted text-uppercase small fw-semibold mb-1">
@@ -287,6 +306,9 @@ const CustomerSupportDashboard = () => {
               {selectedSession.agent_id
                 ? ` - Assigned to ${formatAgentName(selectedSession)}`
                 : " - Unassigned"}
+              {selectedSession.status === "pending" && selectedSession.queue_position
+                ? ` - Queue #${selectedSession.queue_position}`
+                : ""}
               {selectedSession.resolution_tag ? ` - Resolution: ${selectedSession.resolution_tag}` : ""}
             </p>
             {selectedSession.summary_email_sent !== undefined && (
@@ -304,27 +326,24 @@ const CustomerSupportDashboard = () => {
           )}
         </div>
 
-        <div
-          className="flex-grow-1 border rounded p-3 mb-3 overflow-auto"
-          style={{ minHeight: 260 }}
-        >
+        <div className="flex-grow-1 p-3 mb-3 support-chat-body">
           {loadingDetail ? (
             <p className="text-muted small mb-0">Loading messages...</p>
           ) : messages.length === 0 ? (
             <p className="text-muted small mb-0">No messages yet.</p>
           ) : (
-            <ul className="list-unstyled mb-0">
+            <ul className="list-unstyled mb-0 support-message-list">
               {messages.map((msg) => (
                 <li
                   key={msg.id}
-                  className={`mb-3 ${msg.sender_role === "agent" ? "text-end" : ""}`}
+                  className={`mb-3 support-message-row ${msg.sender_role === "agent" ? "text-end" : ""}`}
                 >
                   <div
-                  className={`d-inline-block p-2 rounded support-message ${
-                    msg.sender_role === "agent"
-                      ? "support-message-agent"
-                      : "support-message-customer"
-                  }`}
+                    className={`d-inline-block p-2 rounded support-message ${
+                      msg.sender_role === "agent"
+                        ? "support-message-agent"
+                        : "support-message-customer"
+                    }`}
                   >
                     <div className="small fw-semibold mb-1">
                       {msg.sender_role === "agent"
@@ -370,6 +389,19 @@ const CustomerSupportDashboard = () => {
               onChange={(e) => setResolutionTag(e.target.value)}
               disabled={selectedSession.status === "closed" || !isClaimedByMe}
             />
+            <select
+              className="form-select"
+              value={resolutionTag}
+              onChange={(e) => setResolutionTag(e.target.value)}
+              disabled={selectedSession.status === "closed" || !isClaimedByMe}
+            >
+              <option value="">Select resolution</option>
+              {RESOLUTION_PRESETS.map((preset) => (
+                <option key={preset} value={preset}>
+                  {preset.replace(/_/g, " ")}
+                </option>
+              ))}
+            </select>
             <button
               className="btn btn-outline-saas"
               onClick={handleResolve}
@@ -434,31 +466,39 @@ const CustomerSupportDashboard = () => {
     switch (activeSection) {
       case "inbox":
         return (
-          <section className="dashboard-section">
-            <p className="text-muted text-uppercase small fw-semibold mb-1">
-              Incoming Chats
-            </p>
-            <h3 className="mb-3">Escalated Chats Queue</h3>
-            <div className="row g-3">
-              <div className="col-lg-4">
+          <section className="dashboard-section support-section">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">Incoming Chats</p>
+                <h3>Escalated Chats Queue</h3>
+              </div>
+            </div>
+            <div className={`support-grid ${hasSelection ? "with-chat" : "single-column"}`}>
+              <div className="support-column queue-column">
                 {renderSessionList("No pending escalations right now.")}
               </div>
-              <div className="col-lg-8">{renderChatDetail()}</div>
+              {hasSelection && (
+                <div className="support-column chat-column">{renderChatDetail()}</div>
+              )}
             </div>
           </section>
         );
       case "assigned":
         return (
-          <section className="dashboard-section">
-            <p className="text-muted text-uppercase small fw-semibold mb-1">
-              My Active Chats
-            </p>
-            <h3 className="mb-3">Chats Assigned To You</h3>
-            <div className="row g-3">
-              <div className="col-lg-4">
+          <section className="dashboard-section support-section">
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">My Active Chats</p>
+                <h3>Chats Assigned To You</h3>
+              </div>
+            </div>
+            <div className={`support-grid ${hasSelection ? "with-chat" : "single-column"}`}>
+              <div className="support-column queue-column">
                 {renderSessionList("No active chats assigned to you.")}
               </div>
-              <div className="col-lg-8">{renderChatDetail()}</div>
+              {hasSelection && (
+                <div className="support-column chat-column">{renderChatDetail()}</div>
+              )}
             </div>
           </section>
         );
@@ -529,7 +569,47 @@ const CustomerSupportDashboard = () => {
         </aside>
 
         {/* Main content */}
-        <main className="dashboard-content">{renderSection()}</main>
+        <main className="dashboard-content">
+          <section className="hero-panel">
+            <div>
+              <p className="eyebrow">Support Control Center</p>
+              <h2 className="mb-1">Customer Support Dashboard</h2>
+              <p className="text-muted mb-0">
+                Monitor escalations, claim chats, and keep customers informed in real-time.
+              </p>
+            </div>
+            <div className="hero-actions">
+              <button className="btn btn-outline-saas" onClick={loadSessions}>
+                Refresh data
+              </button>
+            </div>
+          </section>
+
+          <section className="stat-grid">
+            <div className="stat-card">
+              <p className="stat-label">Open</p>
+              <h4 className="stat-value">{stats.pending}</h4>
+              <span className="stat-help">Pending escalations</span>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">In Progress</p>
+              <h4 className="stat-value">{stats.claimed}</h4>
+              <span className="stat-help">Chats you’re handling</span>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Closed</p>
+              <h4 className="stat-value">{stats.closed}</h4>
+              <span className="stat-help">Resolved sessions</span>
+            </div>
+            <div className="stat-card">
+              <p className="stat-label">Total in view</p>
+              <h4 className="stat-value">{stats.total}</h4>
+              <span className="stat-help">Filtered by tab</span>
+            </div>
+          </section>
+
+          {renderSection()}
+        </main>
       </div>
     </div>
   );

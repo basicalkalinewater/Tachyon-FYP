@@ -23,6 +23,8 @@ const RasaWidget = () => {
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState("bot"); // bot | agent
   const [sessionId, setSessionId] = useState(null);
+  const [agentReady, setAgentReady] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
   const messagesEndRef = useRef(null);
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined" && document.body.classList.contains("theme-dark")
@@ -59,7 +61,7 @@ const RasaWidget = () => {
       const data = await res.json();
       const mapped =
         (data?.data?.messages || data?.messages || []).map((m) => ({
-          from: m.sender_role === "agent" ? "bot" : "user",
+          from: m.sender_role === "agent" || m.sender_role === "system" ? "bot" : "user",
           text: m.message,
           id: m.id,
         })) || [];
@@ -72,11 +74,38 @@ const RasaWidget = () => {
   };
 
   useEffect(() => {
-    if (mode !== "agent" || !sessionId) return;
+    if (mode !== "agent" || !sessionId || !agentReady) return;
     fetchSessionMessages(sessionId);
     const interval = setInterval(() => fetchSessionMessages(sessionId), 2500);
     return () => clearInterval(interval);
-  }, [mode, sessionId]);
+  }, [mode, sessionId, agentReady]);
+
+  const fetchQueueStatus = async () => {
+    try {
+      const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
+      const data = await res.json();
+      if (data?.data) {
+        setQueueInfo(data.data);
+        if (data.data.session_id && !sessionId) {
+          setSessionId(data.data.session_id);
+        }
+        const ready = data.data.status === "in_progress";
+        setAgentReady(ready);
+        if (ready && data.data.session_id) {
+          fetchSessionMessages(data.data.session_id);
+        }
+      }
+    } catch {
+      // silent queue poll failure
+    }
+  };
+
+  useEffect(() => {
+    if (mode !== "agent") return;
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 2500);
+    return () => clearInterval(interval);
+  }, [mode, senderId]);
 
   const sendToBot = async (text) => {
     appendMessage("user", text);
@@ -103,7 +132,7 @@ const RasaWidget = () => {
   };
 
   const sendToAgent = async (text) => {
-    if (!sessionId) {
+    if (!sessionId || !agentReady) {
       appendMessage("bot", "No active agent session. Please try requesting a human again.");
       return;
     }
@@ -126,6 +155,8 @@ const RasaWidget = () => {
 
   const startHandoff = async (initialText) => {
     appendMessage("bot", "Connecting you to a live agent...");
+    setAgentReady(false);
+    setQueueInfo(null);
     setMode("agent");
     setSending(true);
     try {
@@ -138,7 +169,7 @@ const RasaWidget = () => {
       const newSessionId = data?.data?.session_id;
       if (newSessionId) {
         setSessionId(newSessionId);
-        fetchSessionMessages(newSessionId);
+        fetchQueueStatus();
       } else {
         appendMessage("bot", "Could not start agent session.");
         setMode("bot");
@@ -154,6 +185,15 @@ const RasaWidget = () => {
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     if (mode === "agent" && sessionId) {
+      if (!agentReady) {
+        appendMessage(
+          "bot",
+          queueInfo?.position
+            ? `You're #${queueInfo.position} in line. We'll connect you once an agent claims the chat.`
+            : "Waiting for an agent to join. We'll connect you soon."
+        );
+        return;
+      }
       await sendToAgent(text);
     } else {
       await sendToBot(text);
@@ -205,6 +245,13 @@ const RasaWidget = () => {
               ))}
               <div ref={messagesEndRef} />
             </div>
+            {mode === "agent" && !agentReady && (
+              <div className="px-3 py-2 text-muted small">
+                {queueInfo?.position
+                  ? `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
+                  : "Waiting for an agent to join. We'll notify you when they're ready."}
+              </div>
+            )}
             <div className="chat-quick-replies">
               {QUICK_REPLIES.map((qr) => (
                 <button
@@ -226,12 +273,24 @@ const RasaWidget = () => {
             <form className="chat-input" onSubmit={handleSubmit}>
               <input
                 type="text"
-                placeholder={mode === "agent" ? "Message the agent..." : "Type a message..."}
+                placeholder={
+                  mode === "agent"
+                    ? agentReady
+                      ? "Message the agent..."
+                      : queueInfo?.position
+                        ? `Waiting... you are #${queueInfo.position}`
+                        : "Waiting for an agent to join..."
+                    : "Type a message..."
+                }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                disabled={sending}
+                disabled={sending || (mode === "agent" && !agentReady)}
               />
-              <button type="submit" className="btn btn-primary" disabled={sending}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={sending || (mode === "agent" && !agentReady)}
+              >
                 Send
               </button>
             </form>
