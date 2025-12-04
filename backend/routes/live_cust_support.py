@@ -45,6 +45,12 @@ def stream_session(session_id):
     return service.stream_session(session_id)
 
 
+@live_cust_support_bp.get("/queue/<sender_id>")
+def get_queue_status(sender_id):
+    # Return queue position/status for a Rasa sender_id
+    return service.queue_status(sender_id)
+
+
 @live_cust_support_bp.get("/sessions")
 def list_sessions():
     # List sessions (defaults to pending + in_progress)

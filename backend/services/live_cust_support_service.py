@@ -43,6 +43,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM", SMTP_USER or "no-reply@example.com")
+AVERAGE_HANDLE_SECONDS = int(os.getenv("LIVE_AGENT_AVG_HANDLE_SECONDS", "120"))
 
 missing = [k for k, v in DB_CONFIG.items() if v in (None, "") and k != "sslmode"]
 if missing:
@@ -167,7 +168,7 @@ def append_message_from_rasa(sender_id: str, last_message: str):
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
-                SELECT id, customer_id
+                SELECT id, customer_id, status
                 FROM chat_sessions
                 WHERE rasa_sender_id = %s
                   AND status IN ('pending', 'in_progress')
@@ -182,6 +183,8 @@ def append_message_from_rasa(sender_id: str, last_message: str):
 
             session_id = session["id"]
             customer_id = session["customer_id"] or FALLBACK_CUSTOMER_ID
+            if session.get("status") != "in_progress":
+                return error("Waiting for an agent to claim this chat", status=409)
 
             cur.execute(
                 """
@@ -219,12 +222,12 @@ def send_customer_message(session_id: str, message: str, customer_id: Optional[s
                 SELECT id
                 FROM chat_sessions
                 WHERE id = %s
-                  AND status IN ('pending', 'in_progress')
+                  AND status = 'in_progress'
                 """,
                 (session_id,),
             )
             if not cur.fetchone():
-                return error("Session not found or closed", status=404)
+                return error("Session not found or not yet claimed by an agent", status=409)
 
             cur.execute(
                 """
@@ -304,6 +307,11 @@ def list_sessions(status: Optional[str]):
               s.created_at,
               s.last_updated,
               s.notes,
+              CASE
+                WHEN s.status = 'pending'
+                  THEN row_number() OVER (PARTITION BY s.status ORDER BY s.last_updated ASC)
+                ELSE NULL
+              END AS queue_position,
               cu.email  AS customer_email,
               ag.email  AS agent_email,
               cp.full_name  AS customer_full_name,
@@ -344,6 +352,11 @@ def get_session(session_id: str):
               s.last_updated,
               s.notes,
               s.rasa_sender_id,
+              CASE
+                WHEN s.status = 'pending'
+                  THEN row_number() OVER (PARTITION BY s.status ORDER BY s.last_updated ASC)
+                ELSE NULL
+              END AS queue_position,
               cu.email AS customer_email,
               ag.email AS agent_email,
               cp.full_name  AS customer_full_name,
@@ -390,7 +403,8 @@ def claim_session(session_id: str, agent_id: str):
             UPDATE chat_sessions
             SET agent_id = %s,
                 status = 'in_progress',
-                last_updated = NOW()
+                last_updated = NOW(),
+                claimed_at = NOW()
             WHERE id = %s
               AND (status = 'pending' OR agent_id IS NULL)
             RETURNING *;
@@ -407,15 +421,34 @@ def claim_session(session_id: str, agent_id: str):
             agent_row = cur.fetchone()
             agent_email = agent_row.get("email") if agent_row else None
 
+        try:
+            cur.execute(
+                """
+                INSERT INTO chat_messages (
+                  session_id,
+                  sender_role,
+                  sender_type,
+                  message,
+                  is_bot
+                )
+                VALUES (%s, 'system', 'system', %s, TRUE)
+                RETURNING id, session_id, sender_role, sender_type, message, created_at;
+                """,
+                (
+                    session_id,
+                    "You are now connected to a support agent.",
+                ),
+            )
+        except Exception as exc:
+            print("WARN: failed to append claim notice to chat:", exc)
+
     rasa_sender_id = row.get("rasa_sender_id")
     if rasa_sender_id:
         agent_name = agent_email or "a support agent"
+        push_url = RASA_PUSH_URL.replace("{sender_id}", rasa_sender_id)
+        payload = {"event": "bot", "text": f"You are now connected to {agent_name}.", "metadata": {"source": "system"}}
         try:
-            requests.post(
-                RASA_RELAY_URL,
-                json={"sender": rasa_sender_id, "message": f"You are now connected to {agent_name}."},
-                timeout=2,
-            )
+            requests.post(push_url, json=payload, timeout=3)
         except Exception as exc:
             print("WARN: failed to relay claim notice to Rasa:", exc)
 
@@ -486,6 +519,7 @@ def send_agent_message(session_id: str, agent_id: str, message: str):
 
 def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
     """Close a session with a resolution tag and email a summary to the customer."""
+    close_notice = "This chat has been closed."
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         try:
@@ -496,7 +530,7 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
                     last_updated = NOW(),
                     closed_at = NOW(),
                     ended_at = NOW(),
-                    resolution_tag = COALESCE(%s, resolution_tag)
+                    resolution_tag = NULLIF(%s, '')::text
                 WHERE id = %s
                 RETURNING *;
                 """,
@@ -560,6 +594,26 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             body=email_body,
         )
 
+        try:
+            cur.execute(
+                """
+                INSERT INTO chat_messages (
+                  session_id,
+                  sender_role,
+                  sender_type,
+                  message,
+                  is_bot
+                )
+                VALUES (%s, 'system', 'system', %s, TRUE);
+                """,
+                (
+                    session_id,
+                    close_notice,
+                ),
+            )
+        except Exception as exc:
+            print("WARN: failed to append close notice to chat:", exc)
+
         cur.execute(
             """
             UPDATE chat_sessions
@@ -572,6 +626,18 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             (email_sent, email_sent, customer_email, email_body, session_id),
         )
 
+    rasa_sender_id = session_meta.get("rasa_sender_id") if isinstance(session_meta, dict) else None
+    if rasa_sender_id:
+        push_url = RASA_PUSH_URL.replace("{sender_id}", rasa_sender_id)
+        payload = {
+            "event": "bot",
+            "text": close_notice,
+            "metadata": {"source": "system"},
+        }
+        try:
+            requests.post(push_url, json=payload, timeout=3)
+        except Exception as exc:
+            print("WARN: failed to relay close notice to Rasa:", exc)
     return ok(row)
 
 
@@ -606,3 +672,65 @@ def flag_question(session_id: str, agent_id: str, message_id, reason: str):
         flag = cur.fetchone()
 
     return ok(flag)
+
+
+def queue_status(rasa_sender_id: str):
+    """Return queue position and status for a sender_id."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, status
+            FROM chat_sessions
+            WHERE rasa_sender_id = %s
+              AND status IN ('pending', 'in_progress')
+            ORDER BY last_updated DESC
+            LIMIT 1;
+            """,
+            (rasa_sender_id,),
+        )
+        session = cur.fetchone()
+        if not session:
+            return error("No active session for this sender", status=404)
+
+        if session["status"] == "in_progress":
+            return ok(
+                {
+                    "session_id": session["id"],
+                    "status": "in_progress",
+                    "position": 0,
+                    "estimated_wait_seconds": 0,
+                }
+            )
+
+        cur.execute(
+            """
+            WITH ordered AS (
+              SELECT id,
+                     row_number() OVER (ORDER BY last_updated ASC) AS position,
+                     count(*) OVER () AS total
+              FROM chat_sessions
+              WHERE status = 'pending'
+            )
+            SELECT id, position, total
+            FROM ordered
+            WHERE id = %s;
+            """,
+            (session["id"],),
+        )
+        row = cur.fetchone()
+        if not row:
+            return error("Session not in queue", status=404)
+
+        position = row["position"]
+        estimated_wait = max(position - 1, 0) * AVERAGE_HANDLE_SECONDS
+
+        return ok(
+            {
+                "session_id": session["id"],
+                "status": "pending",
+                "position": position,
+                "queue_size": row["total"],
+                "estimated_wait_seconds": estimated_wait,
+            }
+        )
