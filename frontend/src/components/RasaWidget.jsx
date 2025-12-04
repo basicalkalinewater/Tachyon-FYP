@@ -17,7 +17,7 @@ const QUICK_REPLIES = [
 const RasaWidget = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { from: "bot", text: "Hi, I'm Tachyon. How can I help?" },
+    { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
   ]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -51,8 +51,8 @@ const RasaWidget = () => {
     return () => observer.disconnect();
   }, []);
 
-  const appendMessage = (from, text) => {
-    setMessages((prev) => [...prev, { from, text }]);
+  const appendMessage = (from, text, timestamp) => {
+    setMessages((prev) => [...prev, { from, text, timestamp: timestamp || Date.now() }]);
   };
 
   const fetchSessionMessages = async (sessId) => {
@@ -60,11 +60,15 @@ const RasaWidget = () => {
       const res = await fetch(`${SUPPORT_SESSIONS_URL}/${sessId}`);
       const data = await res.json();
       const mapped =
-        (data?.data?.messages || data?.messages || []).map((m) => ({
-          from: m.sender_role === "agent" || m.sender_role === "system" ? "bot" : "user",
-          text: m.message,
-          id: m.id,
-        })) || [];
+        (data?.data?.messages || data?.messages || []).map((m) => {
+          const ts = m.created_at || m.timestamp || Date.now();
+          return {
+            from: m.sender_role === "agent" || m.sender_role === "system" ? "bot" : "user",
+            text: m.message,
+            id: m.id,
+            timestamp: ts,
+          };
+        }) || [];
       if (mapped.length > 0) {
         setMessages(mapped);
       }
@@ -119,7 +123,11 @@ const RasaWidget = () => {
       });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        const botResponses = data.map((d) => ({ from: "bot", text: d.text || "" }));
+        const botResponses = data.map((d) => ({
+          from: "bot",
+          text: d.text || "",
+          timestamp: Date.now(),
+        }));
         setMessages((prev) => [...prev, ...botResponses]);
       } else {
         appendMessage("bot", "I'm not sure, can you rephrase?");
@@ -205,6 +213,12 @@ const RasaWidget = () => {
     if (!sending) sendMessage(input);
   };
 
+  const formatTime = (ts) => {
+    if (!ts) return "";
+    const date = new Date(ts);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
   const formatMarkdown = (text) => {
     if (!text) return "";
     const escapeHtml = (str) =>
@@ -236,11 +250,16 @@ const RasaWidget = () => {
             <div className="chat-body">
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-message ${msg.from}`}>
-                  {msg.from === "bot" ? (
-                    <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
-                  ) : (
-                    msg.text
-                  )}
+                  <div className="chat-message-bubble">
+                    {msg.from === "bot" ? (
+                      <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
+                    ) : (
+                      msg.text
+                    )}
+                  </div>
+                  <div className="chat-meta">
+                    <span className="chat-meta-time">{formatTime(msg.timestamp)}</span>
+                  </div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
@@ -297,10 +316,6 @@ const RasaWidget = () => {
           </div>
         )}
         <div className="chat-toggle-wrapper">
-          <div className="chat-bubble">
-            <span className="me-1"></span>
-            Need more help? Use our chatbot!
-          </div>
           <button className="chat-toggle-btn" onClick={() => setOpen((p) => !p)} aria-label="Toggle chat">
             <span role="img" aria-label="chat">{isDark ? "🌙" : "😊"}</span>
           </button>
@@ -311,3 +326,4 @@ const RasaWidget = () => {
 };
 
 export default RasaWidget;
+
