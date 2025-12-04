@@ -332,22 +332,15 @@ class ActionForwardToAgent(Action):
                 f"[action_forward_to_agent] POST {backend_url} "
                 f"status={resp.status_code} body={resp.text}"
             )
+            if resp.status_code == 409:
+                dispatcher.utter_message(
+                    text="An agent will join shortly. Your message will send once they claim the chat."
+                )
+            else:
+                dispatcher.utter_message(text="Your message has been sent to a live agent.")
         except Exception as exc:
             print(f"[action_forward_to_agent] backend call failed: {exc}")
-ests.post(backend_url, json=payload, timeout=3)
-            print(
-                f"[action_forward_to_agent] POST {backend_url} "
-                f"status={resp.status_code} body={resp.text}"
+            dispatcher.utter_message(
+                text="I couldn't reach a live agent right now. Please wait a moment."
             )
-        except Exception as e:
-            print(f"[action_forward_to_agent] backend call failed: {e}")
-ests.post(backend_url, json=payload, timeout=3)
-            print(
-                f"[action_forward_to_agent] POST {backend_url} "
-                f"status={resp.status_code} body={resp.text}"
-            )
-        except Exception as e:
-            print(f"[action_forward_to_agent] backend call failed: {e}")
-
-        dispatcher.utter_message(text="Your message has been sent to a live agent.")
         return []
