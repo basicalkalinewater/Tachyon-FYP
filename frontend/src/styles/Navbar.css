@@ -1,7 +1,23 @@
-/* Navbar styling */
+/* Navbar shell sizing/shadow; adjust here if the bar itself changes height */
 .navbar {
   z-index: 1030;
   will-change: background, padding, box-shadow;
+}
+
+/* Right-side actions container; tweak gap/min-height to align controls */
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 36px;
+}
+
+/* Baseline normalize every child inside nav-actions */
+.nav-actions > * {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+  margin: 0;
 }
 
 .brand-text {
@@ -17,12 +33,17 @@
   object-fit: contain;
 }
 
+/* Nav links; adjust height/padding if text needs different vertical alignment */
 .nav-link {
   color: var(--text-muted) !important;
   font-weight: 500;
   font-size: 0.95rem;
   transition: color 0.2s ease;
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 4px;
 }
 
 .nav-link:hover,
@@ -57,4 +78,98 @@
     box-shadow: var(--shadow-lg);
     border: 1px solid var(--border-light);
   }
+}
+
+/* Theme toggle wrapper; width/height control overall size */
+#theme-toggle-button {
+  font-size: 13px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 4.5em;
+  height: 32px;
+  cursor: pointer;
+  vertical-align: middle;
+  line-height: 0;
+  align-self: center;
+}
+
+#theme-toggle-button svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Hide the native checkbox hitbox */
+#toggle {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* Shared transitions for toggle pieces */
+#container,
+#patches,
+#stars,
+#button,
+#sun,
+#moon,
+#cloud {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 0.25s;
+}
+
+#toggle:checked + svg #container {
+  fill: #2b4360;
+}
+
+#toggle:checked + svg #button {
+  transform: translate(28px, 2.333px);
+}
+
+#sun {
+  opacity: 1;
+}
+
+#toggle:checked + svg #sun {
+  opacity: 0;
+}
+
+#moon {
+  opacity: 0;
+}
+
+#toggle:checked + svg #moon {
+  opacity: 1;
+}
+
+#cloud {
+  opacity: 1;
+}
+
+#toggle:checked + svg #cloud {
+  opacity: 0;
+}
+
+#stars {
+  opacity: 0;
+}
+
+#toggle:checked + svg #stars {
+  opacity: 1;
+}
+
+/* Cart button sizing; adjust height/padding to sync with toggle/nav text */
+.cart-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0.7rem !important;
+  font-size: 0.9rem;
+  line-height: 1;
+  height: 36px;
+  align-self: center;
+  vertical-align: middle;
 }

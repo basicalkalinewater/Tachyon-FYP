@@ -22,8 +22,8 @@
 .cart-drawer {
   position: fixed;
   top: 0;
-  right: -400px;
-  width: 350px;
+  right: -340px;
+  width: 300px;
   max-width: 80%;
   height: 100%;
   background: var(--bg-card);
