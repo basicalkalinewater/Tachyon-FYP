@@ -3,6 +3,29 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000
 const API_HOST = API_BASE_URL.replace(/\/api$/, "");
 const SUPPORT_BASE_URL = `${API_HOST}/support`;
 
+const getSessionToken = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("tachyon:user");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.sessionToken || null;
+  } catch {
+    return null;
+  }
+};
+
+export { getSessionToken };
+
+const buildHeaders = (optionsHeaders = {}) => {
+  const headers = { "Content-Type": "application/json", ...optionsHeaders };
+  const token = getSessionToken();
+  if (token && !headers.Authorization) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
+
 const toJson = async (res) => {
   const contentType = res.headers.get('content-type') || '';
   const data = contentType.includes('application/json') ? await res.json() : await res.text();
@@ -15,7 +38,7 @@ const toJson = async (res) => {
 
 export const request = async (path, options = {}) => {
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: buildHeaders(options.headers),
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
@@ -24,7 +47,7 @@ export const request = async (path, options = {}) => {
 
 export const requestSupport = async (path, options = {}) => {
   const response = await fetch(`${SUPPORT_BASE_URL}${path}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    headers: buildHeaders(options.headers),
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });

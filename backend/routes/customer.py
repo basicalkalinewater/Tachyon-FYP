@@ -9,12 +9,14 @@ from ..services.customer_service import (
     build_payment_update,
 )
 from ..utils.mappers import map_address, map_payment
+from ..utils.auth_middleware import require_session
 
 customer_bp = Blueprint("customer", __name__)
 dashboard_bp = Blueprint("dashboard", __name__)
 
 
 @dashboard_bp.get("/customer/<user_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def customer_dashboard(user_id):
     """Return role-scoped dashboard data for customer accounts."""
     supabase = current_app.config["SUPABASE"]
@@ -50,6 +52,7 @@ def customer_dashboard(user_id):
 
 
 @customer_bp.put("/profile/<user_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def update_customer_profile(user_id):
     """Update name/email/phone for a customer."""
     supabase = current_app.config["SUPABASE"]
@@ -84,6 +87,7 @@ def update_customer_profile(user_id):
 
 
 @customer_bp.put("/password/<user_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def update_customer_password(user_id):
     """Change customer password after validating the current password."""
     supabase = current_app.config["SUPABASE"]
@@ -113,6 +117,7 @@ def update_customer_password(user_id):
 
 
 @customer_bp.post("/addresses/<user_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def create_address(user_id):
     supabase = current_app.config["SUPABASE"]
     try:
@@ -136,6 +141,7 @@ def create_address(user_id):
 
 
 @customer_bp.put("/addresses/<user_id>/<address_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def update_address(user_id, address_id):
     supabase = current_app.config["SUPABASE"]
     try:
@@ -166,6 +172,7 @@ def update_address(user_id, address_id):
 
 
 @customer_bp.delete("/addresses/<user_id>/<address_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def delete_address(user_id, address_id):
     supabase = current_app.config["SUPABASE"]
     try:
@@ -189,6 +196,7 @@ def delete_address(user_id, address_id):
 
 
 @customer_bp.post("/payments/<user_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def create_payment(user_id):
     supabase = current_app.config["SUPABASE"]
     try:
@@ -212,6 +220,7 @@ def create_payment(user_id):
 
 
 @customer_bp.put("/payments/<user_id>/<payment_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def update_payment(user_id, payment_id):
     supabase = current_app.config["SUPABASE"]
     try:
@@ -242,6 +251,7 @@ def update_payment(user_id, payment_id):
 
 
 @customer_bp.delete("/payments/<user_id>/<payment_id>")
+@require_session(allowed_roles=["customer"], match_user_param="user_id")
 def delete_payment(user_id, payment_id):
     supabase = current_app.config["SUPABASE"]
     try:

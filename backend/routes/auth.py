@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from ..services import customer_service
 from ..services import live_cust_support_service
+from ..services import session_service
 
 
 def fetch_agent_profile(supabase, user_id: str):
@@ -47,16 +48,24 @@ def login():
             user["fullName"] = profile_data.get("fullName") or user.get("email")
         elif role == "support":
             profile_data = fetch_agent_profile(supabase, user.get("id"))
-            user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
+        user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
         if role == "customer":
             redirect_to = "/dashboard/customer"
         elif role == "support":
-            redirect_to = "/dashboard/support"
+            redirect_to = "/dashboard/customer-support"
         else:
             return jsonify({"error": "Admin dashboard coming soon."}), 403
+
+        session = session_service.create_session(
+            supabase,
+            user["id"],
+            user_agent=request.headers.get("User-Agent"),
+        )
+        user["sessionToken"] = session["token"]
+        user["sessionExpiresAt"] = session["expires_at"]
 
         return jsonify({"user": user, "redirectTo": redirect_to})
 
@@ -106,6 +115,7 @@ def register():
             "email": user_row.get("email"),
             "role": "customer",
             "fullName": full_name or email,
+            # no server-side session is created on registration; user must log in
         }
         return jsonify({"user": user, "redirectTo": "/dashboard/customer"}), 201
     except Exception as err:
@@ -153,4 +163,31 @@ def update_profile():
         return jsonify({"success": True, "data": profile_data})
     except Exception as err:
         current_app.logger.error(f"profile update error: {err}")
+        return jsonify({"error": str(err)}), 500
+
+
+def _extract_bearer_token(req) -> str:
+    header = (req.headers.get("Authorization") or "").strip()
+    if header.lower().startswith("bearer "):
+        return header.split(" ", 1)[1].strip()
+    return ""
+
+
+@auth_bp.post("/logout")
+def logout_route():
+    """Revoke a server-side session token."""
+    supabase = current_app.config["SUPABASE"]
+    try:
+        token = _extract_bearer_token(request)
+        if not token:
+            body = request.get_json(silent=True) or {}
+            token = (body.get("session_token") or body.get("sessionToken") or "").strip()
+
+        if not token:
+            return jsonify({"error": "Missing session token"}), 400
+
+        revoked = session_service.revoke_session(supabase, token)
+        return jsonify({"success": True, "revoked": revoked})
+    except Exception as err:
+        current_app.logger.error(f"logout error: {err}")
         return jsonify({"error": str(err)}), 500

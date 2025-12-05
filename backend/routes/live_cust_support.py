@@ -1,6 +1,7 @@
 from flask import Blueprint, request
 
 from ..services import live_cust_support_service as service
+from ..utils.auth_middleware import require_session
 
 # Blueprint for live customer support chat; mounted under /support
 live_cust_support_bp = Blueprint("live_cust_support", __name__)
@@ -40,6 +41,7 @@ def send_customer_message(session_id):
 
 
 @live_cust_support_bp.get("/sessions/<session_id>/stream")
+@require_session(allowed_roles=["support"])
 def stream_session(session_id):
     # SSE stream of new messages for a session
     return service.stream_session(session_id)
@@ -52,6 +54,7 @@ def get_queue_status(sender_id):
 
 
 @live_cust_support_bp.get("/sessions")
+@require_session(allowed_roles=["support"])
 def list_sessions():
     # List sessions (defaults to pending + in_progress)
     status = request.args.get("status")
@@ -59,12 +62,14 @@ def list_sessions():
 
 
 @live_cust_support_bp.get("/sessions/<session_id>")
+@require_session(allowed_roles=["support"])
 def get_session(session_id):
     # Fetch one session plus its messages
     return service.get_session(session_id)
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/claim")
+@require_session(allowed_roles=["support"])
 def claim_session(session_id):
     # Claim a session for an agent and notify the user
     data = request.get_json(force=True, silent=True) or {}
@@ -75,6 +80,7 @@ def claim_session(session_id):
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/messages")
+@require_session(allowed_roles=["support"])
 def send_agent_message(session_id):
     # Send a live agent message and mirror it to Rasa
     data = request.get_json(force=True, silent=True) or {}
@@ -86,6 +92,7 @@ def send_agent_message(session_id):
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/resolve")
+@require_session(allowed_roles=["support"])
 def resolve_session(session_id):
     # Close a session and send a summary email if configured
     data = request.get_json(force=True, silent=True) or {}
@@ -97,6 +104,7 @@ def resolve_session(session_id):
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/flags")
+@require_session(allowed_roles=["support"])
 def flag_question(session_id):
     # Flag a message the bot struggled with for follow-up
     data = request.get_json(force=True, silent=True) or {}

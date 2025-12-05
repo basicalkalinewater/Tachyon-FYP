@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { logout, selectCurrentUser } from "../redux/authSlice";
+import { logoutRequest } from "../api/auth";
 import { toast } from "react-hot-toast";
 import {
   fetchSupportSessions,
@@ -9,7 +10,7 @@ import {
   sendAgentMessage,
   resolveSession,
 } from "../api/support";
-import { SUPPORT_BASE_URL } from "../api/client";
+import { SUPPORT_BASE_URL, getSessionToken } from "../api/client";
 
 import "../styles/support-dashboard.css"; // dedicated styling for support dashboard
 
@@ -56,9 +57,15 @@ const CustomerSupportDashboard = () => {
   const [eventSource, setEventSource] = useState(null);
   const hasSelection = Boolean(selectedSession);
 
-  const handleLogout = () => {
-    dispatch(logout());
-    toast.success("Logged out successfully");
+  const handleLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // ignore server logout errors; still clear client session
+    } finally {
+      dispatch(logout());
+      toast.success("Logged out successfully");
+    }
   };
 
   const agentId = user?.id;
@@ -134,7 +141,11 @@ const CustomerSupportDashboard = () => {
       setEventSource(null);
     }
     loadSessionDetail(sessionId).then(() => {
-      const es = new EventSource(`${SUPPORT_BASE_URL}/sessions/${sessionId}/stream`);
+      const token = getSessionToken();
+      const streamUrl = token
+        ? `${SUPPORT_BASE_URL}/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`
+        : `${SUPPORT_BASE_URL}/sessions/${sessionId}/stream`;
+      const es = new EventSource(streamUrl);
       es.onmessage = (ev) => {
         try {
           const newMessages = JSON.parse(ev.data);

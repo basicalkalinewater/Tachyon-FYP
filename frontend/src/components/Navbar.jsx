@@ -7,6 +7,7 @@ import { useSelector, useDispatch } from "react-redux";
 import CartDrawer from "../cart/CartDrawer";
 import { selectCartCount } from "../redux/cartSlice";
 import { logout, selectCurrentUser } from "../redux/authSlice";
+import { logoutRequest } from "../api/auth";
 
 import "../styles/Navbar.css";
 
@@ -57,8 +58,14 @@ const Navbar = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const handleLogout = () => {
-    dispatch(logout());
+  const handleLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // ignore logout errors; still clear client state
+    } finally {
+      dispatch(logout());
+    }
   };
 
   return (

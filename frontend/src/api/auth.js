@@ -62,3 +62,8 @@ export const changePassword = (userId, body) =>
     method: "PUT",
     body,
   });
+
+export const logoutRequest = () =>
+  request("/auth/logout", {
+    method: "POST",
+  });
