@@ -48,7 +48,7 @@ def login():
             user["fullName"] = profile_data.get("fullName") or user.get("email")
         elif role == "support":
             profile_data = fetch_agent_profile(supabase, user.get("id"))
-        user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
+            user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
