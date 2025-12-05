@@ -6,11 +6,11 @@ const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/we
 const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;
 
 const QUICK_REPLIES = [
-  { title: "FAQs", payload: "faq" },
-  { title: "Shipping info", payload: "shipping" },
-  { title: "Return policy", payload: "returns" },
-  { title: "Order status", payload: "order status" },
-  { title: "Products", payload: "products" },
+  { title: "FAQs", payload: "FAQ" },
+  { title: "Shipping info", payload: "Shipping Info" },
+  { title: "Return policy", payload: "Return Policy" },
+  { title: "Order status", payload: "Order Status" },
+  { title: "Products", payload: "Products" },
   { title: "Talk to human", payload: "__handoff__" },
 ];
 
