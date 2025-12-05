@@ -320,32 +320,41 @@
 }
 
 .theme-dark .table {
-  color: var(--text-main);
-  background: var(--bg-card);
+  color: #e2e8f0;
+  background: #0f172a;
 }
 
 .theme-dark .table thead th {
-  color: var(--text-muted);
-  background: rgba(255, 255, 255, 0.03);
-  border-color: var(--border-light);
+  color: #cbd5e1;
+  background: #111a2e;
+  border-color: #2d3748;
 }
 
 .theme-dark .table tbody tr {
-  color: var(--text-main);
-  background: rgba(15, 23, 42, 0.4);
-  border-color: var(--border-light);
+  color: #e2e8f0;
+  background: #0f172a;
+  border-color: #2d3748;
 }
 
 .theme-dark .table tbody tr:nth-child(even) {
-  background: rgba(15, 23, 42, 0.6);
+  background: #131f36;
+}
+
+.theme-dark .table tbody tr:hover {
+  background: #192742;
 }
 
 .theme-dark .table tbody td {
   color: #e2e8f0;
 }
 
-.theme-dark .table thead th {
-  color: #cbd5e1;
+.theme-dark .table a {
+  color: #c7d2fe;
+  text-decoration: underline;
+}
+
+.theme-dark .table a:hover {
+  color: #e0e7ff;
 }
 
 .theme-dark .status-badge {
