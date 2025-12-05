@@ -125,10 +125,3 @@ nlu:
       - I want human support
       - route me to an agent
 
-  - intent: bot_handoff
-    examples: |
-      - talk to the agent
-      - keep chatting with the agent
-      - message for the agent
-      - pass this to the agent
-      - send this to the human

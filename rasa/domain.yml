@@ -7,7 +7,6 @@ intents:
   - fetch_products_with_filters
   - faq_link
   - return_policy_link
-  - bot_handoff
   - request_live_agent
   - nlu_fallback
 
