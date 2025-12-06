@@ -54,6 +54,12 @@ export const requestSupport = async (path, options = {}) => {
       url.searchParams.set("token", token);
     }
   }
+
+  // testing
+  console.log("[requestSupport] path:", path);
+  console.log("[requestSupport] token:", token);
+  console.log("[requestSupport] final URL:", url.toString());
+
   const response = await fetch(url.toString(), {
     headers: buildHeaders(options.headers),
     ...options,

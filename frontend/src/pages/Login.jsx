@@ -45,6 +45,17 @@ const Login = () => {
     dispatch(loginStart());
     try {
       const response = await loginRequest(form.email, form.password);
+      
+      //testing
+      console.log("🔐 FULL LOGIN RESPONSE:", response); 
+      console.log("🔑 Session token from backend:", response.user?.sessionToken);
+      
+      //testing
+      const userPayload = {
+        ...response.user,
+        sessionToken: response.session_token,  // or response.token (depending on backend)
+      };
+
       dispatch(loginSuccess(response.user));
       toast.success("Welcome back!");
       navigate(response.redirectTo);

@@ -59,6 +59,8 @@ const Navbar = () => {
   };
 
   const handleLogout = async () => {
+    // testing
+    console.clear();
     try {
       await logoutRequest();
     } catch {

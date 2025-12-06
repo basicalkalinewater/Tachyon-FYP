@@ -24,10 +24,12 @@ def require_session(allowed_roles: Optional[Iterable[str]] = None, match_user_pa
             supabase = current_app.config["SUPABASE"]
             token = _extract_token()
             if not token:
+                current_app.logger.warning("[auth] missing token for %s", request.path)
                 return jsonify({"error": "Missing session token"}), 401
 
             session_row, err = session_service.get_session(supabase, token)
             if err:
+                current_app.logger.warning("[auth] invalid session for %s: %s", request.path, err)
                 return jsonify({"error": err}), 401
 
             user_id = session_row.get("user_id")

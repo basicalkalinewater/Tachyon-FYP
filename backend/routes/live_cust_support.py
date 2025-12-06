@@ -68,6 +68,14 @@ def get_session(session_id):
     return service.get_session(session_id)
 
 
+@live_cust_support_bp.get("/sessions_public/<session_id>")
+def get_session_public(session_id):
+    """
+    Public read-only endpoint used by the customer widget to poll session + messages.
+    """
+    return service.get_session(session_id)
+
+
 @live_cust_support_bp.post("/sessions/<session_id>/claim")
 @require_session(allowed_roles=["support"])
 def claim_session(session_id):

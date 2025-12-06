@@ -3,8 +3,9 @@ import { SUPPORT_BASE_URL } from "../api/client";
 import "../styles/RasaWidget.css";
 
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
-const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;
-
+// Support routes for customer widget
+const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs etc.
+const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
 const QUICK_REPLIES = [
   { title: "FAQs", payload: "FAQ" },
   { title: "Shipping info", payload: "Shipping Info" },
@@ -57,7 +58,7 @@ const RasaWidget = () => {
 
   const fetchSessionMessages = async (sessId) => {
     try {
-      const res = await fetch(`${SUPPORT_SESSIONS_URL}/${sessId}`);
+      const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`);
       const data = await res.json();
       const mapped =
         (data?.data?.messages || data?.messages || []).map((m) => {

@@ -129,8 +129,10 @@ const CustomerSupportDashboard = () => {
   };
 
   useEffect(() => {
-    loadSessions();
-  }, [loadSessions]);
+    if (user) {
+      loadSessions();
+    }
+  }, [user, loadSessions]);
 
   const loadCsat = useCallback(async () => {
     setLoadingCsat(true);
@@ -164,6 +166,12 @@ const CustomerSupportDashboard = () => {
   }, [sessions]);
 
   const handleSelectSession = (sessionId) => {
+
+    const token = getSessionToken();
+      if (!token) {
+        toast.error("Please log in to access session details.");
+        return;
+      }
     // close prior stream
     if (eventSource) {
       eventSource.close();
