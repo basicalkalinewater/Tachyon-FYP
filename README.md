@@ -2,18 +2,26 @@
 - Conversational storefront and support assistant with a Flask API, RASA, and a Vite/React front end backed by Supabase.
 
 ## 📦 Technologies
-- Vite
-- React.js
-- CSS
-- Flask
-- RASA
-- Supabase
+- Vite + React
+- CSS / custom theming
+- Flask API (REST + SSE)
+- RASA (NLP/NLU)
+- Supabase (Postgres + auth + storage)
+- Ticket System
 
-## 🦄 Features
+## 📍 Features
 Here's what you can do with Tachyon Chatbot:
 - Browse products, manage carts, and persist orders via Supabase.
 - Chat with the Rasa-powered assistant embedded in the storefront.
-- Escalate to human support; agents can respond from the support dashboard.
+- Escalate to human support; agents respond from the Support Dashboard (tickets with priority/subject).
+- Guests complete a short pre-chat form (name/email) before escalation; members can log in instead.
+- Admin dashboard: user management, profile editing, and CSAT insights with customer attribution.
+
+
+## 🤔 E2A Protocol
+- Customer → bot/agent messages are sent via REST.
+- Agent → customer live updates use Server-Sent Events (SSE); an event-to-agent (E2A) stream from the Flask backend.
+- Ticket metadata (ticket_number, subject, priority) travels with sessions for dashboards.
 
 ## Prerequisites
 - Node.js (npm)
