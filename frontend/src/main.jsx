@@ -26,7 +26,8 @@ import {
   Terms,
   Accessibility,
   CustomerDashboard,
-  CustomerSupportDashboard
+  CustomerSupportDashboard,
+  AdminDashboard
 } from "./pages";
 
 import { Toaster } from "react-hot-toast";
@@ -73,6 +74,9 @@ root.render(
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={["support"]} />}>
                   <Route path="/dashboard/customer-support" element={<CustomerSupportDashboard />} />
+                </Route>
+                <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+                  <Route path="/dashboard/admin" element={<AdminDashboard />} />
                 </Route>
                 <Route path="*" element={<PageNotFound />} />
               </Routes>

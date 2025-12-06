@@ -9,6 +9,8 @@ import {
   claimSession,
   sendAgentMessage,
   resolveSession,
+  fetchCsatSummary,
+  fetchCsatResponses,
 } from "../api/support";
 import { SUPPORT_BASE_URL, getSessionToken } from "../api/client";
 
@@ -19,6 +21,7 @@ const SUPPORT_SECTIONS = [
   { id: "inbox", label: "Incoming Chats", group: "Chat Management" },
   { id: "assigned", label: "My Active Chats", group: "Chat Management" },
   { id: "history", label: "Chat History", group: "Chat Management" },
+  { id: "csat", label: "CSAT", group: "Quality" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
 
@@ -55,6 +58,9 @@ const CustomerSupportDashboard = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [summaryEmailInfo, setSummaryEmailInfo] = useState({ sent: false, sentAt: null });
   const [eventSource, setEventSource] = useState(null);
+  // CSAT
+  const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
+  const [loadingCsat, setLoadingCsat] = useState(false);
   const hasSelection = Boolean(selectedSession);
 
   const handleLogout = async () => {
@@ -125,6 +131,29 @@ const CustomerSupportDashboard = () => {
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+
+  const loadCsat = useCallback(async () => {
+    setLoadingCsat(true);
+    try {
+      const summaryData = await fetchCsatSummary(30);
+      const responses = await fetchCsatResponses(20);
+      setCsat({
+        summary: summaryData.summary || {},
+        trend: summaryData.trend || [],
+        verbatim: responses || [],
+      });
+    } catch (err) {
+      toast.error(err.message || "Failed to load CSAT");
+    } finally {
+      setLoadingCsat(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "csat") {
+      loadCsat();
+    }
+  }, [activeSection, loadCsat]);
 
   const stats = useMemo(() => {
     const total = sessions.length;
@@ -473,6 +502,68 @@ const CustomerSupportDashboard = () => {
     </section>
   );
 
+  const renderCsat = () => {
+    const summary = csat.summary || {};
+    const csatPct = summary.csat_pct ?? 0;
+    const avgRating = summary.avg_rating ?? 0;
+    const responses = summary.responses ?? 0;
+
+    return (
+      <section className="dashboard-section card-saas">
+        <p className="text-muted text-uppercase small fw-semibold mb-1">Customer Satisfaction</p>
+        <h3 className="mb-3">Post-chat CSAT</h3>
+
+        <div className="stat-grid">
+          <div className="stat-card">
+            <p className="stat-label">CSAT %</p>
+            <h4 className="stat-value">{Math.round(csatPct)}%</h4>
+            <span className="stat-help">rating ≥ 4 / total</span>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Avg Rating</p>
+            <h4 className="stat-value">{Number(avgRating).toFixed(2)}</h4>
+            <span className="stat-help">5-point scale</span>
+          </div>
+          <div className="stat-card">
+            <p className="stat-label">Responses</p>
+            <h4 className="stat-value">{responses}</h4>
+            <span className="stat-help">last 30 days</span>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <h5 className="mb-0">Recent feedback</h5>
+            <button className="btn btn-outline-saas btn-sm" onClick={loadCsat} disabled={loadingCsat}>
+              {loadingCsat ? "Loading..." : "Refresh"}
+            </button>
+          </div>
+          {loadingCsat ? (
+            <p className="text-muted small mb-0">Loading CSAT...</p>
+          ) : csat.verbatim && csat.verbatim.length > 0 ? (
+            <ul className="list-unstyled mb-0">
+              {csat.verbatim.map((v) => (
+                <li key={v.session_id} className="mb-3 p-3 border rounded">
+                  <div className="d-flex justify-content-between">
+                    <strong>Rating {v.customer_rating}/5</strong>
+                    <span className="text-muted small">
+                      {v.customer_rating_submitted_at
+                        ? new Date(v.customer_rating_submitted_at).toLocaleString()
+                        : ""}
+                    </span>
+                  </div>
+                  {v.customer_feedback && <div>{v.customer_feedback}</div>}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted small mb-0">No feedback yet.</p>
+          )}
+        </div>
+      </section>
+    );
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case "inbox":
@@ -515,6 +606,8 @@ const CustomerSupportDashboard = () => {
         );
       case "history":
         return renderHistory();
+      case "csat":
+        return renderCsat();
       case "profile":
         return (
           <section className="dashboard-section card-saas">
@@ -531,6 +624,7 @@ const CustomerSupportDashboard = () => {
             </p>
           </section>
         );
+
       default:
         return null;
     }

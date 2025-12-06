@@ -26,3 +26,14 @@ export const resolveSession = (sessionId, agentId, resolutionTag = "") =>
     body: { agent_id: agentId, resolution_tag: resolutionTag },
   }));
 
+export const submitCsat = (sessionId, rating, feedback) =>
+  unwrap(requestSupport(`/sessions/${sessionId}/csat`, {
+    method: "POST",
+    body: { rating, feedback },
+  }));
+
+export const fetchCsatSummary = (windowDays = 30, agentId) =>
+  unwrap(requestSupport(`/csat/summary?window_days=${windowDays}${agentId ? `&agent_id=${agentId}` : ""}`));
+
+export const fetchCsatResponses = (limit = 50) =>
+  unwrap(requestSupport(`/csat/responses?limit=${limit}`));

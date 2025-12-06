@@ -54,7 +54,7 @@ def get_queue_status(sender_id):
 
 
 @live_cust_support_bp.get("/sessions")
-@require_session(allowed_roles=["support"])
+@require_session(allowed_roles=["support", "admin"])
 def list_sessions():
     # List sessions (defaults to pending + in_progress)
     status = request.args.get("status")
@@ -62,7 +62,7 @@ def list_sessions():
 
 
 @live_cust_support_bp.get("/sessions/<session_id>")
-@require_session(allowed_roles=["support"])
+@require_session(allowed_roles=["support", "admin"])
 def get_session(session_id):
     # Fetch one session plus its messages
     return service.get_session(session_id)
@@ -114,3 +114,41 @@ def flag_question(session_id):
     if not agent_id or not message_id or not reason:
         return service.error("agent_id, message_id and reason are required")
     return service.flag_question(session_id, agent_id, message_id, reason)
+
+
+@live_cust_support_bp.post("/sessions/<session_id>/csat")
+def submit_csat(session_id):
+    """Public CSAT submission endpoint (can be called by Rasa or email link)."""
+    data = request.get_json(force=True, silent=True) or {}
+    rating = data.get("rating")
+    feedback = data.get("feedback")
+    token = request.args.get("token")  # reserved for future signed links
+    return service.submit_csat(session_id, rating, feedback, token)
+
+
+@live_cust_support_bp.post("/sessions/from_rasa/csat")
+def submit_csat_from_rasa():
+    """Rasa webhook: expects sender_id and rating (1-5), optional feedback."""
+    data = request.get_json(force=True, silent=True) or {}
+    sender_id = data.get("sender_id")
+    rating = data.get("rating")
+    feedback = data.get("feedback")
+    if not sender_id or rating is None:
+        return service.error("sender_id and rating are required")
+    return service.submit_csat_from_rasa(sender_id, rating, feedback)
+
+
+@live_cust_support_bp.get("/csat/summary")
+@require_session(allowed_roles=["admin", "support"])
+def csat_summary():
+    window_days = int(request.args.get("window_days", 30))
+    agent_id = request.args.get("agent_id")
+    return service.get_csat_summary(window_days, agent_id)
+
+
+@live_cust_support_bp.get("/csat/responses")
+@require_session(allowed_roles=["admin", "support"])
+def csat_responses():
+    limit = int(request.args.get("limit", 50))
+    return service.list_csat_responses(limit)
+

@@ -15,4 +15,5 @@ export { default as Terms } from './Terms';
 export { default as Accessibility } from './Accessibility';
 export { default as CustomerDashboard } from './CustomerDashboard';
 export { default as CustomerSupportDashboard } from "./CustomerSupportDashboard";
+export { default as AdminDashboard } from "./AdminDashboard";
 

@@ -43,21 +43,27 @@ def login():
 
         role = user.get("role")
 
+        # Attach display names by role
         if role == "customer":
             profile_data = customer_service.fetch_customer_profile(supabase, user)
             user["fullName"] = profile_data.get("fullName") or user.get("email")
         elif role == "support":
             profile_data = fetch_agent_profile(supabase, user.get("id"))
             user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
+        elif role == "admin":
+            user["fullName"] = user.get("email")
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
+        # Redirect mapping by role
         if role == "customer":
             redirect_to = "/dashboard/customer"
         elif role == "support":
             redirect_to = "/dashboard/customer-support"
+        elif role == "admin":
+            redirect_to = "/dashboard/admin"
         else:
-            return jsonify({"error": "Admin dashboard coming soon."}), 403
+            return jsonify({"error": "Unsupported role"}), 403
 
         session = session_service.create_session(
             supabase,

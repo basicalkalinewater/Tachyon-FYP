@@ -46,7 +46,15 @@ export const request = async (path, options = {}) => {
 };
 
 export const requestSupport = async (path, options = {}) => {
-  const response = await fetch(`${SUPPORT_BASE_URL}${path}`, {
+  const token = getSessionToken();
+  const url = new URL(`${SUPPORT_BASE_URL}${path}`, window.location.origin);
+  if (token) {
+    // Also send token as query param so SSE/fetch succeed even if headers drop
+    if (!url.searchParams.has("token")) {
+      url.searchParams.set("token", token);
+    }
+  }
+  const response = await fetch(url.toString(), {
     headers: buildHeaders(options.headers),
     ...options,
     body: options.body ? JSON.stringify(options.body) : undefined,

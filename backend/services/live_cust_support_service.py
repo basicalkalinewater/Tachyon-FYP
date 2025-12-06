@@ -5,7 +5,7 @@ import time
 from contextlib import contextmanager
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, Dict, Any
 
 import psycopg2
 import requests
@@ -44,6 +44,7 @@ SMTP_USER = os.getenv("SMTP_USER")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 EMAIL_FROM = os.getenv("EMAIL_FROM", SMTP_USER or "no-reply@example.com")
 AVERAGE_HANDLE_SECONDS = int(os.getenv("LIVE_AGENT_AVG_HANDLE_SECONDS", "120"))
+CSAT_PROMPT = os.getenv("CSAT_PROMPT", "Please rate your support experience from 1-5 (5 = excellent). You can reply with a number and an optional comment.")
 
 missing = [k for k, v in DB_CONFIG.items() if v in (None, "") and k != "sslmode"]
 if missing:
@@ -179,11 +180,13 @@ def append_message_from_rasa(sender_id: str, last_message: str):
             )
             session = cur.fetchone()
             if not session:
+                print(f"[rasa_append] no open session for sender_id={sender_id}")
                 return error("No open session for this sender", status=404)
 
             session_id = session["id"]
             customer_id = session["customer_id"] or FALLBACK_CUSTOMER_ID
             if session.get("status") != "in_progress":
+                print(f"[rasa_append] session {session_id} status={session.get('status')} not in_progress")
                 return error("Waiting for an agent to claim this chat", status=409)
 
             cur.execute(
@@ -396,6 +399,7 @@ def get_session(session_id: str):
 
 def claim_session(session_id: str, agent_id: str):
     """Assign a session to an agent and notify the user via Rasa if possible."""
+    print(f"[claim] attempting claim session_id={session_id} agent_id={agent_id}")
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -413,7 +417,10 @@ def claim_session(session_id: str, agent_id: str):
         )
         row = cur.fetchone()
         if not row:
+            print(f"[claim] failed (not found or already claimed) session_id={session_id}")
             return error("Session not found or already claimed by another agent", status=409)
+        else:
+            print(f"[claim] success session_id={session_id} status={row.get('status')} agent_id={agent_id}")
 
         agent_email = None
         if agent_id:
@@ -638,6 +645,16 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             requests.post(push_url, json=payload, timeout=3)
         except Exception as exc:
             print("WARN: failed to relay close notice to Rasa:", exc)
+        # Follow-up CSAT prompt
+        csat_payload = {
+            "event": "bot",
+            "text": CSAT_PROMPT,
+            "metadata": {"source": "system", "csat_session_id": session_id},
+        }
+        try:
+            requests.post(push_url, json=csat_payload, timeout=3)
+        except Exception as exc:
+            print("WARN: failed to send CSAT prompt to Rasa:", exc)
     return ok(row)
 
 
@@ -672,6 +689,173 @@ def flag_question(session_id: str, agent_id: str, message_id, reason: str):
         flag = cur.fetchone()
 
     return ok(flag)
+
+
+def submit_csat(session_id: str, rating: int, feedback: Optional[str], token: Optional[str]):
+    """Store CSAT rating for a session; ignore token for now (reserved for signed links)."""
+    try:
+        rating_int = int(rating)
+    except Exception:
+        return error("rating must be an integer between 1 and 5")
+    if rating_int < 1 or rating_int > 5:
+        return error("rating must be between 1 and 5")
+    feedback_text = (feedback or "").strip()
+
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SELECT customer_rating FROM chat_sessions WHERE id = %s;", (session_id,))
+            existing = cur.fetchone()
+            if not existing:
+                return error("Session not found", 404)
+            if existing.get("customer_rating") is not None:
+                return error("CSAT already submitted", 409)
+
+            cur.execute(
+                """
+                UPDATE chat_sessions
+                   SET customer_rating = %s,
+                       customer_feedback = NULLIF(%s, ''),
+                       customer_rating_submitted_at = NOW(),
+                       last_updated = NOW()
+                 WHERE id = %s
+                RETURNING id, customer_rating, customer_feedback, customer_rating_submitted_at;
+                """,
+                (rating_int, feedback_text, session_id),
+            )
+            updated = cur.fetchone()
+
+        _refresh_csat_rollup_async()
+        return ok(updated)
+    except Exception as exc:
+        print("ERROR submit_csat:", exc)
+        return error(str(exc), 500)
+
+
+def _find_latest_session_for_sender(sender_id: str) -> Optional[Dict[str, Any]]:
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, status
+            FROM chat_sessions
+            WHERE rasa_sender_id = %s
+            ORDER BY last_updated DESC
+            LIMIT 1;
+            """,
+            (sender_id,),
+        )
+        return cur.fetchone()
+
+
+def submit_csat_from_rasa(sender_id: str, rating: int, feedback: Optional[str]):
+    """Allow Rasa bot to forward CSAT responses from the user."""
+    session = _find_latest_session_for_sender(sender_id)
+    if not session:
+        return error("No session found for this sender", 404)
+    return submit_csat(session["id"], rating, feedback, token=None)
+
+
+def _refresh_csat_rollup_async():
+    """Best-effort refresh of the materialized view."""
+    try:
+        with get_db() as conn:
+            cur = conn.cursor()
+            try:
+                cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY public.chat_csat_rollup;")
+            except Exception:
+                # Fallback if MV not yet created or concurrent not allowed
+                conn.rollback()
+                cur = conn.cursor()
+                cur.execute("REFRESH MATERIALIZED VIEW IF EXISTS public.chat_csat_rollup;")
+    except Exception as exc:
+        print("WARN: refresh csat rollup failed:", exc)
+
+
+def get_csat_summary(window_days: int, agent_id: Optional[str]):
+    params = [window_days]
+    agent_clause = ""
+    if agent_id:
+        agent_clause = "AND cs.agent_id = %s"
+        params.append(agent_id)
+
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        try:
+            cur.execute(
+                f"""
+                SELECT
+                  COUNT(*)                               AS responses,
+                  AVG(cs.customer_rating)::numeric(3,2)  AS avg_rating,
+                  SUM(CASE WHEN cs.customer_rating >= 4 THEN 1 ELSE 0 END)::numeric /
+                    NULLIF(COUNT(*), 0) * 100           AS csat_pct
+                FROM chat_sessions cs
+                WHERE cs.customer_rating IS NOT NULL
+                  AND COALESCE(cs.closed_at, cs.created_at) >= NOW() - (%s || ' days')::interval
+                  {agent_clause};
+                """,
+                params,
+            )
+            summary = cur.fetchone() or {}
+        except Exception as exc:
+            print("ERROR csat summary query:", exc)
+            summary = {}
+
+        try:
+            cur.execute(
+                f"""
+                SELECT day, agent_id, avg_rating, csat_pct, responses
+                FROM chat_csat_rollup
+                WHERE day >= date_trunc('day', now() - (%s || ' days')::interval)
+                  {agent_clause}
+                ORDER BY day ASC;
+                """,
+                params,
+            )
+            trend = cur.fetchall() or []
+        except Exception as exc:
+            print("WARN: csat trend query failed (maybe MV missing):", exc)
+            trend = []
+
+        cur.execute(
+            """
+            SELECT
+              cs.id as session_id,
+              cs.agent_id,
+              cs.customer_rating,
+              cs.customer_feedback,
+              cs.customer_rating_submitted_at
+            FROM chat_sessions cs
+            WHERE cs.customer_rating IS NOT NULL
+            ORDER BY cs.customer_rating_submitted_at DESC
+            LIMIT 20;
+            """
+        )
+        verbatim = cur.fetchall() or []
+
+    return ok({"summary": summary, "trend": trend, "verbatim": verbatim})
+
+
+def list_csat_responses(limit: int = 50):
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT
+              cs.id as session_id,
+              cs.agent_id,
+              cs.customer_rating,
+              cs.customer_feedback,
+              cs.customer_rating_submitted_at
+            FROM chat_sessions cs
+            WHERE cs.customer_rating IS NOT NULL
+            ORDER BY cs.customer_rating_submitted_at DESC
+            LIMIT %s;
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall() or []
+    return ok(rows)
 
 
 def queue_status(rasa_sender_id: str):
@@ -734,3 +918,122 @@ def queue_status(rasa_sender_id: str):
                 "estimated_wait_seconds": estimated_wait,
             }
         )
+
+def submit_csat(session_id: str, rating: int, feedback: str, token: Optional[str]):
+    if rating is None or not (1 <= int(rating) <= 5):
+        return error("rating must be 1-5")
+    try:
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            # prevent double submissions
+            cur.execute(
+                "select customer_rating from chat_sessions where id = %s;",
+                (session_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return error("Session not found", 404)
+            if row.get("customer_rating") is not None:
+                return error("CSAT already submitted", 409)
+
+            cur.execute(
+                """
+                update chat_sessions
+                   set customer_rating = %s,
+                       customer_feedback = nullif(%s, ''),
+                       customer_rating_submitted_at = now(),
+                       last_updated = now()
+                 where id = %s
+                returning id, customer_rating, customer_feedback, customer_rating_submitted_at;
+                """,
+                (int(rating), feedback, session_id),
+            )
+            updated = cur.fetchone()
+        # refresh rollup asynchronously in real deployment; synchronous for now
+        try:
+            with get_db() as conn:
+                conn.cursor().execute("refresh materialized view public.chat_csat_rollup;")
+        except Exception as exc:
+            print("WARN: refresh csat rollup failed:", exc)
+        return ok(updated)
+    except Exception as exc:
+        print("ERROR submit_csat:", exc)
+        return error(str(exc), 500)
+
+
+def get_csat_summary(window_days: int, agent_id: Optional[str]):
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        params = [window_days]
+        agent_clause = ""
+        if agent_id:
+            agent_clause = "and cs.agent_id = %s"
+            params.append(agent_id)
+
+        cur.execute(
+            f"""
+            select
+              count(*)                               as responses,
+              avg(cs.customer_rating)::numeric(3,2)  as avg_rating,
+              sum(case when cs.customer_rating >= 4 then 1 else 0 end)::numeric /
+                nullif(count(*),0) * 100             as csat_pct
+            from chat_sessions cs
+            where cs.customer_rating is not null
+              and cs.closed_at >= now() - (%s || ' days')::interval
+              {agent_clause};
+            """,
+            params,
+        )
+        summary = cur.fetchone() or {}
+
+        cur.execute(
+            f"""
+            select day, agent_id, avg_rating, csat_pct, responses
+            from chat_csat_rollup
+            where day >= date_trunc('day', now() - (%s || ' days')::interval)
+              {agent_clause}
+            order by day asc;
+            """,
+            params,
+        )
+        trend = cur.fetchall() or []
+
+        cur.execute(
+            """
+            select
+              cs.id as session_id,
+              cs.agent_id,
+              cs.customer_rating,
+              cs.customer_feedback,
+              cs.customer_rating_submitted_at
+            from chat_sessions cs
+            where cs.customer_rating is not null
+            order by cs.customer_rating_submitted_at desc
+            limit 20;
+            """
+        )
+        verbatim = cur.fetchall() or []
+
+    return ok({"summary": summary, "trend": trend, "verbatim": verbatim})
+
+
+def list_csat_responses(limit: int = 50):
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            select
+              cs.id as session_id,
+              cs.agent_id,
+              cs.customer_rating,
+              cs.customer_feedback,
+              cs.customer_rating_submitted_at
+            from chat_sessions cs
+            where cs.customer_rating is not null
+            order by cs.customer_rating_submitted_at desc
+            limit %s;
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall() or []
+    return ok(rows)
