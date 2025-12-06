@@ -90,4 +90,5 @@ If error trying to install rasa package, try upgrading pip (in the .venv)
 ```
 customer@example.com / customer123
 support@example.com  / support123
+admin@example.com / admin123
 ```
