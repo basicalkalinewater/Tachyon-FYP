@@ -133,6 +133,35 @@ body.cart-open .chat-widget {
   background: var(--bg-card);
 }
 
+.csat-block {
+  width: 240px;
+}
+
+.csat-stars {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.csat-star {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #c7d2fe;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.csat-star.active {
+  color: #f5a623;
+}
+
+.csat-star:disabled {
+  cursor: not-allowed;
+  color: #94a3b8;
+}
+
 .chat-input {
   display: flex;
   gap: 8px;

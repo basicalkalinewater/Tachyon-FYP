@@ -65,7 +65,8 @@ def list_sessions():
 @require_session(allowed_roles=["support", "admin"])
 def get_session(session_id):
     # Fetch one session plus its messages
-    return service.get_session(session_id)
+    limit = request.args.get("limit", 200)
+    return service.get_session(session_id, limit)
 
 
 @live_cust_support_bp.get("/sessions_public/<session_id>")
@@ -73,7 +74,8 @@ def get_session_public(session_id):
     """
     Public read-only endpoint used by the customer widget to poll session + messages.
     """
-    return service.get_session(session_id)
+    limit = request.args.get("limit", 200)
+    return service.get_session(session_id, limit)
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/claim")

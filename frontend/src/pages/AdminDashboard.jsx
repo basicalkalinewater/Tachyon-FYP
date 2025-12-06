@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import { useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { toast } from "react-hot-toast";
 import "../styles/admin-dashboard.css";
@@ -6,6 +7,7 @@ import "../styles/admin-dashboard.css";
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [loading, setLoading] = useState(false);
+  const currentUser = useSelector((state) => state.auth.user);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,7 +38,7 @@ const AdminDashboard = () => {
         <div className="admin-card hero">
           <div>
             <p className="eyebrow">Admin Control</p>
-            <h2>Support Quality Overview</h2>
+            <h2>Welcome{currentUser?.fullName ? `, ${currentUser.fullName}` : ""}</h2>
             <p className="muted">CSAT across all agents and channels (last 30 days).</p>
           </div>
           <button className="pill-btn" onClick={load} disabled={loading}>

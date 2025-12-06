@@ -8,6 +8,7 @@ import CartDrawer from "../cart/CartDrawer";
 import { selectCartCount } from "../redux/cartSlice";
 import { logout, selectCurrentUser } from "../redux/authSlice";
 import { logoutRequest } from "../api/auth";
+import { toast } from "react-hot-toast";
 
 import "../styles/Navbar.css";
 
@@ -67,6 +68,7 @@ const Navbar = () => {
       // ignore logout errors; still clear client state
     } finally {
       dispatch(logout());
+      toast.success("Successfully logged out");
     }
   };
 

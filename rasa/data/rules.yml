@@ -41,3 +41,9 @@ rules:
       - intent: nlu_fallback
       - action: action_forward_to_agent
       - action: action_listen
+
+  - rule: Capture CSAT rating
+    steps:
+      - intent: csat_rating
+      - action: action_submit_csat
+      - action: action_listen

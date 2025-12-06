@@ -70,7 +70,7 @@ const CustomerSupportDashboard = () => {
       // ignore server logout errors; still clear client session
     } finally {
       dispatch(logout());
-      toast.success("Logged out successfully");
+      toast.success("Successfully logged out");
     }
   };
 

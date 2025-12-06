@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
+import threading
 
 import psycopg2
 import requests
@@ -225,12 +226,12 @@ def send_customer_message(session_id: str, message: str, customer_id: Optional[s
                 SELECT id
                 FROM chat_sessions
                 WHERE id = %s
-                  AND status = 'in_progress'
+                  AND status IN ('pending', 'in_progress')
                 """,
                 (session_id,),
             )
             if not cur.fetchone():
-                return error("Session not found or not yet claimed by an agent", status=409)
+                return error("Session not found or closed", status=409)
 
             cur.execute(
                 """
@@ -335,8 +336,17 @@ def list_sessions(status: Optional[str]):
     return ok(rows)
 
 
-def get_session(session_id: str):
-    """Fetch a single session plus its ordered message history."""
+def _normalize_limit(limit: Optional[int], default: int = 200, max_limit: int = 1000, min_limit: int = 50) -> int:
+    try:
+        val = int(limit)
+    except Exception:
+        val = default
+    return max(min_limit, min(val, max_limit))
+
+
+def get_session(session_id: str, limit: Optional[int] = 200):
+    """Fetch a single session plus its ordered (oldest->newest) message history."""
+    limit = _normalize_limit(limit)
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
         cur.execute(
@@ -388,11 +398,13 @@ def get_session(session_id: str):
               created_at
             FROM chat_messages
             WHERE session_id = %s
-            ORDER BY created_at ASC, id ASC;
+            ORDER BY id DESC
+            LIMIT %s;
             """,
-            (session_id,),
+            (session_id, limit),
         )
-        messages = cur.fetchall()
+        messages_desc = cur.fetchall() or []
+        messages = list(reversed(messages_desc))
 
     return ok({"session": session, "messages": messages})
 
@@ -621,6 +633,27 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
         except Exception as exc:
             print("WARN: failed to append close notice to chat:", exc)
 
+        # Also log the CSAT prompt as a system message so the web widget can render it
+        try:
+            cur.execute(
+                """
+                INSERT INTO chat_messages (
+                  session_id,
+                  sender_role,
+                  sender_type,
+                  message,
+                  is_bot
+                )
+                VALUES (%s, 'system', 'system', %s, TRUE);
+                """,
+                (
+                    session_id,
+                    CSAT_PROMPT,
+                ),
+            )
+        except Exception as exc:
+            print("WARN: failed to append CSAT prompt to chat:", exc)
+
         cur.execute(
             """
             UPDATE chat_sessions
@@ -645,6 +678,15 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             requests.post(push_url, json=payload, timeout=3)
         except Exception as exc:
             print("WARN: failed to relay close notice to Rasa:", exc)
+        # Reset handoff slot so future bot messages aren't forwarded
+        try:
+            requests.post(
+                push_url,
+                json={"event": "slot", "name": "handoff_active", "value": False},
+                timeout=3,
+            )
+        except Exception as exc:
+            print("WARN: failed to reset handoff slot:", exc)
         # Follow-up CSAT prompt
         csat_payload = {
             "event": "bot",
@@ -757,19 +799,22 @@ def submit_csat_from_rasa(sender_id: str, rating: int, feedback: Optional[str]):
 
 
 def _refresh_csat_rollup_async():
-    """Best-effort refresh of the materialized view."""
-    try:
-        with get_db() as conn:
-            cur = conn.cursor()
-            try:
-                cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY public.chat_csat_rollup;")
-            except Exception:
-                # Fallback if MV not yet created or concurrent not allowed
-                conn.rollback()
+    """Best-effort refresh of the materialized view without blocking the request."""
+
+    def _do_refresh():
+        try:
+            with get_db() as conn:
                 cur = conn.cursor()
-                cur.execute("REFRESH MATERIALIZED VIEW IF EXISTS public.chat_csat_rollup;")
-    except Exception as exc:
-        print("WARN: refresh csat rollup failed:", exc)
+                try:
+                    cur.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY public.chat_csat_rollup;")
+                except Exception:
+                    conn.rollback()
+                    cur = conn.cursor()
+                    cur.execute("REFRESH MATERIALIZED VIEW IF EXISTS public.chat_csat_rollup;")
+        except Exception as exc:
+            print("WARN: refresh csat rollup failed:", exc)
+
+    threading.Thread(target=_do_refresh, daemon=True).start()
 
 
 def get_csat_summary(window_days: int, agent_id: Optional[str]):

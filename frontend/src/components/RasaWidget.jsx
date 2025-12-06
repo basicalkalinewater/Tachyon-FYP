@@ -15,6 +15,49 @@ const QUICK_REPLIES = [
   { title: "Talk to human", payload: "__handoff__" },
 ];
 
+const isCsatPrompt = (text) =>
+  typeof text === "string" &&
+  text.toLowerCase().includes("rate") &&
+  (text.includes("1-5") || text.includes("1 to 5") || text.toLowerCase().includes("stars"));
+
+const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedback, onSubmit }) => {
+  return (
+    <div className="csat-block">
+      {submitted ? (
+        <div>Thanks for your feedback!</div>
+      ) : (
+        <>
+          <div className="mb-2">Rate your support experience:</div>
+          <div className="csat-stars mb-2" role="group" aria-label="CSAT star rating">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                type="button"
+                className={`csat-star ${rating >= star ? "active" : ""}`}
+                onClick={() => onSelect(star)}
+                disabled={submitting}
+              >
+                ★
+              </button>
+            ))}
+          </div>
+          <textarea
+            className="form-control form-control-sm mb-2"
+            placeholder="Optional feedback"
+            value={feedback}
+            onChange={(e) => onFeedback(e.target.value)}
+            disabled={submitting}
+            rows={2}
+          />
+          <button className="btn btn-primary btn-sm w-100" onClick={onSubmit} disabled={submitting || !rating}>
+            {submitting ? "Sending..." : "Submit"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+};
+
 const RasaWidget = () => {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
@@ -30,6 +73,10 @@ const RasaWidget = () => {
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined" && document.body.classList.contains("theme-dark")
   );
+  const [csatRating, setCsatRating] = useState(0);
+  const [csatFeedback, setCsatFeedback] = useState("");
+  const [csatSubmitting, setCsatSubmitting] = useState(false);
+  const [csatSubmitted, setCsatSubmitted] = useState(false);
   const [senderId] = useState(() => {
     if (typeof window === "undefined") return "web-user";
     const existing = localStorage.getItem("rasa_sender_id");
@@ -53,37 +100,63 @@ const RasaWidget = () => {
   }, []);
 
   const appendMessage = (from, text, timestamp) => {
-    setMessages((prev) => [...prev, { from, text, timestamp: timestamp || Date.now() }]);
+    const isCsat = isCsatPrompt(text);
+    setMessages((prev) => [...prev, { from, text, timestamp: timestamp || Date.now(), type: isCsat ? "csat" : "text" }]);
   };
 
   const fetchSessionMessages = async (sessId) => {
+    const controller = new AbortController();
     try {
-      const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`);
+      const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`, { signal: controller.signal });
       const data = await res.json();
+      const sessionStatus = data?.data?.session?.status || data?.session?.status;
+      if (sessionStatus === "closed") {
+        setMode("bot");
+        setAgentReady(false);
+        setQueueInfo(null);
+      }
       const mapped =
         (data?.data?.messages || data?.messages || []).map((m) => {
           const ts = m.created_at || m.timestamp || Date.now();
+          const text = m.message;
+          const isCsat = isCsatPrompt(text);
           return {
             from: m.sender_role === "agent" || m.sender_role === "system" ? "bot" : "user",
-            text: m.message,
+            text,
             id: m.id,
             timestamp: ts,
+            type: isCsat ? "csat" : "text",
           };
         }) || [];
       if (mapped.length > 0) {
-        setMessages(mapped);
+        setMessages((prev) => {
+          const prevHasIds = prev.some((p) => p.id);
+          const lastId = prevHasIds ? Math.max(...prev.filter((p) => p.id).map((p) => p.id)) : 0;
+          const incomingNew = mapped.filter((m) => !prevHasIds || !m.id || m.id > lastId);
+          if (!incomingNew.length) return prev;
+          return prevHasIds ? [...prev, ...incomingNew] : incomingNew;
+        });
       }
     } catch {
       // silent poll failure
+    } finally {
+      controller.abort();
     }
   };
 
   useEffect(() => {
-    if (mode !== "agent" || !sessionId || !agentReady) return;
+    if (mode !== "agent" || !sessionId) return;
     fetchSessionMessages(sessionId);
-    const interval = setInterval(() => fetchSessionMessages(sessionId), 2500);
+    const interval = setInterval(() => fetchSessionMessages(sessionId), 4000);
     return () => clearInterval(interval);
-  }, [mode, sessionId, agentReady]);
+  }, [mode, sessionId]);
+
+  // On mount, check if a session already exists for this sender (e.g., after refresh)
+  useEffect(() => {
+    const interval = setInterval(fetchQueueStatus, 6000);
+    fetchQueueStatus();
+    return () => clearInterval(interval);
+  }, []);
 
   const fetchQueueStatus = async () => {
     try {
@@ -108,7 +181,7 @@ const RasaWidget = () => {
   useEffect(() => {
     if (mode !== "agent") return;
     fetchQueueStatus();
-    const interval = setInterval(fetchQueueStatus, 2500);
+    const interval = setInterval(fetchQueueStatus, 4000);
     return () => clearInterval(interval);
   }, [mode, senderId]);
 
@@ -124,11 +197,16 @@ const RasaWidget = () => {
       });
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
-        const botResponses = data.map((d) => ({
-          from: "bot",
-          text: d.text || "",
-          timestamp: Date.now(),
-        }));
+        const botResponses = data.map((d) => {
+          const t = d.text || "";
+          const isCsat = isCsatPrompt(t);
+          return {
+            from: "bot",
+            text: t,
+            timestamp: Date.now(),
+            type: isCsat ? "csat" : "text",
+          };
+        });
         setMessages((prev) => [...prev, ...botResponses]);
       } else {
         appendMessage("bot", "I'm not sure, can you rephrase?");
@@ -149,16 +227,36 @@ const RasaWidget = () => {
     setInput("");
     setSending(true);
     try {
-      await fetch(`${SUPPORT_SESSIONS_URL}/${sessionId}/customer/messages`, {
+      const res = await fetch(`${SUPPORT_SESSIONS_URL}/${sessionId}/customer/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
       });
-      // messages will refresh via polling
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        appendMessage("bot", body?.error || "Couldn't reach the agent right now. Please try again.");
+      }
     } catch {
       appendMessage("bot", "Could not send to agent. Please try again.");
     } finally {
       setSending(false);
+    }
+  };
+
+  const submitCsat = async () => {
+    if (!sessionId || !csatRating) return;
+    setCsatSubmitting(true);
+    try {
+      await fetch(`${SUPPORT_SESSIONS_URL}/${sessionId}/csat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: csatRating, feedback: csatFeedback }),
+      });
+      setCsatSubmitted(true);
+    } catch {
+      appendMessage("bot", "Couldn't save your rating right now. Please try again.");
+    } finally {
+      setCsatSubmitting(false);
     }
   };
 
@@ -178,6 +276,7 @@ const RasaWidget = () => {
       const newSessionId = data?.data?.session_id;
       if (newSessionId) {
         setSessionId(newSessionId);
+        setAgentReady(true); // allow messaging immediately; backend will queue if not yet claimed
         fetchQueueStatus();
       } else {
         appendMessage("bot", "Could not start agent session.");
@@ -194,15 +293,6 @@ const RasaWidget = () => {
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     if (mode === "agent" && sessionId) {
-      if (!agentReady) {
-        appendMessage(
-          "bot",
-          queueInfo?.position
-            ? `You're #${queueInfo.position} in line. We'll connect you once an agent claims the chat.`
-            : "Waiting for an agent to join. We'll connect you soon."
-        );
-        return;
-      }
       await sendToAgent(text);
     } else {
       await sendToBot(text);
@@ -252,7 +342,22 @@ const RasaWidget = () => {
               {messages.map((msg, idx) => (
                 <div key={idx} className={`chat-message ${msg.from}`}>
                   <div className="chat-message-bubble">
-                    {msg.from === "bot" ? (
+                    {msg.type === "csat" ? (
+                      <CsatBlock
+                        submitting={csatSubmitting}
+                        submitted={csatSubmitted}
+                        rating={csatRating}
+                        feedback={csatFeedback}
+                        onSelect={(r) => setCsatRating(r)}
+                        onFeedback={(t) => setCsatFeedback(t)}
+                        onSubmit={() => submitCsat()}
+                      />
+                    ) : msg.text?.includes("chat has been closed") ? (
+                      <>
+                        <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
+                        <div className="mt-2 small text-muted">You can continue chatting with the bot.</div>
+                      </>
+                    ) : msg.from === "bot" ? (
                       <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
                     ) : (
                       msg.text

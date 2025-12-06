@@ -19,6 +19,20 @@ def fetch_agent_profile(supabase, user_id: str):
     except Exception:
         return {}
 
+def fetch_admin_profile(supabase, user_id: str):
+    """Fetch admin profile (full_name) from admin_profile."""
+    try:
+        res = (
+            supabase.table("admin_profile")
+            .select("full_name")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return res.data or {}
+    except Exception:
+        return {}
+
 # Blueprint for auth endpoints; registered under /api/auth
 auth_bp = Blueprint("auth", __name__)
 
@@ -51,7 +65,8 @@ def login():
             profile_data = fetch_agent_profile(supabase, user.get("id"))
             user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
         elif role == "admin":
-            user["fullName"] = user.get("email")
+            profile_data = fetch_admin_profile(supabase, user.get("id"))
+            user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
@@ -139,6 +154,7 @@ def update_profile():
         email = (payload.get("email") or "").strip().lower()
         password = payload.get("password")
         full_name = (payload.get("fullName") or "").strip()
+        role = payload.get("role") or ""
 
         if not user_id:
             return jsonify({"error": "user_id is required"}), 400
@@ -155,7 +171,8 @@ def update_profile():
                 return jsonify({"error": res.error.get("message", "Failed to update user")}), 400
 
         if full_name:
-            supabase.table("live_agent_profile").upsert(
+            target_table = "live_agent_profile" if role == "support" else "admin_profile"
+            supabase.table(target_table).upsert(
                 {"user_id": user_id, "full_name": full_name},
                 on_conflict="user_id",
             ).execute()
