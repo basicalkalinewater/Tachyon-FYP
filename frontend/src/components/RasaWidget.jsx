@@ -5,6 +5,7 @@ import "../styles/RasaWidget.css";
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
 // Support routes for customer widget
 const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs etc.
+const SUPPORT_GUEST_ESCALATE_URL = `${SUPPORT_BASE_URL}/guest/escalate`;
 const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
 const QUICK_REPLIES = [
   { title: "FAQs", payload: "FAQ" },
@@ -24,10 +25,10 @@ const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedba
   return (
     <div className="csat-block">
       {submitted ? (
-        <div>Thanks for your feedback!</div>
+        <div>Thank you for your feedback!</div>
       ) : (
         <>
-          <div className="mb-2">Rate your support experience:</div>
+          <div className="mb-2">How was your experience with Tachyon Chatbot?</div>
           <div className="csat-stars mb-2" role="group" aria-label="CSAT star rating">
             {[1, 2, 3, 4, 5].map((star) => (
               <button
@@ -77,6 +78,10 @@ const RasaWidget = () => {
   const [csatFeedback, setCsatFeedback] = useState("");
   const [csatSubmitting, setCsatSubmitting] = useState(false);
   const [csatSubmitted, setCsatSubmitted] = useState(false);
+  const [showGuestForm, setShowGuestForm] = useState(false);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [handoffMessage, setHandoffMessage] = useState("");
   const [senderId] = useState(() => {
     if (typeof window === "undefined") return "web-user";
     const existing = localStorage.getItem("rasa_sender_id");
@@ -101,7 +106,10 @@ const RasaWidget = () => {
 
   const appendMessage = (from, text, timestamp) => {
     const isCsat = isCsatPrompt(text);
-    setMessages((prev) => [...prev, { from, text, timestamp: timestamp || Date.now(), type: isCsat ? "csat" : "text" }]);
+    setMessages((prev) => [
+      ...prev,
+      { from, text, timestamp: timestamp || Date.now(), type: isCsat ? "csat" : "text" },
+    ]);
   };
 
   const fetchSessionMessages = async (sessId) => {
@@ -130,11 +138,15 @@ const RasaWidget = () => {
         }) || [];
       if (mapped.length > 0) {
         setMessages((prev) => {
-          const prevHasIds = prev.some((p) => p.id);
-          const lastId = prevHasIds ? Math.max(...prev.filter((p) => p.id).map((p) => p.id)) : 0;
-          const incomingNew = mapped.filter((m) => !prevHasIds || !m.id || m.id > lastId);
-          if (!incomingNew.length) return prev;
-          return prevHasIds ? [...prev, ...incomingNew] : incomingNew;
+          // remove local pending user echoes before merging
+          const cleaned = prev.filter((p) => !(p.from === "user" && p.pending));
+          const existingIds = new Set(cleaned.filter((p) => p.id).map((p) => p.id));
+          const merged = [...cleaned];
+          mapped.forEach((m) => {
+            if (m.id && existingIds.has(m.id)) return;
+            merged.push(m);
+          });
+          return merged;
         });
       }
     } catch {
@@ -151,16 +163,15 @@ const RasaWidget = () => {
     return () => clearInterval(interval);
   }, [mode, sessionId]);
 
-  // On mount, check if a session already exists for this sender (e.g., after refresh)
-  useEffect(() => {
-    const interval = setInterval(fetchQueueStatus, 6000);
-    fetchQueueStatus();
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchQueueStatus = async () => {
     try {
       const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
+      if (res.status === 404) {
+        setQueueInfo(null);
+        setAgentReady(false);
+        return;
+      }
+      if (!res.ok) return;
       const data = await res.json();
       if (data?.data) {
         setQueueInfo(data.data);
@@ -223,7 +234,11 @@ const RasaWidget = () => {
       appendMessage("bot", "No active agent session. Please try requesting a human again.");
       return;
     }
-    appendMessage("user", text);
+    // Optimistic message (will be replaced by server copy on next poll)
+    setMessages((prev) => [
+      ...prev,
+      { from: "user", text, timestamp: Date.now(), pending: true },
+    ]);
     setInput("");
     setSending(true);
     try {
@@ -290,6 +305,57 @@ const RasaWidget = () => {
     }
   };
 
+  const startGuestHandoff = (initialText) => {
+    setHandoffMessage(initialText || "I need a human agent");
+    setShowGuestForm(true);
+  };
+
+  const submitGuestForm = async (e) => {
+    if (e) e.preventDefault();
+    if (!guestName.trim() || !guestEmail.trim()) {
+      appendMessage("bot", "Please enter your name and email to connect with an agent.");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch(SUPPORT_GUEST_ESCALATE_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: guestName.trim(),
+          email: guestEmail.trim(),
+          sender_id: senderId,
+          last_message: handoffMessage || "Need a human agent",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.data?.session_id) {
+        throw new Error(data?.error || "Could not start a ticket");
+      }
+      const newSessionId = data.data.session_id;
+      const ticket = data.data.ticket_number;
+      setSessionId(newSessionId);
+      setAgentReady(true);
+      setMode("agent");
+      setShowGuestForm(false);
+      appendMessage("bot", `Ticket ${ticket || newSessionId} created. An agent will join shortly.`);
+      fetchQueueStatus();
+    } catch (err) {
+      appendMessage("bot", err.message || "Could not start a ticket right now.");
+      setMode("bot");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const cancelGuestForm = () => {
+    setShowGuestForm(false);
+    setGuestName("");
+    setGuestEmail("");
+    setMode("bot");
+    appendMessage("bot", "No problem—I’ll stay with the bot. Ask me anything!");
+  };
+
   const sendMessage = async (text) => {
     if (!text.trim()) return;
     if (mode === "agent" && sessionId) {
@@ -339,91 +405,172 @@ const RasaWidget = () => {
               </button>
             </div>
             <div className="chat-body">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`chat-message ${msg.from}`}>
-                  <div className="chat-message-bubble">
-                    {msg.type === "csat" ? (
-                      <CsatBlock
-                        submitting={csatSubmitting}
-                        submitted={csatSubmitted}
-                        rating={csatRating}
-                        feedback={csatFeedback}
-                        onSelect={(r) => setCsatRating(r)}
-                        onFeedback={(t) => setCsatFeedback(t)}
-                        onSubmit={() => submitCsat()}
-                      />
-                    ) : msg.text?.includes("chat has been closed") ? (
-                      <>
-                        <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
-                        <div className="mt-2 small text-muted">You can continue chatting with the bot.</div>
-                      </>
-                    ) : msg.from === "bot" ? (
-                      <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
-                    ) : (
-                      msg.text
-                    )}
+              {showGuestForm ? (
+                <div className="guest-form p-2">
+                  <h5 className="mb-2">Tell us how to reach you</h5>
+                  <div className="mb-2">
+                    <label className="form-label small mb-1" htmlFor="guest-name">Full name</label>
+                    <input
+                      id="guest-name"
+                      type="text"
+                      className="form-control form-control-sm"
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Jane Doe"
+                    />
                   </div>
-                  <div className="chat-meta">
-                    <span className="chat-meta-time">{formatTime(msg.timestamp)}</span>
+                  <div className="mb-3">
+                    <label className="form-label small mb-1" htmlFor="guest-email">Email</label>
+                    <input
+                      id="guest-email"
+                      type="email"
+                      className="form-control form-control-sm"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="you@example.com"
+                    />
+                  </div>
+                  <div className="d-flex flex-column gap-2">
+                    <div className="d-flex gap-2">
+                      <button className="btn btn-primary btn-sm w-100" onClick={submitGuestForm} disabled={sending}>
+                        {sending ? "Starting..." : "Proceed"}
+                      </button>
+                      <button className="btn btn-outline-secondary btn-sm" type="button" onClick={cancelGuestForm}>
+                        Exit
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-link btn-sm text-start px-0"
+                      onClick={() => window.location.href = "/login"}
+                    >
+                      Already a member? Login here
+                    </button>
                   </div>
                 </div>
-              ))}
-              <div ref={messagesEndRef} />
+              ) : (
+                <>
+                  {messages.map((msg, idx) => (
+                    <div key={idx} className={`chat-message ${msg.from}`}>
+                      <div className="chat-message-bubble">
+                        {msg.type === "csat" ? (
+                          <CsatBlock
+                            submitting={csatSubmitting}
+                            submitted={csatSubmitted}
+                            rating={csatRating}
+                            feedback={csatFeedback}
+                            onSelect={(r) => setCsatRating(r)}
+                            onFeedback={(t) => setCsatFeedback(t)}
+                            onSubmit={() => submitCsat()}
+                          />
+                        ) : msg.text?.includes("chat has been closed") ? (
+                          <>
+                            <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
+                            <div className="mt-2 small text-muted">You can continue chatting with the bot.</div>
+                          </>
+                        ) : msg.from === "bot" ? (
+                          <span dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.text) }} />
+                        ) : (
+                          msg.text
+                        )}
+                      </div>
+                      <div className="chat-meta">
+                        <span className="chat-meta-time">{formatTime(msg.timestamp)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
             </div>
-            {mode === "agent" && !agentReady && (
+            {!showGuestForm && mode === "agent" && !agentReady && (
               <div className="px-3 py-2 text-muted small">
                 {queueInfo?.position
                   ? `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
                   : "Waiting for an agent to join. We'll notify you when they're ready."}
               </div>
             )}
-            <div className="chat-quick-replies">
-              {QUICK_REPLIES.map((qr) => (
-                <button
-                  key={qr.payload}
-                  className="btn btn-outline-primary btn-sm rounded-pill"
-                  onClick={() => {
-                    if (qr.payload === "__handoff__") {
-                      startHandoff("I need to talk to a human agent");
-                    } else {
-                      sendMessage(qr.payload);
-                    }
-                  }}
-                  disabled={sending}
-                >
-                  {qr.title}
-                </button>
-              ))}
-            </div>
-            <form className="chat-input" onSubmit={handleSubmit}>
+            {!showGuestForm && (
+              <div className="chat-quick-replies">
+                {QUICK_REPLIES.map((qr) => (
+                  <button
+                    key={qr.payload}
+                    className="btn btn-outline-primary btn-sm rounded-pill"
+                    onClick={() => {
+                      if (qr.payload === "__handoff__") {
+                        startGuestHandoff("I need to talk to a human agent");
+                      } else {
+                        sendMessage(qr.payload);
+                      }
+                    }}
+                    disabled={sending}
+                  >
+                    {qr.title}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!showGuestForm && (
+              <form className="chat-input" onSubmit={handleSubmit}>
               <input
                 type="text"
                 placeholder={
                   mode === "agent"
                     ? agentReady
                       ? "Message the agent..."
-                      : queueInfo?.position
-                        ? `Waiting... you are #${queueInfo.position}`
-                        : "Waiting for an agent to join..."
+                      : "Connecting to an agent..."
                     : "Type a message..."
                 }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 disabled={sending || (mode === "agent" && !agentReady)}
-              />
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={sending || (mode === "agent" && !agentReady)}
-              >
-                Send
-              </button>
-            </form>
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={sending || (mode === "agent" && !agentReady)}
+                >
+                  Send
+                </button>
+              </form>
+            )}
           </div>
         )}
         <div className="chat-toggle-wrapper">
-          <button className="chat-toggle-btn" onClick={() => setOpen((p) => !p)} aria-label="Toggle chat">
-            <span role="img" aria-label="chat">{isDark ? "🌙" : "😊"}</span>
+          <button
+            className={`chat-toggle-btn ${isDark ? "dark" : "light"} ${open ? "is-open" : ""}`}
+            onClick={() => setOpen((p) => !p)}
+            aria-label={open ? "Close chat" : "Open chat"}
+          >
+            {open ? (
+              <svg className="chat-toggle-icon" viewBox="0 0 48 48" aria-hidden="true">
+                <circle cx="24" cy="24" r="22" className="toggle-ring" />
+                <path
+                  className="toggle-x"
+                  d="M16 16l16 16m0-16L16 32"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <svg className="chat-toggle-icon" viewBox="0 0 48 48" aria-hidden="true">
+                <defs>
+                  <linearGradient id="toggleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="var(--tw-primary-start, #6366f1)" />
+                    <stop offset="100%" stopColor="var(--tw-primary-end, #0ea5e9)" />
+                  </linearGradient>
+                </defs>
+                <circle cx="24" cy="24" r="22" className="toggle-ring" />
+                <path
+                  className="toggle-bubble"
+                  d="M14 14h20a2 2 0 0 1 2 2v9.5a2 2 0 0 1-2 2h-7l-5.8 4.5a1 1 0 0 1-1.6-.8V28h-5.6a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2Z"
+                  fill="url(#toggleGradient)"
+                />
+                <circle cx="20" cy="21" r="1.6" className="toggle-dot" />
+                <circle cx="26" cy="21" r="1.6" className="toggle-dot" />
+                <circle cx="32" cy="21" r="1.6" className="toggle-dot" />
+              </svg>
+            )}
           </button>
         </div>
       </div>

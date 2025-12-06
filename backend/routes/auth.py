@@ -1,8 +1,9 @@
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, g
 
 from ..services import customer_service
 from ..services import live_cust_support_service
 from ..services import session_service
+from ..utils.auth_middleware import require_session
 
 
 def fetch_agent_profile(supabase, user_id: str):
@@ -20,11 +21,11 @@ def fetch_agent_profile(supabase, user_id: str):
         return {}
 
 def fetch_admin_profile(supabase, user_id: str):
-    """Fetch admin profile (full_name) from admin_profile."""
+    """Fetch admin profile (full_name, phone) from admin_profile."""
     try:
         res = (
             supabase.table("admin_profile")
-            .select("full_name")
+            .select("full_name, phone")
             .eq("user_id", user_id)
             .single()
             .execute()
@@ -67,6 +68,7 @@ def login():
         elif role == "admin":
             profile_data = fetch_admin_profile(supabase, user.get("id"))
             user["fullName"] = (profile_data.get("full_name") or "").strip() or user.get("email")
+            user["phone"] = profile_data.get("phone") or ""
         else:
             user["fullName"] = user.get("fullName") or user.get("email")
 
@@ -141,7 +143,34 @@ def register():
         return jsonify({"user": user, "redirectTo": "/dashboard/customer"}), 201
     except Exception as err:
         current_app.logger.error(f"register error: {err}")
-        return jsonify({"error": str(err)}), 500
+    return jsonify({"error": str(err)}), 500
+
+
+@auth_bp.get("/profile/admin")
+@require_session(allowed_roles=["admin"])
+def get_admin_profile():
+    supabase = current_app.config["SUPABASE"]
+    user_id = g.current_user["id"]
+    data = fetch_admin_profile(supabase, user_id) or {}
+    # ensure keys present
+    return jsonify({"success": True, "data": {"full_name": data.get("full_name") or "", "phone": data.get("phone") or ""}})
+
+
+@auth_bp.put("/profile/admin")
+@require_session(allowed_roles=["admin"])
+def update_admin_profile():
+    supabase = current_app.config["SUPABASE"]
+    user_id = g.current_user["id"]
+    payload = request.get_json(force=True, silent=True) or {}
+    full_name = (payload.get("full_name") or "").strip()
+    phone = (payload.get("phone") or "").strip()
+
+    upsert_body = {"user_id": user_id, "full_name": full_name, "phone": phone}
+    try:
+        supabase.table("admin_profile").upsert(upsert_body).execute()
+        return jsonify({"success": True, "data": upsert_body})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @auth_bp.post("/profile/update")

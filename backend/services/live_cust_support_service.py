@@ -7,6 +7,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 import threading
+import uuid
 
 import psycopg2
 import requests
@@ -98,6 +99,26 @@ def format_chat_summary(session_row, messages, resolution_tag):
     return "\n".join(lines)
 
 
+def fetch_agent_profile(supabase, user_id: str):
+    """Fetch agent profile (full_name, phone) from live_agent_profile."""
+    try:
+        res = (
+            supabase.table("live_agent_profile")
+            .select("full_name, phone")
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return res.data or {}
+    except Exception:
+        return {}
+
+
+def upsert_agent_profile(supabase, user_id: str, full_name: str, phone: str):
+    upsert_body = {"user_id": user_id, "full_name": full_name, "phone": phone}
+    supabase.table("live_agent_profile").upsert(upsert_body).execute()
+
+
 def send_summary_email(to_email, subject, body):
     """Send a summary email; return True/False depending on success."""
     if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD and to_email):
@@ -117,6 +138,101 @@ def send_summary_email(to_email, subject, body):
     except Exception as exc:
         print("WARN: failed to send summary email:", exc)
         return False
+
+
+def _ticket_number_from_id(session_id):
+    """Generate a readable ticket number from uuid/int session id."""
+    text = str(session_id)
+    compact = text.replace("-", "")
+    return f"TCK-{compact[:8].upper()}"
+
+
+def upsert_guest_user(full_name: str, email: str) -> str:
+    """Create or reuse a guest (customer role) user and profile."""
+    password_placeholder = uuid.uuid4().hex
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT id FROM app_user WHERE email = %s;", (email,))
+        row = cur.fetchone()
+        if row:
+            user_id = row["id"]
+        else:
+            cur.execute(
+                """
+                INSERT INTO app_user (email, password_hash, role)
+                VALUES (%s, %s, 'customer')
+                ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+                RETURNING id;
+                """,
+                (email, password_placeholder),
+            )
+            user_id = cur.fetchone()["id"]
+
+        cur.execute(
+            """
+            INSERT INTO customer_profile (user_id, full_name)
+            VALUES (%s, %s)
+            ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name;
+            """,
+            (user_id, full_name),
+        )
+    return user_id
+
+
+def create_guest_ticket(full_name: str, email: str, sender_id: str, last_message: str):
+    """Create a ticket/session for a guest after collecting their info."""
+    try:
+        customer_id = upsert_guest_user(full_name, email)
+        with get_db() as conn:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute(
+                """
+                INSERT INTO chat_sessions (
+                    customer_id,
+                    agent_id,
+                    status,
+                    rasa_sender_id,
+                    subject,
+                    priority,
+                    last_updated
+                )
+                VALUES (%s, %s, 'pending', %s, %s, 'medium', NOW())
+                RETURNING id;
+                """,
+                (customer_id, FALLBACK_AGENT_ID, sender_id or None, f"Guest: {full_name}",),
+            )
+            session_row = cur.fetchone()
+            session_id = session_row["id"]
+
+            ticket_number = _ticket_number_from_id(session_id)
+            cur.execute(
+                """
+                UPDATE chat_sessions
+                SET ticket_number = %s
+                WHERE id = %s;
+                """,
+                (ticket_number, session_id),
+            )
+
+            if last_message:
+                cur.execute(
+                    """
+                    INSERT INTO chat_messages (
+                        session_id,
+                        sender_role,
+                        sender_id,
+                        message,
+                        is_bot
+                    )
+                    VALUES (%s, 'customer', %s, %s, FALSE);
+                    """,
+                    (session_id, customer_id, last_message),
+                )
+
+        return ok({"session_id": session_id, "ticket_number": ticket_number})
+    except Exception as exc:
+        print("ERROR create_guest_ticket:", exc)
+        return error(str(exc), status=500)
 
 
 def create_session_from_rasa(sender_id: str, last_message: str):
@@ -141,6 +257,19 @@ def create_session_from_rasa(sender_id: str, last_message: str):
             session_row = cur.fetchone()
             session_id = session_row["id"]
 
+            # Generate a deterministic ticket number from the session id
+            ticket_number = _ticket_number_from_id(session_id)
+            cur.execute(
+                """
+                UPDATE chat_sessions
+                SET ticket_number = %s,
+                    subject = COALESCE(subject, 'Escalated chat'),
+                    priority = COALESCE(priority, 'medium')
+                WHERE id = %s;
+                """,
+                (ticket_number, session_id),
+            )
+
             cur.execute(
                 """
                 INSERT INTO chat_messages (
@@ -157,7 +286,7 @@ def create_session_from_rasa(sender_id: str, last_message: str):
             )
             message_row = cur.fetchone()
 
-        return ok({"session_id": session_id, "first_message_id": message_row["id"], "note": "Session created from Rasa handoff"})
+        return ok({"session_id": session_id, "ticket_number": ticket_number, "first_message_id": message_row["id"], "note": "Session created from Rasa handoff"})
     except Exception as exc:
         print("ERROR create_session_from_rasa:", exc)
         return error(str(exc), status=500)
@@ -306,6 +435,9 @@ def list_sessions(status: Optional[str]):
               s.resolution_tag,
               s.summary_email_sent,
               s.summary_email_sent_at,
+              s.ticket_number,
+              s.subject,
+              s.priority,
               s.closed_at,
               s.ended_at,
               s.created_at,
@@ -359,6 +491,9 @@ def get_session(session_id: str, limit: Optional[int] = 200):
               s.resolution_tag,
               s.summary_email_sent,
               s.summary_email_sent_at,
+              s.ticket_number,
+              s.subject,
+              s.priority,
               s.closed_at,
               s.ended_at,
               s.created_at,
@@ -1050,8 +1185,12 @@ def get_csat_summary(window_days: int, agent_id: Optional[str]):
               cs.agent_id,
               cs.customer_rating,
               cs.customer_feedback,
-              cs.customer_rating_submitted_at
+              cs.customer_rating_submitted_at,
+              coalesce(cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
+              coalesce(cu.email, cs.rasa_sender_id, 'N/A') as customer_email
             from chat_sessions cs
+            left join app_user cu on cu.id = cs.customer_id
+            left join customer_profile cp on cp.user_id = cs.customer_id
             where cs.customer_rating is not null
             order by cs.customer_rating_submitted_at desc
             limit 20;
@@ -1072,8 +1211,12 @@ def list_csat_responses(limit: int = 50):
               cs.agent_id,
               cs.customer_rating,
               cs.customer_feedback,
-              cs.customer_rating_submitted_at
+              cs.customer_rating_submitted_at,
+              coalesce(cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
+              coalesce(cu.email, cs.rasa_sender_id, 'N/A') as customer_email
             from chat_sessions cs
+            left join app_user cu on cu.id = cs.customer_id
+            left join customer_profile cp on cp.user_id = cs.customer_id
             where cs.customer_rating is not null
             order by cs.customer_rating_submitted_at desc
             limit %s;

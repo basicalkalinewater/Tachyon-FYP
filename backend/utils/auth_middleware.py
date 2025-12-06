@@ -1,4 +1,5 @@
 import functools
+import os
 from typing import Iterable, Optional
 
 from flask import current_app, g, jsonify, request
@@ -21,6 +22,10 @@ def require_session(allowed_roles: Optional[Iterable[str]] = None, match_user_pa
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
+            # Allow opting out of session validation in local/dev environments where Supabase isn't reachable
+            if os.getenv("SKIP_SESSION_AUTH", "0") == "1" or not os.getenv("SUPABASE_URL"):
+                return fn(*args, **kwargs)
+
             supabase = current_app.config["SUPABASE"]
             token = _extract_token()
             if not token:
@@ -33,14 +38,18 @@ def require_session(allowed_roles: Optional[Iterable[str]] = None, match_user_pa
                 return jsonify({"error": err}), 401
 
             user_id = session_row.get("user_id")
-            user_res = (
-                supabase.table("app_user")
-                .select("id, email, role")
-                .eq("id", user_id)
-                .single()
-                .execute()
-            )
-            user = user_res.data if user_res and hasattr(user_res, "data") else None
+            try:
+                user_res = (
+                    supabase.table("app_user")
+                    .select("id, email, role")
+                    .eq("id", user_id)
+                    .single()
+                    .execute()
+                )
+                user = user_res.data if user_res and hasattr(user_res, "data") else None
+            except Exception as exc:
+                current_app.logger.error("[auth] user lookup failed for %s: %s", request.path, exc)
+                return jsonify({"error": "Session lookup failed"}), 503
             if not user:
                 return jsonify({"error": "User not found"}), 404
 

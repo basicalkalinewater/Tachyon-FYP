@@ -67,3 +67,11 @@ export const logoutRequest = () =>
   request("/auth/logout", {
     method: "POST",
   });
+
+export const fetchAdminProfile = () => request("/auth/profile/admin");
+
+export const updateAdminProfile = (body) =>
+  request("/auth/profile/admin", {
+    method: "PUT",
+    body,
+  });

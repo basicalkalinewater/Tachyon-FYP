@@ -20,20 +20,63 @@ body.cart-open .chat-widget {
   justify-content: flex-end;
 }
 .chat-toggle-btn {
-  width: 56px;
-  height: 56px;
+  width: 62px;
+  height: 62px;
   border-radius: 50%;
-  border: none;
-  background: linear-gradient(135deg, var(--accent), #5c6cf4);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.9);
   color: #fff;
   font-size: 24px;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .chat-toggle-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 20px 42px -18px rgba(0, 0, 0, 0.35);
+}
+
+.chat-toggle-btn.light {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.chat-toggle-btn.dark {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.55);
+}
+
+.chat-toggle-btn.is-open {
+  border-color: rgba(239, 68, 68, 0.65);
+}
+
+.chat-toggle-icon {
+  width: 32px;
+  height: 32px;
+}
+
+.toggle-ring {
+  fill: none;
+  stroke: rgba(99, 102, 241, 0.18);
+  stroke-width: 2;
+}
+
+.toggle-bubble {
+  stroke: rgba(255, 255, 255, 0.6);
+  stroke-width: 1.2;
+  filter: drop-shadow(0 6px 14px rgba(99, 102, 241, 0.45));
+}
+
+.toggle-dot {
+  fill: #e0e7ff;
+}
+
+.toggle-x {
+  stroke: #fff;
 }
 
 .chat-window {
@@ -79,6 +122,23 @@ body.cart-open .chat-widget {
   gap: 6px;
 }
 
+.guest-form {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 12px;
+}
+
+.guest-form .form-control {
+  width: 100%;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-light);
+}
+
+.guest-form .form-label {
+  color: var(--text-muted, #475569);
+}
+
 .chat-message {
   display: flex;
   flex-direction: column;
@@ -114,7 +174,7 @@ body.cart-open .chat-widget {
 
 .chat-meta {
   font-size: 11px;
-  color: var(--text-muted);
+  color: #475569; /* readable in light mode */
   display: flex;
   gap: 6px;
   align-items: center;
@@ -122,7 +182,7 @@ body.cart-open .chat-widget {
 
 .chat-message.user .chat-meta {
   justify-content: flex-end;
-  color: #dbeafe;
+  color: #1e293b; /* darker for light mode bubbles */
 }
 
 .chat-quick-replies {
@@ -248,6 +308,26 @@ body.cart-open .chat-widget {
 
 .theme-dark .chat-toggle-btn {
   background: linear-gradient(135deg, #2563eb, #5c6cf4);
+}
+
+.theme-dark .toggle-ring {
+  stroke: rgba(167, 139, 250, 0.35);
+}
+
+.theme-dark .toggle-dot {
+  fill: #cbd5ff;
+}
+
+.theme-dark .toggle-x {
+  stroke: #e2e8f0;
+}
+
+.theme-dark .chat-meta {
+  color: #cbd5e1;
+}
+
+.theme-dark .chat-message.user .chat-meta {
+  color: #cbd5e1;
 }
 
 

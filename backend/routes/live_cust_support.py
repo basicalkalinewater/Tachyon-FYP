@@ -2,6 +2,7 @@ from flask import Blueprint, request
 
 from ..services import live_cust_support_service as service
 from ..utils.auth_middleware import require_session
+from flask import current_app, g, jsonify
 
 # Blueprint for live customer support chat; mounted under /support
 live_cust_support_bp = Blueprint("live_cust_support", __name__)
@@ -148,6 +149,19 @@ def submit_csat_from_rasa():
     return service.submit_csat_from_rasa(sender_id, rating, feedback)
 
 
+@live_cust_support_bp.post("/guest/escalate")
+def guest_escalate():
+    """Public endpoint: collect guest name/email, create ticket+session, return ids."""
+    data = request.get_json(force=True, silent=True) or {}
+    full_name = (data.get("full_name") or "").strip()
+    email = (data.get("email") or "").strip().lower()
+    last_message = (data.get("last_message") or "").strip() or "Need a human agent"
+    sender_id = (data.get("sender_id") or "").strip()
+    if not full_name or not email:
+        return service.error("full_name and email are required", status=400)
+    return service.create_guest_ticket(full_name=full_name, email=email, sender_id=sender_id, last_message=last_message)
+
+
 @live_cust_support_bp.get("/csat/summary")
 @require_session(allowed_roles=["admin", "support"])
 def csat_summary():
@@ -161,4 +175,28 @@ def csat_summary():
 def csat_responses():
     limit = int(request.args.get("limit", 50))
     return service.list_csat_responses(limit)
+
+
+@live_cust_support_bp.get("/profile")
+@require_session(allowed_roles=["support"])
+def get_agent_profile():
+    supabase = current_app.config["SUPABASE"]
+    user_id = g.current_user["id"]
+    data = service.fetch_agent_profile(supabase, user_id) or {}
+    return jsonify({"success": True, "data": {"full_name": data.get("full_name") or "", "phone": data.get("phone") or ""}})
+
+
+@live_cust_support_bp.put("/profile")
+@require_session(allowed_roles=["support"])
+def update_agent_profile():
+    supabase = current_app.config["SUPABASE"]
+    user_id = g.current_user["id"]
+    payload = request.get_json(force=True, silent=True) or {}
+    full_name = (payload.get("full_name") or "").strip()
+    phone = (payload.get("phone") or "").strip()
+    try:
+        service.upsert_agent_profile(supabase, user_id, full_name, phone)
+        return jsonify({"success": True, "data": {"full_name": full_name, "phone": phone}})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 

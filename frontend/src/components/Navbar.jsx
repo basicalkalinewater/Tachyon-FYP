@@ -21,12 +21,15 @@ const Navbar = () => {
   const cartCount = useSelector(selectCartCount);
   const currentUser = useSelector(selectCurrentUser);
   const isSupport = currentUser?.role === "support";
+  const isAdmin = currentUser?.role === "admin";
   const dashboardRoute =
-  currentUser?.role === "customer"
-    ? "/dashboard/customer"
-    : currentUser?.role === "support" 
-    ? "/dashboard/customer-support"
-    : "/"; 
+    currentUser?.role === "customer"
+      ? "/dashboard/customer"
+      : currentUser?.role === "support"
+      ? "/dashboard/customer-support"
+      : currentUser?.role === "admin"
+      ? "/dashboard/admin"
+      : "/"; 
 
   const accountLabel =
     (currentUser?.fullName && currentUser.fullName.trim()) ||
@@ -75,8 +78,8 @@ const Navbar = () => {
   return (
     <>
       <nav
-        className={`navbar navbar-expand-lg sticky-top ${
-          isScrolled ? "glass-panel py-2" : "bg-transparent py-4"
+        className={`navbar navbar-expand-lg sticky-top tachyon-nav ${
+          isScrolled ? "glass-panel nav-elevated" : "nav-resting"
         }`}
         style={{ transition: "all 0.3s ease" }}
       >
@@ -104,8 +107,8 @@ const Navbar = () => {
 
           {/* Links + Cart button */}
           <div className="collapse navbar-collapse" id="navbarSupportedContent">
-            {!isSupport && (
-              <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-4">
+            {!isSupport && !isAdmin && (
+              <ul className="navbar-nav mx-auto mb-2 mb-lg-0 gap-lg-3 nav-pill-group">
                 <li className="nav-item">
                   <NavLink className="nav-link" to="/">
                     Home
@@ -127,7 +130,7 @@ const Navbar = () => {
             )}
 
             {/* Right side actions */}
-            <div className="d-flex align-items-center gap-3 nav-actions">
+            <div className="d-flex align-items-center gap-3 nav-actions ms-auto">
               {!currentUser && (
                 <NavLink className="nav-link fw-medium" to="/login">
                   Log in
@@ -136,7 +139,7 @@ const Navbar = () => {
 
               {currentUser && (
                 <>
-                  <NavLink className="btn btn-outline-saas px-3" to={dashboardRoute}>
+                  <NavLink className="nav-account-pill" to={dashboardRoute}>
                     <i className="fa fa-user-circle" aria-hidden="true" />
                     <span className="d-none d-md-inline ms-2">{accountLabel}</span>
                   </NavLink>
@@ -247,15 +250,15 @@ const Navbar = () => {
                 </svg>
               </label>
 
-              {!isSupport && (
+              {!isSupport && !isAdmin && (
                 <button
-                  className="btn btn-primary-saas position-relative cart-btn"
+                  className="btn btn-primary-saas position-relative cart-btn nav-cart"
                   onClick={() => setIsCartOpen(true)}
                 >
                   <i className="fa fa-shopping-cart" />
                   <span className="d-none d-md-inline">Cart</span>
                   {cartCount > 0 && (
-                    <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger border border-light">
+                    <span className="position-absolute top-0 start-100 translate-middle badge cart-badge">
                       {cartCount}
                       <span className="visually-hidden">items in cart</span>
                     </span>

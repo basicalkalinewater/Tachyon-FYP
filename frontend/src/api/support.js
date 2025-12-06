@@ -37,3 +37,8 @@ export const fetchCsatSummary = (windowDays = 30, agentId) =>
 
 export const fetchCsatResponses = (limit = 50) =>
   unwrap(requestSupport(`/csat/responses?limit=${limit}`));
+
+export const fetchAgentProfile = () => unwrap(requestSupport(`/profile`));
+
+export const updateAgentProfile = (body) =>
+  unwrap(requestSupport(`/profile`, { method: "PUT", body }));

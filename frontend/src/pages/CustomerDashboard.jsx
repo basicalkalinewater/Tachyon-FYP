@@ -108,6 +108,7 @@ const ProfileSection = ({ form, saving, error, onChange, onSubmit, onRefresh }) 
           value={form.email}
           onChange={onChange}
           placeholder="you@example.com"
+          disabled
         />
       </div>
       <div className="mb-3">
@@ -243,7 +244,7 @@ const PaymentsSection = ({
                 <div className="payment-card border rounded p-3 h-100">
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <span className="fw-semibold">{method.brand}</span>
-                    {method.isDefault && <span className="badge bg-success">Primary</span>}
+                    {method.isDefault && <span className="badge badge-primary-card">Primary</span>}
                   </div>
                   <p className="mb-0 small text-muted">
                     **** {method.last4} - Expires {method.expiry}
@@ -399,7 +400,7 @@ const AddressesSection = ({
                 <div className="address-card p-3 rounded border h-100">
                   <div className="d-flex justify-content-between align-items-center mb-1">
                     <strong>{address.recipient || "Address"}</strong>
-                    {address.isDefault && <span className="badge bg-primary">Default</span>}
+                    {address.isDefault && <span className="badge badge-default">Default</span>}
                   </div>
                   <p className="mb-0 small text-muted">
                     {address.recipient}

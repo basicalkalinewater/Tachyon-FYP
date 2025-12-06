@@ -54,14 +54,18 @@ def get_session(supabase, token: str) -> Tuple[Optional[Dict], Optional[str]]:
     return None, "Missing session token"
 
   token_hash = _hash_token(token)
-  res = (
-    supabase.table("app_session")
-    .select("id, user_id, expires_at, revoked_at")
-    .eq("token_hash", token_hash)
-    .limit(1)
-    .execute()
-  )
-  row = res.data[0] if res.data else None
+  try:
+    res = (
+      supabase.table("app_session")
+      .select("id, user_id, expires_at, revoked_at")
+      .eq("token_hash", token_hash)
+      .limit(1)
+      .execute()
+    )
+    row = res.data[0] if res.data else None
+  except Exception as exc:
+    return None, f"Session lookup failed: {exc}"
+
   if not row:
     return None, "Session not found"
 

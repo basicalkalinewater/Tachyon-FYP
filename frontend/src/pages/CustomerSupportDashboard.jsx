@@ -11,6 +11,8 @@ import {
   resolveSession,
   fetchCsatSummary,
   fetchCsatResponses,
+  fetchAgentProfile,
+  updateAgentProfile,
 } from "../api/support";
 import { SUPPORT_BASE_URL, getSessionToken } from "../api/client";
 
@@ -18,9 +20,9 @@ import "../styles/support-dashboard.css"; // dedicated styling for support dashb
 
 // Support dashboard sections
 const SUPPORT_SECTIONS = [
-  { id: "inbox", label: "Incoming Chats", group: "Chat Management" },
-  { id: "assigned", label: "My Active Chats", group: "Chat Management" },
-  { id: "history", label: "Chat History", group: "Chat Management" },
+  { id: "inbox", label: "Open Tickets", group: "Ticket Management" },
+  { id: "assigned", label: "My Tickets", group: "Ticket Management" },
+  { id: "history", label: "Closed Tickets", group: "Ticket Management" },
   { id: "csat", label: "CSAT", group: "Quality" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
@@ -40,13 +42,12 @@ const CustomerSupportDashboard = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectCurrentUser);
 
-  const RESOLUTION_PRESETS = [
-    "resolved",
-    "info_provided",
-    "refund_issued",
-    "cancelled",
-    "escalated",
-  ];
+  const RESOLUTION_PRESETS = ["resolved", "refund_issued", "other"];
+
+  const formatPresetLabel = (preset) =>
+    preset
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
 
   const [activeSection, setActiveSection] = useState("inbox");
   const [sessions, setSessions] = useState([]);
@@ -61,7 +62,15 @@ const CustomerSupportDashboard = () => {
   // CSAT
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [loadingCsat, setLoadingCsat] = useState(false);
+  const [stats, setStats] = useState({ pending: 0, claimed: 0, closed: 0, total: 0 });
   const hasSelection = Boolean(selectedSession);
+  const [profileForm, setProfileForm] = useState({ full_name: "", phone: "" });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const STATUS_LABEL = {
+    pending: "Open",
+    in_progress: "In Progress",
+    closed: "Resolved",
+  };
 
   const handleLogout = async () => {
     try {
@@ -87,28 +96,44 @@ const CustomerSupportDashboard = () => {
   const sectionStatus = useMemo(() => {
     if (activeSection === "history") return "closed";
     if (activeSection === "assigned") return "in_progress";
-    return "pending";
+    return ""; // inbox pulls both pending + in_progress by default
   }, [activeSection]);
 
   const loadSessions = useCallback(async () => {
     setLoadingSessions(true);
     try {
-      const data = await fetchSupportSessions(sectionStatus);
-      const filtered =
-        activeSection === "assigned"
-          ? data.filter((s) => s.agent_id === agentId)
-          : data;
+      // fetch open (pending + in_progress)
+      const openData = await fetchSupportSessions("");
+      // fetch closed for history/stats
+      const closedData = await fetchSupportSessions("closed");
+      const merged = [...openData, ...closedData];
+
+      let filtered = merged;
+      if (activeSection === "assigned") {
+        filtered = merged.filter((s) => s.status === "in_progress" && s.agent_id === agentId);
+      } else if (activeSection === "history") {
+        filtered = merged.filter((s) => s.status === "closed");
+      } else {
+        filtered = merged.filter((s) => s.status === "pending" || s.status === "in_progress");
+      }
+
       setSessions(filtered);
       if (selectedSession && !filtered.find((s) => s.id === selectedSession.id)) {
         setSelectedSession(null);
         setMessages([]);
       }
+
+      // Update stat counts from merged set
+      const pending = merged.filter((s) => s.status === "pending").length;
+      const claimed = merged.filter((s) => s.status === "in_progress").length;
+      const closed = merged.filter((s) => s.status === "closed").length;
+      setStats({ pending, claimed, closed, total: pending + claimed + closed });
     } catch (err) {
       toast.error(err.message || "Failed to load sessions");
     } finally {
       setLoadingSessions(false);
     }
-  }, [activeSection, agentId, sectionStatus, selectedSession]);
+  }, [activeSection, agentId, selectedSession]);
 
   const loadSessionDetail = async (sessionId, silent = false) => {
     if (!silent) setLoadingDetail(true);
@@ -129,10 +154,13 @@ const CustomerSupportDashboard = () => {
   };
 
   useEffect(() => {
-    if (user) {
-      loadSessions();
-    }
-  }, [user, loadSessions]);
+    loadSessions();
+  }, [loadSessions]);
+
+  // Refetch when tab changes so counters reflect the active filter
+  useEffect(() => {
+    loadSessions();
+  }, [activeSection, loadSessions]);
 
   const loadCsat = useCallback(async () => {
     setLoadingCsat(true);
@@ -157,13 +185,44 @@ const CustomerSupportDashboard = () => {
     }
   }, [activeSection, loadCsat]);
 
-  const stats = useMemo(() => {
-    const total = sessions.length;
-    const claimed = sessions.filter((s) => s.status === "in_progress").length;
-    const closed = sessions.filter((s) => s.status === "closed").length;
-    const pending = sessions.filter((s) => s.status === "pending").length;
-    return { total, claimed, closed, pending };
-  }, [sessions]);
+  const loadProfile = useCallback(async () => {
+    try {
+      const data = await fetchAgentProfile();
+      setProfileForm({
+        full_name: data.full_name || "",
+        phone: data.phone || "",
+      });
+    } catch (err) {
+      toast.error(err.message || "Failed to load profile");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeSection === "profile") {
+      loadProfile();
+    }
+  }, [activeSection, loadProfile]);
+
+  const handleProfileChange = (e) => {
+    const { name, value } = e.target;
+    setProfileForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleProfileSave = async (e) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    try {
+      await updateAgentProfile({
+        full_name: profileForm.full_name,
+        phone: profileForm.phone,
+      });
+      toast.success("Profile updated");
+    } catch (err) {
+      toast.error(err.message || "Failed to update profile");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   const handleSelectSession = (sessionId) => {
 
@@ -269,8 +328,8 @@ const CustomerSupportDashboard = () => {
     <div className="card-saas h-100 p-3 support-panel" aria-label="Chat queue">
       <div className="panel-header">
         <div>
-          <p className="eyebrow">Handover Queue</p>
-          <h5 className="mb-0">Rasa escalations</h5>
+          <p className="eyebrow">Ticket Queue</p>
+              <h5 className="mb-0">Escalations</h5>
         </div>
         <button className="btn btn-outline-saas btn-sm" onClick={loadSessions}>
           Refresh
@@ -292,18 +351,28 @@ const CustomerSupportDashboard = () => {
             >
               <div className="d-flex justify-content-between align-items-center mb-1">
                 <div>
-                  <div className="fw-semibold">Chat #{session.id}</div>
+                  <div className="fw-semibold">
+                    {session.ticket_number || `Chat #${session.id}`}
+                  </div>
+                  <div className="text-muted small">
+                    {session.subject || "Conversation"}
+                  </div>
                   <div className="text-muted small">
                     Customer: {formatCustomerName(session)}
                   </div>
                 </div>
                 <span className="badge bg-secondary text-uppercase">
-                  {session.status}
+                  {STATUS_LABEL[session.status] || session.status}
                 </span>
               </div>
               {(session.agent_full_name || session.agent_email) && (
                 <div className="text-muted small">
                   Assigned to {formatAgentName(session)}
+                </div>
+              )}
+              {session.priority && (
+                <div className="text-muted small">
+                  Priority: {session.priority.charAt(0).toUpperCase() + session.priority.slice(1)}
                 </div>
               )}
               {sectionStatus === "pending" && session.queue_position && (
@@ -344,20 +413,24 @@ const CustomerSupportDashboard = () => {
         <div className="d-flex justify-content-between align-items-start mb-3 gap-3">
           <div>
             <p className="text-muted text-uppercase small fw-semibold mb-1">
-              Session {selectedSession.id}
+              Ticket {selectedSession.ticket_number || selectedSession.id}
             </p>
             <h4 className="mb-1">
-              {formatCustomerName(selectedSession)}
+              {selectedSession.subject || "Support conversation"}
             </h4>
             <p className="text-muted small mb-0">
-              Status: {selectedSession.status}
+              Status: {STATUS_LABEL[selectedSession.status] || selectedSession.status}
+              {selectedSession.priority ? ` · Priority ${selectedSession.priority}` : ""}
               {selectedSession.agent_id
-                ? ` - Assigned to ${formatAgentName(selectedSession)}`
-                : " - Unassigned"}
+                ? ` · Assigned to ${formatAgentName(selectedSession)}`
+                : " · Unassigned"}
               {selectedSession.status === "pending" && selectedSession.queue_position
-                ? ` - Queue #${selectedSession.queue_position}`
+                ? ` · Queue #${selectedSession.queue_position}`
                 : ""}
-              {selectedSession.resolution_tag ? ` - Resolution: ${selectedSession.resolution_tag}` : ""}
+              {selectedSession.resolution_tag ? ` · Resolution: ${selectedSession.resolution_tag}` : ""}
+            </p>
+            <p className="text-muted small mb-0">
+              Requestor: {formatCustomerName(selectedSession)} ({selectedSession.customer_email || "N/A"})
             </p>
             {selectedSession.summary_email_sent !== undefined && (
               <p className="text-muted small mb-0">{summarySentLabel}</p>
@@ -369,7 +442,7 @@ const CustomerSupportDashboard = () => {
               style={{ minWidth: "140px" }}
               onClick={() => handleClaim(selectedSession.id)}
             >
-              Claim session
+              Claim ticket
             </button>
           )}
         </div>
@@ -446,7 +519,7 @@ const CustomerSupportDashboard = () => {
               <option value="">Select resolution</option>
               {RESOLUTION_PRESETS.map((preset) => (
                 <option key={preset} value={preset}>
-                  {preset.replace(/_/g, " ")}
+                  {formatPresetLabel(preset)}
                 </option>
               ))}
             </select>
@@ -466,9 +539,9 @@ const CustomerSupportDashboard = () => {
   const renderHistory = () => (
     <section className="dashboard-section card-saas">
       <p className="text-muted text-uppercase small fw-semibold mb-1">
-        Chat History
+        Closed Tickets
       </p>
-      <h3 className="mb-3">Closed Sessions</h3>
+      <h3 className="mb-3">Closed Tickets</h3>
       {loadingSessions ? (
         <p className="text-muted small mb-0">Loading history...</p>
       ) : sessions.length === 0 ? (
@@ -478,7 +551,9 @@ const CustomerSupportDashboard = () => {
           <table className="table align-middle">
             <thead>
               <tr>
-                <th>ID</th>
+                <th>Ticket</th>
+                <th>Subject</th>
+                <th>Priority</th>
                 <th>Customer</th>
                 <th>Agent</th>
                 <th>Status</th>
@@ -489,10 +564,12 @@ const CustomerSupportDashboard = () => {
             <tbody>
               {sessions.map((s) => (
                 <tr key={s.id}>
-                  <td>#{s.id}</td>
+                  <td>{s.ticket_number || `#${s.id}`}</td>
+                  <td>{s.subject || "Conversation"}</td>
+                  <td className="text-capitalize">{s.priority || "medium"}</td>
                   <td>{formatCustomerName(s)}</td>
                   <td>{formatAgentName(s)}</td>
-                  <td className="text-capitalize">{s.status}</td>
+                  <td className="text-capitalize">{STATUS_LABEL[s.status] || s.status}</td>
                   <td>{s.resolution_tag || "N/A"}</td>
                   <td>
                     {s.summary_email_sent
@@ -579,8 +656,8 @@ const CustomerSupportDashboard = () => {
           <section className="dashboard-section support-section">
             <div className="section-header">
               <div>
-                <p className="eyebrow">Incoming Chats</p>
-                <h3>Escalated Chats Queue</h3>
+                <p className="eyebrow">Open Tickets</p>
+                <h3>Escalation Queue</h3>
               </div>
             </div>
             <div className={`support-grid ${hasSelection ? "with-chat" : "single-column"}`}>
@@ -598,8 +675,8 @@ const CustomerSupportDashboard = () => {
           <section className="dashboard-section support-section">
             <div className="section-header">
               <div>
-                <p className="eyebrow">My Active Chats</p>
-                <h3>Chats Assigned To You</h3>
+                <p className="eyebrow">My Tickets</p>
+                <h3>Tickets Assigned To You</h3>
               </div>
             </div>
             <div className={`support-grid ${hasSelection ? "with-chat" : "single-column"}`}>
@@ -623,13 +700,55 @@ const CustomerSupportDashboard = () => {
               My Profile
             </p>
             <h3 className="mb-3">Support Agent Details</h3>
-            <p className="text-muted">This is a read-only section for now.</p>
-            <p>
-              <strong>Name:</strong> {displayName}
-            </p>
-            <p>
-              <strong>Email:</strong> {displayEmail}
-            </p>
+            <form className="profile-form" onSubmit={handleProfileSave}>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="agent-full-name">
+                  Full name
+                </label>
+                <input
+                  id="agent-full-name"
+                  name="full_name"
+                  type="text"
+                  className="form-control"
+                  value={profileForm.full_name}
+                  onChange={handleProfileChange}
+                  placeholder="Enter your name"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="agent-email">
+                  Email
+                </label>
+                <input id="agent-email" type="email" className="form-control" value={displayEmail} disabled />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="agent-phone">
+                  Phone
+                </label>
+                <input
+                  id="agent-phone"
+                  name="phone"
+                  type="tel"
+                  className="form-control"
+                  value={profileForm.phone}
+                  onChange={handleProfileChange}
+                  placeholder="+1 555 123 4567"
+                />
+              </div>
+              <div className="d-flex gap-3 mt-4">
+                <button type="submit" className="btn btn-primary-saas px-4" disabled={profileSaving}>
+                  {profileSaving ? "Saving..." : "Save"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-saas px-4"
+                  onClick={loadProfile}
+                  disabled={profileSaving}
+                >
+                  Refresh
+                </button>
+              </div>
+            </form>
           </section>
         );
 
@@ -686,9 +805,9 @@ const CustomerSupportDashboard = () => {
           <section className="hero-panel">
             <div>
               <p className="eyebrow">Support Control Center</p>
-              <h2 className="mb-1">Customer Support Dashboard</h2>
+              <h2 className="mb-1">Ticket Desk</h2>
               <p className="text-muted mb-0">
-                Monitor escalations, claim chats, and keep customers informed in real-time.
+                Monitor escalations, claim tickets, and keep customers informed in real-time.
               </p>
             </div>
             <div className="hero-actions">
@@ -710,9 +829,9 @@ const CustomerSupportDashboard = () => {
               <span className="stat-help">Chats you’re handling</span>
             </div>
             <div className="stat-card">
-              <p className="stat-label">Closed</p>
+              <p className="stat-label">Closed Tickets</p>
               <h4 className="stat-value">{stats.closed}</h4>
-              <span className="stat-help">Resolved sessions</span>
+              <span className="stat-help">Resolved tickets</span>
             </div>
             <div className="stat-card">
               <p className="stat-label">Total in view</p>
