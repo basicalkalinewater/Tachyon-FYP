@@ -58,7 +58,7 @@ def fetch_customer_rmas(supabase, user_id: str) -> List[Dict[str, Any]]:
 
 def fetch_shipping_addresses(supabase, user_id: str) -> List[Dict[str, Any]]:
     res = (
-        supabase.table("shipping_address")
+        supabase.table("customer_shipping_address")
         .select("*")
         .eq("user_id", user_id)
         .order("is_default", desc=True)
@@ -70,7 +70,7 @@ def fetch_shipping_addresses(supabase, user_id: str) -> List[Dict[str, Any]]:
 
 def fetch_saved_payments(supabase, user_id: str) -> List[Dict[str, Any]]:
     res = (
-        supabase.table("saved_payment_method")
+        supabase.table("customer_payment_method")
         .select("*")
         .eq("user_id", user_id)
         .order("is_default", desc=True)

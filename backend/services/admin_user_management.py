@@ -22,6 +22,11 @@ def _enrich_user_with_profile(supabase, user: Dict) -> Dict:
             prof = _safe_fetch_profile(supabase, "customer_profile", uid, "full_name, phone_number")
             user["full_name"] = prof.get("full_name")
             user["phone"] = prof.get("phone_number")
+            # include shipping addresses for admin view
+            try:
+                user["shippingAddresses"] = customer_service.fetch_shipping_addresses(supabase, uid)
+            except Exception:
+                user["shippingAddresses"] = []
         elif role == "support":
             prof = _safe_fetch_profile(supabase, "live_agent_profile", uid, "full_name, phone")
             if not prof:

@@ -235,11 +235,30 @@ def create_guest_ticket(full_name: str, email: str, sender_id: str, last_message
         return error(str(exc), status=500)
 
 
-def create_session_from_rasa(sender_id: str, last_message: str):
+def create_session_from_rasa(sender_id: str, last_message: str, customer_id: Optional[str] = None):
     """Create a new chat session when Rasa escalates to a human."""
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
+            subject = "Escalated chat"
+            if customer_id:
+                # try to derive a customer-friendly subject
+                cur.execute(
+                    """
+                    SELECT
+                      au.email,
+                      cp.full_name
+                    FROM app_user au
+                    LEFT JOIN customer_profile cp ON cp.user_id = au.id
+                    WHERE au.id = %s
+                    """,
+                    (customer_id,),
+                )
+                row = cur.fetchone()
+                if row:
+                    display = row.get("full_name") or row.get("email")
+                    if display:
+                        subject = f"Customer: {display}"
             cur.execute(
                 """
                 INSERT INTO chat_sessions (
@@ -247,12 +266,13 @@ def create_session_from_rasa(sender_id: str, last_message: str):
                     agent_id,
                     status,
                     rasa_sender_id,
-                    last_updated
+                    last_updated,
+                    subject
                 )
-                VALUES (%s, %s, 'pending', %s, NOW())
+                VALUES (%s, %s, 'pending', %s, NOW(), %s)
                 RETURNING id;
                 """,
-                (FALLBACK_CUSTOMER_ID, FALLBACK_AGENT_ID, sender_id),
+                (customer_id or FALLBACK_CUSTOMER_ID, FALLBACK_AGENT_ID, sender_id, subject),
             )
             session_row = cur.fetchone()
             session_id = session_row["id"]

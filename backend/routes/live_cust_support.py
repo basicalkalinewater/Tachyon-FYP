@@ -14,9 +14,10 @@ def create_session_from_rasa():
     data = request.get_json(force=True, silent=True) or {}
     sender_id = data.get("sender_id")
     last_message = data.get("last_message")
+    customer_id = data.get("customer_id")
     if not sender_id or not last_message:
         return service.error("sender_id and last_message are required")
-    return service.create_session_from_rasa(sender_id, last_message)
+    return service.create_session_from_rasa(sender_id, last_message, customer_id)
 
 
 @live_cust_support_bp.post("/sessions/from_rasa/message")

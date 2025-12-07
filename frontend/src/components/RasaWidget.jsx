@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useSelector } from "react-redux";
+import { selectCurrentUser } from "../redux/authSlice";
 import { SUPPORT_BASE_URL } from "../api/client";
 import "../styles/RasaWidget.css";
 
@@ -82,6 +84,8 @@ const RasaWidget = () => {
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [handoffMessage, setHandoffMessage] = useState("");
+  const currentUser = useSelector(selectCurrentUser);
+  const isLoggedIn = Boolean(currentUser);
   const [senderId] = useState(() => {
     if (typeof window === "undefined") return "web-user";
     const existing = localStorage.getItem("rasa_sender_id");
@@ -279,18 +283,25 @@ const RasaWidget = () => {
     appendMessage("bot", "Connecting you to a live agent...");
     setAgentReady(false);
     setQueueInfo(null);
+    setSessionId(null); // reset any previous closed session
     setMode("agent");
     setSending(true);
     try {
       const res = await fetch(`${SUPPORT_SESSIONS_URL}/from_rasa`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sender_id: senderId, last_message: initialText || "Need a human agent" }),
+        body: JSON.stringify({
+          sender_id: senderId,
+          last_message: initialText || "Need a human agent",
+          customer_id: currentUser?.id,
+        }),
       });
       const data = await res.json();
       const newSessionId = data?.data?.session_id;
+      const ticketNum = data?.data?.ticket_number;
       if (newSessionId) {
         setSessionId(newSessionId);
+        if (ticketNum) appendMessage("bot", `Ticket ${ticketNum} created.`);
         setAgentReady(true); // allow messaging immediately; backend will queue if not yet claimed
         fetchQueueStatus();
       } else {
@@ -306,6 +317,11 @@ const RasaWidget = () => {
   };
 
   const startGuestHandoff = (initialText) => {
+    // If already logged in, bypass guest form and hand off directly
+    if (isLoggedIn) {
+      startHandoff(initialText || "I need a human agent");
+      return;
+    }
     setHandoffMessage(initialText || "I need a human agent");
     setShowGuestForm(true);
   };
@@ -338,7 +354,8 @@ const RasaWidget = () => {
       setAgentReady(true);
       setMode("agent");
       setShowGuestForm(false);
-      appendMessage("bot", `Ticket ${ticket || newSessionId} created. An agent will join shortly.`);
+      appendMessage("bot", `Ticket ${ticket || newSessionId} created.`);
+      appendMessage("bot", "Connecting you to a live agent...");
       fetchQueueStatus();
     } catch (err) {
       appendMessage("bot", err.message || "Could not start a ticket right now.");
@@ -439,13 +456,15 @@ const RasaWidget = () => {
                         Exit
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      className="btn btn-link btn-sm text-start px-0"
-                      onClick={() => window.location.href = "/login"}
-                    >
-                      Already a member? Login here
-                    </button>
+                    {!isLoggedIn && (
+                      <button
+                        type="button"
+                        className="btn btn-link btn-sm text-start px-0"
+                        onClick={() => window.location.href = "/login"}
+                      >
+                        Already a member? Login here
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -490,7 +509,7 @@ const RasaWidget = () => {
                   : "Waiting for an agent to join. We'll notify you when they're ready."}
               </div>
             )}
-            {!showGuestForm && (
+            {!showGuestForm && mode !== "agent" && (
               <div className="chat-quick-replies">
                 {QUICK_REPLIES.map((qr) => (
                   <button
@@ -579,4 +598,3 @@ const RasaWidget = () => {
 };
 
 export default RasaWidget;
-

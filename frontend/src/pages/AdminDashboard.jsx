@@ -126,6 +126,7 @@ const AdminDashboard = () => {
       full_name: u.full_name || "",
       phone: u.phone || "",
       password: "",
+      shippingAddresses: u.shippingAddresses || [],
     });
   };
 
@@ -666,11 +667,11 @@ const AdminDashboard = () => {
                       placeholder="Name"
                     />
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label" htmlFor="um-edit-phone">Phone</label>
-                    <input
-                      id="um-edit-phone"
-                      name="phone"
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="um-edit-phone">Phone</label>
+                  <input
+                    id="um-edit-phone"
+                    name="phone"
                       type="tel"
                       className="form-control"
                       value={editUserForm.phone || ""}
@@ -690,6 +691,28 @@ const AdminDashboard = () => {
                       placeholder="Leave blank to keep current"
                     />
                   </div>
+                  {editUserForm.role === "customer" && (
+                    <div className="mb-3">
+                      <label className="form-label">Shipping addresses</label>
+                      {editUserForm.shippingAddresses && editUserForm.shippingAddresses.length > 0 ? (
+                        <ul className="list-unstyled mb-0">
+                          {editUserForm.shippingAddresses.map((addr) => (
+                            <li key={addr.id || addr.label} className="mb-2">
+                              <strong>{addr.label || "Address"}</strong>{" "}
+                              {addr.is_default ? <span className="badge">Default</span> : null}
+                              <div className="muted small">
+                                {addr.recipient} · {addr.line1}
+                                {addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.country} {addr.postalCode || addr.postal_code || ""}
+                              </div>
+                              {addr.phone && <div className="muted small">Phone: {addr.phone}</div>}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="muted small mb-0">No shipping addresses on file.</p>
+                      )}
+                    </div>
+                  )}
                   <div className="d-flex gap-3 mt-3">
                     <button type="submit" className="btn btn-primary-saas" disabled={editUserSaving}>
                       {editUserSaving ? "Saving..." : "Save changes"}

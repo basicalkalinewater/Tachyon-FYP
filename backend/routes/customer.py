@@ -128,8 +128,8 @@ def create_address(user_id):
         body = normalize_address_payload(request.get_json(force=True))
         body["user_id"] = user_row["id"]
         if body.get("is_default"):
-            customer_service.clear_default_for(supabase, "shipping_address", user_row["id"])
-        res = supabase.table("shipping_address").insert(body).execute()
+            customer_service.clear_default_for(supabase, "customer_shipping_address", user_row["id"])
+        res = supabase.table("customer_shipping_address").insert(body).execute()
         if not res.data:
             return jsonify({"error": "Failed to create address"}), 500
         return jsonify(map_address(res.data[0])), 201
@@ -153,9 +153,9 @@ def update_address(user_id, address_id):
         if not body:
             return jsonify({"error": "No fields to update"}), 400
         if body.get("is_default"):
-            customer_service.clear_default_for(supabase, "shipping_address", user_id)
+            customer_service.clear_default_for(supabase, "customer_shipping_address", user_id)
         res = (
-            supabase.table("shipping_address")
+            supabase.table("customer_shipping_address")
             .update(body)
             .eq("user_id", user_id)
             .eq("id", address_id)
@@ -181,7 +181,7 @@ def delete_address(user_id, address_id):
             message, code = error
             return jsonify({"error": message}), code
         res = (
-            supabase.table("shipping_address")
+            supabase.table("customer_shipping_address")
             .delete()
             .eq("user_id", user_id)
             .eq("id", address_id)
@@ -207,8 +207,8 @@ def create_payment(user_id):
         body = normalize_payment_payload(request.get_json(force=True))
         body["user_id"] = user_row["id"]
         if body.get("is_default"):
-            customer_service.clear_default_for(supabase, "saved_payment_method", user_row["id"])
-        res = supabase.table("saved_payment_method").insert(body).execute()
+            customer_service.clear_default_for(supabase, "customer_payment_method", user_row["id"])
+        res = supabase.table("customer_payment_method").insert(body).execute()
         if not res.data:
             return jsonify({"error": "Failed to create payment method"}), 500
         return jsonify(map_payment(res.data[0])), 201
@@ -232,9 +232,9 @@ def update_payment(user_id, payment_id):
         if not body:
             return jsonify({"error": "No fields to update"}), 400
         if body.get("is_default"):
-            customer_service.clear_default_for(supabase, "saved_payment_method", user_id)
+            customer_service.clear_default_for(supabase, "customer_payment_method", user_id)
         res = (
-            supabase.table("saved_payment_method")
+            supabase.table("customer_payment_method")
             .update(body)
             .eq("user_id", user_id)
             .eq("id", payment_id)
@@ -260,7 +260,7 @@ def delete_payment(user_id, payment_id):
             message, code = error
             return jsonify({"error": message}), code
         res = (
-            supabase.table("saved_payment_method")
+            supabase.table("customer_payment_method")
             .delete()
             .eq("user_id", user_id)
             .eq("id", payment_id)
