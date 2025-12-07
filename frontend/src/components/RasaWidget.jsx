@@ -62,6 +62,11 @@ const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedba
 };
 
 const RasaWidget = () => {
+  const currentUser = useSelector(selectCurrentUser);
+  const userRole = currentUser?.role;
+  const isLoggedIn = Boolean(currentUser);
+  const isRestrictedRole = userRole === "admin" || userRole === "support";
+
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
@@ -84,8 +89,6 @@ const RasaWidget = () => {
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [handoffMessage, setHandoffMessage] = useState("");
-  const currentUser = useSelector(selectCurrentUser);
-  const isLoggedIn = Boolean(currentUser);
   const [senderId] = useState(() => {
     if (typeof window === "undefined") return "web-user";
     const existing = localStorage.getItem("rasa_sender_id");
@@ -412,7 +415,10 @@ const RasaWidget = () => {
 
   return (
     <>
-      <div className={`chat-widget ${open ? "open" : ""}`}>
+      <div
+        className={`chat-widget ${open ? "open" : ""}`}
+        style={isRestrictedRole ? { display: "none" } : undefined}
+      >
         {open && (
           <div className="chat-window shadow">
             <div className="chat-header">
