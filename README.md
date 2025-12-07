@@ -13,9 +13,9 @@
 Here's what you can do with Tachyon Chatbot:
 - Browse products, manage carts, and persist orders via Supabase.
 - Chat with the Rasa-powered assistant embedded in the storefront.
-- Escalate to human support; agents respond from the Support Dashboard (tickets with priority/subject).
-- Guests complete a short pre-chat form (name/email) before escalation; members can log in instead.
-- Admin dashboard: user management, profile editing, and CSAT insights with customer attribution.
+- Escalate to human support; agents respond from the Support Dashboard (ticket number, priority, subject).
+- Guests complete a short pre-chat form before escalation; logged-in users bypass the form.
+- Admin dashboard: user management (create/edit roles, name, phone, password), profile editing, and CSAT insights with customer attribution.
 
 
 ## 🤔 E2A Protocol
@@ -92,3 +92,5 @@ customer@example.com / customer123
 support@example.com  / support123
 admin@example.com / admin123
 ```
+- Customer dashboards: manage profile, shipping addresses, saved payment methods, view order history and RMAs.
+- Support dashboard: ticket queue/claim/resolve, ticket metadata, live chat, CSAT summary/responses, and workload stats.
