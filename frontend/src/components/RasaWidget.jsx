@@ -62,6 +62,12 @@ const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedba
 };
 
 const RasaWidget = () => {
+  const currentUser = useSelector(selectCurrentUser);
+  const userRole = currentUser?.role;
+  // Hide widget for admin/support roles
+  if (userRole === "admin" || userRole === "support") {
+    return null;
+  }
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState([
     { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
