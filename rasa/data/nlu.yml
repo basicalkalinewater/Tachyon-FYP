@@ -100,6 +100,25 @@ nlu:
       - faq
       - FAQs
 
+  - intent: shipping_info
+    examples: |
+      - shipping info
+      - shipping information
+      - how much is shipping
+      - shipping cost
+      - delivery time
+      - when will my order arrive
+      - tell me about shipping
+
+  - intent: order_status
+    examples: |
+      - order status
+      - check my order
+      - track my order
+      - where is my order
+      - track order
+      - order tracking
+
   - intent: return_policy_link
     examples: |
       - What is your return policy?

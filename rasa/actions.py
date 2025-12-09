@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Text
 import requests
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
+from rasa_sdk.forms import FormValidationAction
 from rasa_sdk.executor import CollectingDispatcher
 
 from liveagent_action import ActionHandoffToLiveAgent
@@ -393,3 +394,74 @@ class ActionSubmitCsat(Action):
             dispatcher.utter_message(text="Thanks! I couldn't save it right now, but I'll pass it on.")
 
         return []
+
+
+class ValidateProductFilterForm(FormValidationAction):
+    """Basic validation/normalization for product_filter_form slots."""
+
+    def name(self) -> Text:
+        return "validate_product_filter_form"
+
+    @staticmethod
+    def _clean(value: Any) -> Optional[Text]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            val = value.strip()
+            return val or None
+        return str(value)
+
+    def validate_product_category(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        cleaned = self._clean(slot_value)
+        if not cleaned:
+            dispatcher.utter_message(text="Tell me which category you want (e.g., monitor, ssd, keyboard).")
+            return {"product_category": None}
+        return {"product_category": cleaned}
+
+    def validate_product_price(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_price": self._clean(slot_value)}
+
+    def validate_product_specs(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_specs": self._clean(slot_value)}
+
+    def validate_product_brand(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_brand": self._clean(slot_value)}
+
+
+class ActionResetHandoff(Action):
+    """Reset handoff state so messages stop forwarding to agent."""
+
+    def name(self) -> Text:
+        return "action_reset_handoff"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        return [SlotSet("handoff_active", False)]

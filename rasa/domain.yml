@@ -5,6 +5,8 @@ intents:
   - goodbye
   - fetch_all_products
   - fetch_products_with_filters
+  - shipping_info
+  - order_status
   - faq_link
   - return_policy_link
   - request_live_agent
@@ -61,6 +63,12 @@ responses:
     - text: "Hello! How can I help you today?"
   utter_goodbye:
     - text: "Goodbye! Have a nice day!"
+  utter_shipping_info:
+    - text: "You can find shipping details here: https://example.com/shipping-returns (delivery times, costs, tracking)."
+  utter_order_status:
+    - text: "You can check your order status any time at https://example.com/order-status. Tell me your order number if you want me to look it up."
+  utter_default:
+    - text: "I'm not sure I got that. Could you rephrase or choose a quick option below?"
   utter_ask_product_category:
     - text: "What category of products are you interested in?"
   utter_ask_product_price:
@@ -87,3 +95,5 @@ actions:
   - action_handoff_to_agent
   - action_forward_to_agent
   - action_submit_csat
+  - validate_product_filter_form
+  - action_reset_handoff
