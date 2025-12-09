@@ -10,6 +10,7 @@ import threading
 import uuid
 
 import psycopg2
+from psycopg2.pool import SimpleConnectionPool
 import requests
 from flask import Response, jsonify, stream_with_context
 from psycopg2.extras import RealDictCursor
@@ -52,11 +53,26 @@ missing = [k for k, v in DB_CONFIG.items() if v in (None, "") and k != "sslmode"
 if missing:
     raise RuntimeError(f"Missing DB config values in .env: {', '.join(missing)}")
 
+# Lightweight connection pool to avoid per-request connects (helps SSE)
+POOL: Optional[SimpleConnectionPool] = None
+try:
+    POOL = SimpleConnectionPool(
+        minconn=int(os.getenv("DB_POOL_MIN", 1)),
+        maxconn=int(os.getenv("DB_POOL_MAX", 10)),
+        **DB_CONFIG,
+    )
+except Exception as exc:
+    print("WARN: failed to init DB pool; falling back to direct connections:", exc)
+    POOL = None
+
 
 @contextmanager
 def get_db():
     """Yield a Postgres connection with auto-commit/rollback."""
-    conn = psycopg2.connect(**DB_CONFIG)
+    if POOL:
+        conn = POOL.getconn()
+    else:
+        conn = psycopg2.connect(**DB_CONFIG)
     try:
         yield conn
         conn.commit()
@@ -64,7 +80,10 @@ def get_db():
         conn.rollback()
         raise
     finally:
-        conn.close()
+        if POOL:
+            POOL.putconn(conn, close=False)
+        else:
+            conn.close()
 
 
 def ok(data=None):
@@ -399,7 +418,7 @@ def stream_session(session_id: str):
                         yield f"data: {json.dumps(rows, default=str)}\n\n"
             except Exception as exc:
                 print("WARN: stream error:", exc)
-            time.sleep(1)
+            time.sleep(0.35)  # faster refresh, lower latency, still light on DB
 
     return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
 
