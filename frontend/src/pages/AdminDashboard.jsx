@@ -422,7 +422,7 @@ const AdminDashboard = () => {
                     className="form-control"
                     value={profile.phone}
                     onChange={handleProfileChange}
-                    placeholder="+1 555 123 4567"
+                    placeholder="+65 1234 5678"
                   />
                 </div>
                 <div className="d-flex gap-3 mt-3">
@@ -588,7 +588,7 @@ const AdminDashboard = () => {
                       className="form-control"
                       value={userForm.phone}
                       onChange={handleUserChange}
-                      placeholder="+1 555 123 4567"
+                      placeholder="+65 1234 5678"
                     />
                   </div>
                   <div className="mb-3">
@@ -676,7 +676,7 @@ const AdminDashboard = () => {
                       className="form-control"
                       value={editUserForm.phone || ""}
                       onChange={(e) => setEditUserForm((p) => ({ ...p, phone: e.target.value }))}
-                      placeholder="+1 555 123 4567"
+                      placeholder="+65 1234 5678"
                     />
                   </div>
                   <div className="mb-3">
