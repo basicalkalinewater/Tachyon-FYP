@@ -42,12 +42,6 @@ rules:
       - action: action_forward_to_agent
       - action: action_listen
 
-  - rule: Capture CSAT rating
-    steps:
-      - intent: csat_rating
-      - action: action_submit_csat
-      - action: action_listen
-
   - rule: Greet user
     steps:
       - intent: greet
@@ -61,7 +55,7 @@ rules:
   - rule: Provide shipping info
     steps:
       - intent: shipping_info
-      - action: utter_shipping_info
+      - action: action_shipping_info_link
 
   - rule: Provide order status info
     steps:

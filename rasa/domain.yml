@@ -11,7 +11,6 @@ intents:
   - return_policy_link
   - request_live_agent
   - nlu_fallback
-  - csat_rating
 
 entities:
   - product_category
@@ -64,9 +63,9 @@ responses:
   utter_goodbye:
     - text: "Goodbye! Have a nice day!"
   utter_shipping_info:
-    - text: "You can find shipping details here: https://example.com/shipping-returns (delivery times, costs, tracking)."
+    - text: "You can find shipping & delivery details here: [Return Shipping Info]({link})"
   utter_order_status:
-    - text: "You can check your order status any time at https://example.com/order-status. Tell me your order number if you want me to look it up."
+    - text: "Order status tracking is still in development. For now, contact support or check your confirmation email."
   utter_default:
     - text: "I'm not sure I got that. Could you rephrase or choose a quick option below?"
   utter_ask_product_category:
@@ -92,8 +91,8 @@ actions:
   - action_fetch_products_with_filters
   - action_faq_link
   - action_return_policy_link
+  - action_shipping_info_link
   - action_handoff_to_agent
   - action_forward_to_agent
-  - action_submit_csat
   - validate_product_filter_form
   - action_reset_handoff
