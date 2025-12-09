@@ -147,59 +147,27 @@ def _ticket_number_from_id(session_id):
     return f"TCK-{compact[:8].upper()}"
 
 
-def upsert_guest_user(full_name: str, email: str) -> str:
-    """Create or reuse a guest (customer role) user and profile."""
-    password_placeholder = uuid.uuid4().hex
-    with get_db() as conn:
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        cur.execute("SELECT id FROM app_user WHERE email = %s;", (email,))
-        row = cur.fetchone()
-        if row:
-            user_id = row["id"]
-        else:
-            cur.execute(
-                """
-                INSERT INTO app_user (email, password_hash, role)
-                VALUES (%s, %s, 'customer')
-                ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
-                RETURNING id;
-                """,
-                (email, password_placeholder),
-            )
-            user_id = cur.fetchone()["id"]
-
-        cur.execute(
-            """
-            INSERT INTO customer_profile (user_id, full_name)
-            VALUES (%s, %s)
-            ON CONFLICT (user_id) DO UPDATE SET full_name = EXCLUDED.full_name;
-            """,
-            (user_id, full_name),
-        )
-    return user_id
-
-
 def create_guest_ticket(full_name: str, email: str, sender_id: str, last_message: str):
     """Create a ticket/session for a guest after collecting their info."""
     try:
-        customer_id = upsert_guest_user(full_name, email)
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute(
                 """
                 INSERT INTO chat_sessions (
-                    customer_id,
                     agent_id,
                     status,
                     rasa_sender_id,
+                    guest_name,
+                    guest_email,
                     subject,
                     priority,
                     last_updated
                 )
-                VALUES (%s, %s, 'pending', %s, %s, 'medium', NOW())
+                VALUES (%s, 'pending', %s, %s, %s, %s, 'medium', NOW())
                 RETURNING id;
                 """,
-                (customer_id, FALLBACK_AGENT_ID, sender_id or None, f"Guest: {full_name}",),
+                (FALLBACK_AGENT_ID, sender_id or None, full_name, email, f"Guest: {full_name or 'Guest'}"),
             )
             session_row = cur.fetchone()
             session_id = session_row["id"]
@@ -226,7 +194,7 @@ def create_guest_ticket(full_name: str, email: str, sender_id: str, last_message
                     )
                     VALUES (%s, 'customer', %s, %s, FALSE);
                     """,
-                    (session_id, customer_id, last_message),
+                    (session_id, None, last_message),
                 )
 
         return ok({"session_id": session_id, "ticket_number": ticket_number})
@@ -272,7 +240,7 @@ def create_session_from_rasa(sender_id: str, last_message: str, customer_id: Opt
                 VALUES (%s, %s, 'pending', %s, NOW(), %s)
                 RETURNING id;
                 """,
-                (customer_id or FALLBACK_CUSTOMER_ID, FALLBACK_AGENT_ID, sender_id, subject),
+                (customer_id, FALLBACK_AGENT_ID, sender_id, subject),
             )
             session_row = cur.fetchone()
             session_id = session_row["id"]
@@ -302,7 +270,7 @@ def create_session_from_rasa(sender_id: str, last_message: str, customer_id: Opt
                 VALUES (%s, 'customer', %s, %s, FALSE)
                 RETURNING id;
                 """,
-                (session_id, FALLBACK_CUSTOMER_ID, last_message),
+                (session_id, customer_id, last_message),
             )
             message_row = cur.fetchone()
 
@@ -327,17 +295,17 @@ def append_message_from_rasa(sender_id: str, last_message: str):
                 LIMIT 1;
                 """,
                 (sender_id,),
-            )
-            session = cur.fetchone()
-            if not session:
-                print(f"[rasa_append] no open session for sender_id={sender_id}")
-                return error("No open session for this sender", status=404)
+        )
+        session = cur.fetchone()
+        if not session:
+            print(f"[rasa_append] no open session for sender_id={sender_id}")
+            return error("No open session for this sender", status=404)
 
-            session_id = session["id"]
-            customer_id = session["customer_id"] or FALLBACK_CUSTOMER_ID
-            if session.get("status") != "in_progress":
-                print(f"[rasa_append] session {session_id} status={session.get('status')} not in_progress")
-                return error("Waiting for an agent to claim this chat", status=409)
+        session_id = session["id"]
+        customer_id = session["customer_id"]
+        if session.get("status") != "in_progress":
+            print(f"[rasa_append] session {session_id} status={session.get('status')} not in_progress")
+            return error("Waiting for an agent to claim this chat", status=409)
 
             cur.execute(
                 """
@@ -366,7 +334,7 @@ def append_message_from_rasa(sender_id: str, last_message: str):
 
 def send_customer_message(session_id: str, message: str, customer_id: Optional[str]):
     """Append a direct customer message to a session."""
-    customer_id = customer_id or FALLBACK_CUSTOMER_ID
+    customer_id = customer_id
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -463,14 +431,16 @@ def list_sessions(status: Optional[str]):
               s.created_at,
               s.last_updated,
               s.notes,
+              s.guest_name,
+              s.guest_email,
               CASE
                 WHEN s.status = 'pending'
                   THEN row_number() OVER (PARTITION BY s.status ORDER BY s.last_updated ASC)
                 ELSE NULL
               END AS queue_position,
-              cu.email  AS customer_email,
+              coalesce(s.guest_email, cu.email, s.rasa_sender_id)  AS customer_email,
               ag.email  AS agent_email,
-              cp.full_name  AS customer_full_name,
+              coalesce(s.guest_name, cp.full_name, cu.email, s.rasa_sender_id, 'Guest')  AS customer_full_name,
               coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
@@ -520,14 +490,16 @@ def get_session(session_id: str, limit: Optional[int] = 200):
               s.last_updated,
               s.notes,
               s.rasa_sender_id,
+              s.guest_name,
+              s.guest_email,
               CASE
                 WHEN s.status = 'pending'
                   THEN row_number() OVER (PARTITION BY s.status ORDER BY s.last_updated ASC)
                 ELSE NULL
               END AS queue_position,
-              cu.email AS customer_email,
+              coalesce(s.guest_email, cu.email, s.rasa_sender_id) AS customer_email,
               ag.email AS agent_email,
-              cp.full_name  AS customer_full_name,
+              coalesce(s.guest_name, cp.full_name, cu.email, s.rasa_sender_id, 'Guest')  AS customer_full_name,
               coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
@@ -734,9 +706,9 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
             """
             SELECT
               s.id, s.status, s.resolution_tag,
-              cu.email AS customer_email,
+              coalesce(s.guest_email, cu.email, s.rasa_sender_id) AS customer_email,
               ag.email AS agent_email,
-              cp.full_name  AS customer_full_name,
+              coalesce(s.guest_name, cp.full_name, cu.email, s.rasa_sender_id, 'Guest')  AS customer_full_name,
               coalesce(lap.full_name, ag.email) AS agent_full_name
             FROM chat_sessions s
             LEFT JOIN app_user cu ON cu.id = s.customer_id
@@ -1017,21 +989,25 @@ def get_csat_summary(window_days: int, agent_id: Optional[str]):
             print("WARN: csat trend query failed (maybe MV missing):", exc)
             trend = []
 
-        cur.execute(
-            """
-            SELECT
-              cs.id as session_id,
-              cs.agent_id,
-              cs.customer_rating,
-              cs.customer_feedback,
-              cs.customer_rating_submitted_at
-            FROM chat_sessions cs
-            WHERE cs.customer_rating IS NOT NULL
-            ORDER BY cs.customer_rating_submitted_at DESC
-            LIMIT 20;
-            """
-        )
-        verbatim = cur.fetchall() or []
+            cur.execute(
+                """
+                SELECT
+                  cs.id as session_id,
+                  cs.agent_id,
+                  cs.customer_rating,
+                  cs.customer_feedback,
+                  cs.customer_rating_submitted_at,
+                  coalesce(cs.guest_name, cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
+                  coalesce(cs.guest_email, cu.email, cs.rasa_sender_id, 'N/A') as customer_email
+                FROM chat_sessions cs
+                LEFT JOIN app_user cu ON cu.id = cs.customer_id
+                LEFT JOIN customer_profile cp ON cp.user_id = cs.customer_id
+                WHERE cs.customer_rating IS NOT NULL
+                ORDER BY cs.customer_rating_submitted_at DESC
+                LIMIT 20;
+                """
+            )
+            verbatim = cur.fetchall() or []
 
     return ok({"summary": summary, "trend": trend, "verbatim": verbatim})
 
@@ -1206,8 +1182,8 @@ def get_csat_summary(window_days: int, agent_id: Optional[str]):
               cs.customer_rating,
               cs.customer_feedback,
               cs.customer_rating_submitted_at,
-              coalesce(cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
-              coalesce(cu.email, cs.rasa_sender_id, 'N/A') as customer_email
+              coalesce(cs.guest_name, cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
+              coalesce(cs.guest_email, cu.email, cs.rasa_sender_id, 'N/A') as customer_email
             from chat_sessions cs
             left join app_user cu on cu.id = cs.customer_id
             left join customer_profile cp on cp.user_id = cs.customer_id
@@ -1232,8 +1208,8 @@ def list_csat_responses(limit: int = 50):
               cs.customer_rating,
               cs.customer_feedback,
               cs.customer_rating_submitted_at,
-              coalesce(cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
-              coalesce(cu.email, cs.rasa_sender_id, 'N/A') as customer_email
+              coalesce(cs.guest_name, cp.full_name, cu.email, cs.rasa_sender_id, 'Guest') as customer_name,
+              coalesce(cs.guest_email, cu.email, cs.rasa_sender_id, 'N/A') as customer_email
             from chat_sessions cs
             left join app_user cu on cu.id = cs.customer_id
             left join customer_profile cp on cp.user_id = cs.customer_id

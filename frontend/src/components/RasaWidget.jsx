@@ -377,11 +377,18 @@ const RasaWidget = () => {
   };
 
   const sendMessage = async (text) => {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    // If user explicitly asks for a human, trigger the same flow as the quick-reply handoff
+    const wantsHuman = /\b(live agent|human agent|talk to (a )?human|talk to (an )?agent)\b/i.test(trimmed);
+    if (wantsHuman) {
+      startGuestHandoff(trimmed);
+      return;
+    }
     if (mode === "agent" && sessionId) {
-      await sendToAgent(text);
+      await sendToAgent(trimmed);
     } else {
-      await sendToBot(text);
+      await sendToBot(trimmed);
     }
   };
 
