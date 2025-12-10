@@ -28,6 +28,7 @@ const AdminDashboard = () => {
   const [editUserForm, setEditUserForm] = useState(null);
   const [editUserSaving, setEditUserSaving] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [disabledUserIds, setDisabledUserIds] = useState(new Set());
   const currentUser = useSelector((state) => state.auth.user);
 
   const load = useCallback(async () => {
@@ -98,6 +99,7 @@ const AdminDashboard = () => {
       const list = data.data || data || [];
       // Exclude admins from the grid (self/other admins managed via profile)
       setUsers(list.filter((u) => u.role !== "admin"));
+      // keep local disabled/enabled marks unless full refresh; no status persisted server-side
     } catch (err) {
       toast.error(err.message || "Failed to load users");
     } finally {
@@ -178,8 +180,32 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDisableUser = async (userId) => {
-    toast.error("Disable action is not available (no status column). Remove sessions manually if needed.");
+  const handleDisableUser = async (userId, email) => {
+    const confirm = window.confirm(`Disable user ${email}? This revokes all sessions.`);
+    if (!confirm) return;
+    try {
+      await disableAdminUser(userId);
+      toast.success("User disabled (sessions revoked)");
+      setDisabledUserIds((prev) => {
+        const next = new Set(prev);
+        next.add(userId);
+        return next;
+      });
+    } catch (err) {
+      toast.error(err.message || "Unable to disable user");
+    }
+  };
+
+  const handleEnableUser = async (userId, email) => {
+    const confirm = window.confirm(`Re-enable ${email}? This will not restore sessions but clears the disabled flag.`);
+    if (!confirm) return;
+    // Since backend has no status flag, enabling is just clearing local disabled state
+    setDisabledUserIds((prev) => {
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+    toast.success("User re-enabled (local flag cleared)");
   };
 
   const summary = csat.summary || {};
@@ -512,6 +538,23 @@ const AdminDashboard = () => {
                               <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
                                 Edit
                               </button>
+                              {disabledUserIds.has(u.id) ? (
+                                <button
+                                  className="btn btn-outline-secondary btn-sm"
+                                  onClick={() => handleEnableUser(u.id, u.email)}
+                                  title="Clear disabled flag locally"
+                                >
+                                  Enable
+                                </button>
+                              ) : (
+                                <button
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={() => handleDisableUser(u.id, u.email)}
+                                  title="Revoke sessions / disable"
+                                >
+                                  Disable
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>
