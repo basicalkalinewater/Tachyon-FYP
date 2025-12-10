@@ -28,13 +28,12 @@ const AdminDashboard = () => {
   const [editUserForm, setEditUserForm] = useState(null);
   const [editUserSaving, setEditUserSaving] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [disabledUserIds, setDisabledUserIds] = useState(new Set());
   const currentUser = useSelector((state) => state.auth.user);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const summaryData = await fetchCsatSummary(30);
+      const summaryData = await fetchCsatSummary(120);
       const responses = await fetchCsatResponses(20);
       setCsat({
         summary: summaryData.summary || {},
@@ -99,7 +98,6 @@ const AdminDashboard = () => {
       const list = data.data || data || [];
       // Exclude admins from the grid (self/other admins managed via profile)
       setUsers(list.filter((u) => u.role !== "admin"));
-      // keep local disabled/enabled marks unless full refresh; no status persisted server-side
     } catch (err) {
       toast.error(err.message || "Failed to load users");
     } finally {
@@ -125,6 +123,7 @@ const AdminDashboard = () => {
       id: u.id,
       email: u.email,
       role: u.role,
+      status: u.status || "active",
       full_name: u.full_name || "",
       phone: u.phone || "",
       password: "",
@@ -166,6 +165,7 @@ const AdminDashboard = () => {
     try {
       await updateAdminUser(editUserForm.id, {
         role: editUserForm.role,
+        status: editUserForm.status,
         full_name: editUserForm.full_name,
         phone: editUserForm.phone,
         password: editUserForm.password || undefined,
@@ -181,31 +181,27 @@ const AdminDashboard = () => {
   };
 
   const handleDisableUser = async (userId, email) => {
-    const confirm = window.confirm(`Disable user ${email}? This revokes all sessions.`);
+    const confirm = window.confirm(`Disable user ${email}? This revokes all sessions and sets status to disabled.`);
     if (!confirm) return;
     try {
       await disableAdminUser(userId);
       toast.success("User disabled (sessions revoked)");
-      setDisabledUserIds((prev) => {
-        const next = new Set(prev);
-        next.add(userId);
-        return next;
-      });
+      await loadUsers();
     } catch (err) {
       toast.error(err.message || "Unable to disable user");
     }
   };
 
   const handleEnableUser = async (userId, email) => {
-    const confirm = window.confirm(`Re-enable ${email}? This will not restore sessions but clears the disabled flag.`);
+    const confirm = window.confirm(`Re-enable ${email}?`);
     if (!confirm) return;
-    // Since backend has no status flag, enabling is just clearing local disabled state
-    setDisabledUserIds((prev) => {
-      const next = new Set(prev);
-      next.delete(userId);
-      return next;
-    });
-    toast.success("User re-enabled (local flag cleared)");
+    try {
+      await updateAdminUser(userId, { status: "active" });
+      toast.success("User enabled");
+      await loadUsers();
+    } catch (err) {
+      toast.error(err.message || "Unable to enable user");
+    }
   };
 
   const summary = csat.summary || {};
@@ -538,11 +534,11 @@ const AdminDashboard = () => {
                               <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
                                 Edit
                               </button>
-                              {disabledUserIds.has(u.id) ? (
+                              {u.status === "disabled" ? (
                                 <button
                                   className="btn btn-outline-secondary btn-sm"
                                   onClick={() => handleEnableUser(u.id, u.email)}
-                                  title="Clear disabled flag locally"
+                                  title="Enable user"
                                 >
                                   Enable
                                 </button>

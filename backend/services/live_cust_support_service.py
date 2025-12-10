@@ -1174,13 +1174,14 @@ def get_csat_summary(window_days: int, agent_id: Optional[str]):
                 nullif(count(*),0) * 100             as csat_pct
             from chat_sessions cs
             where cs.customer_rating is not null
-              and cs.closed_at >= now() - (%s || ' days')::interval
+              and coalesce(cs.customer_rating_submitted_at, cs.closed_at, cs.created_at) >= now() - (%s || ' days')::interval
               {agent_clause};
             """,
             params,
         )
         summary = cur.fetchone() or {}
 
+        # Try materialized rollup first
         cur.execute(
             f"""
             select day, agent_id, avg_rating, csat_pct, responses
@@ -1192,6 +1193,26 @@ def get_csat_summary(window_days: int, agent_id: Optional[str]):
             params,
         )
         trend = cur.fetchall() or []
+        # Fallback: compute on the fly if rollup is empty (or missing)
+        if not trend:
+            cur.execute(
+                f"""
+                select
+                  date_trunc('day', coalesce(cs.customer_rating_submitted_at, cs.closed_at, cs.created_at)) as day,
+                  cs.agent_id,
+                  avg(cs.customer_rating)::numeric(3,2) as avg_rating,
+                  sum(case when cs.customer_rating >= 4 then 1 else 0 end)::numeric / nullif(count(*),0) * 100 as csat_pct,
+                  count(*) as responses
+                from chat_sessions cs
+                where cs.customer_rating is not null
+                  and coalesce(cs.customer_rating_submitted_at, cs.closed_at, cs.created_at) >= now() - (%s || ' days')::interval
+                  {agent_clause}
+                group by 1,2
+                order by 1 asc;
+                """,
+                params,
+            )
+            trend = cur.fetchall() or []
 
         cur.execute(
             """

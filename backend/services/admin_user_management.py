@@ -13,6 +13,7 @@ def _safe_fetch_profile(supabase, table, user_id, fields):
 def _enrich_user_with_profile(supabase, user: Dict) -> Dict:
     uid = user.get("id")
     role = user.get("role")
+    status = user.get("status")
     if not uid or not role:
         return user
     try:
@@ -53,12 +54,13 @@ def _hash_password(password: str) -> str:
 
 
 def list_users(supabase, filters: Dict) -> List[Dict]:
-    query = supabase.table("app_user").select("id, email, role")
+    query = supabase.table("app_user").select("id, email, role, status")
     if filters.get("email_substr"):
         query = query.ilike("email", f"%{filters['email_substr']}%")
     if filters.get("role"):
         query = query.eq("role", filters["role"])
-    # status column not present; ignore
+    if filters.get("status"):
+        query = query.eq("status", filters["status"])
     query = query.order("email").range(filters["offset"], filters["offset"] + filters["limit"] - 1)
     res = query.execute()
     users = res.data or []
@@ -80,7 +82,7 @@ def create_user(supabase, email: str, role: str, password: str, full_name: str, 
         raise ValueError("email, role, and password are required")
     res = (
         supabase.table("app_user")
-        .insert({"email": email, "role": role, "password_hash": _hash_password(password)})
+        .insert({"email": email, "role": role, "password_hash": _hash_password(password), "status": "active"})
         .execute()
     )
     user = res.data[0]
@@ -92,6 +94,10 @@ def update_user(supabase, user_id: str, role: Optional[str], status: Optional[st
     updates = {}
     if role:
         updates["role"] = role
+    if status:
+        if status not in ("active", "disabled"):
+            raise ValueError("status must be 'active' or 'disabled'")
+        updates["status"] = status
     if password:
         updates["password_hash"] = _hash_password(password)
     if updates:
@@ -114,5 +120,6 @@ def update_user(supabase, user_id: str, role: Optional[str], status: Optional[st
 
 
 def disable_user(supabase, user_id: str):
-    # Without a status column, simply revoke sessions; leave as no-op placeholder
+    # Mark disabled and revoke active sessions
+    supabase.table("app_user").update({"status": "disabled"}).eq("id", user_id).execute()
     supabase.table("app_session").delete().eq("user_id", user_id).execute()

@@ -165,7 +165,7 @@ const CustomerSupportDashboard = () => {
   const loadCsat = useCallback(async () => {
     setLoadingCsat(true);
     try {
-      const summaryData = await fetchCsatSummary(30);
+      const summaryData = await fetchCsatSummary(120);
       const responses = await fetchCsatResponses(20);
       setCsat({
         summary: summaryData.summary || {},
