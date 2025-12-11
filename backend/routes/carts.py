@@ -25,8 +25,9 @@ def get_cart(cart_id):
     # Return cart items for a given cart id (404 if not found)
     supabase = current_app.config["SUPABASE"]
     try:
-        res = supabase.table("carts").select("id").eq("id", cart_id).single().execute()
-        if not res.data:
+        res = supabase.table("carts").select("id").eq("id", cart_id).limit(1).execute()
+        row = res.data[0] if res.data else None
+        if not row:
             return jsonify({"error": "Cart not found"}), 404
         items = map_cart_items(supabase, cart_id)
         return jsonify({"cartId": cart_id, "items": items})

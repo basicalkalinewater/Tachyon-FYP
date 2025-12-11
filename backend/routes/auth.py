@@ -136,12 +136,19 @@ def register():
         except Exception as err:
             current_app.logger.warning(f"register profile upsert failed: {err}")
 
+        session = session_service.create_session(
+            supabase,
+            user_row["id"],
+            user_agent=request.headers.get("User-Agent"),
+        )
+
         user = {
             "id": user_row.get("id"),
             "email": user_row.get("email"),
             "role": "customer",
             "fullName": full_name or email,
-            # no server-side session is created on registration; user must log in
+            "sessionToken": session["token"],
+            "sessionExpiresAt": session["expires_at"],
         }
         return jsonify({"user": user, "redirectTo": "/dashboard/customer"}), 201
     except Exception as err:
