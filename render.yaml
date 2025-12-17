@@ -47,8 +47,9 @@ services:
       - key: RASA_FORWARD_URL
         sync: false
 
-  - type: static_site
+  - type: web
     name: fyp-frontend
+    env: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
