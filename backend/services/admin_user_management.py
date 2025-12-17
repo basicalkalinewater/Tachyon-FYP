@@ -1,7 +1,7 @@
 import secrets
 from typing import Dict, Optional, List
 
-from ..services import customer_service
+from services import customer_service
 
 
 def _safe_fetch_profile(supabase, table, user_id, fields):

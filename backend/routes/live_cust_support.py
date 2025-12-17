@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 
-from ..services import live_cust_support_service as service
-from ..utils.auth_middleware import require_session
+from services import live_cust_support_service as service
+from utils.auth_middleware import require_session
 from flask import current_app, g, jsonify
 
 # Blueprint for live customer support chat; mounted under /support
@@ -200,4 +200,3 @@ def update_agent_profile():
         return jsonify({"success": True, "data": {"full_name": full_name, "phone": phone}})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
-

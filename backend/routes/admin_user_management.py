@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, jsonify, request, g
 
-from ..utils.auth_middleware import require_session
-from ..services import admin_user_management
+from utils.auth_middleware import require_session
+from services import admin_user_management
 
 
 admin_users_bp = Blueprint("admin_users", __name__)

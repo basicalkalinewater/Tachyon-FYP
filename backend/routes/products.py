@@ -1,5 +1,5 @@
 from flask import Blueprint, current_app, jsonify, request
-from ..utils.mappers import map_product
+from utils.mappers import map_product
 
 # Blueprint for product endpoints; registered under /api/products
 products_bp = Blueprint("products", __name__)

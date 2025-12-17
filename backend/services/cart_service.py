@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from ..utils.mappers import map_product
+from utils.mappers import map_product
 
 
 def map_cart_items(supabase, cart_id: str) -> List[Dict[str, Any]]:

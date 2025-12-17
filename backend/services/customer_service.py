@@ -2,7 +2,7 @@ from datetime import datetime
 import secrets
 from typing import Any, Dict, Tuple, Optional, List
 
-from ..utils.mappers import map_product, map_address, map_payment, map_order, map_rma  # type: ignore
+from utils.mappers import map_product, map_address, map_payment, map_order, map_rma  # type: ignore
 
 
 def ensure_profile_row(supabase, user_id: str) -> None:
