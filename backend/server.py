@@ -7,13 +7,13 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 
-from .supabase_client import get_supabase
-from .routes.live_cust_support import live_cust_support_bp
-from .routes.products import products_bp
-from .routes.carts import carts_bp
-from .routes.auth import auth_bp
-from .routes.customer import customer_bp, dashboard_bp
-from .routes.admin_user_management import admin_users_bp
+from supabase_client import get_supabase
+from routes.live_cust_support import live_cust_support_bp
+from routes.products import products_bp
+from routes.carts import carts_bp
+from routes.auth import auth_bp
+from routes.customer import customer_bp, dashboard_bp
+from routes.admin_user_management import admin_users_bp
 
 
 def create_app() -> Flask:

@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: fyp-backend
+    name: FYP-25-S4-25-backend
     plan: free
     env: python
     rootDir: backend
@@ -42,26 +42,26 @@ services:
       - key: SESSION_TTL_HOURS
         value: "168"
       - key: RASA_RELAY_URL
-        sync: false
+        value: https://FYP-25-S4-25-rasa.onrender.com/webhooks/rest/webhook
       - key: RASA_PUSH_URL
-        sync: false
+        value: https://FYP-25-S4-25-rasa.onrender.com/conversations/{sender_id}/tracker/events
       - key: RASA_FORWARD_URL
-        sync: false
+        value: https://FYP-25-S4-25-backend.onrender.com/support/sessions/from_rasa/message
 
   - type: web
-    name: fyp-frontend
+    name: FYP-25-S4-25-frontend
     env: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: https://fyp-backend.onrender.com/api
+        value: https://FYP-25-S4-25-backend.onrender.com/api
       - key: VITE_RASA_URL
-        value: https://fyp-rasa.onrender.com/webhooks/rest/webhook
+        value: https://FYP-25-S4-25-rasa.onrender.com/webhooks/rest/webhook
 
   - type: web
-    name: fyp-rasa
+    name: FYP-25-S4-25-rasa
     env: docker
     rootDir: rasa
     plan: starter
