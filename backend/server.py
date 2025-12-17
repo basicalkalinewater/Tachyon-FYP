@@ -24,7 +24,14 @@ def create_app() -> Flask:
     app = Flask(__name__)
     # Avoid redirecting /path to /path/ which breaks CORS preflights
     app.url_map.strict_slashes = False
-    CORS(app)
+    # Allow the frontend origin (Render static site) and others during development.
+    CORS(
+        app,
+        resources={r"/*": {"origins": "*"}},
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
 
     supabase = get_supabase()
     app.config["SUPABASE"] = supabase
