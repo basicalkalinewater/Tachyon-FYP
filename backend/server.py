@@ -4,7 +4,7 @@ Flask REST API entrypoint. Wires blueprints by domain and shares a single Supaba
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 
 from .supabase_client import get_supabase
@@ -32,6 +32,21 @@ def create_app() -> Flask:
         allow_headers=["Content-Type", "Authorization"],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
+
+    @app.after_request
+    def add_cors_headers(resp):
+        # Force CORS headers on all responses, including errors, to satisfy browser preflights.
+        resp.headers["Access-Control-Allow-Origin"] = os.getenv("CORS_ALLOWED_ORIGINS", "*")
+        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+        return resp
+
+    @app.route("/__options__", methods=["OPTIONS"])
+    def options_probe():
+        """Explicit OPTIONS responder to help diagnose CORS."""
+        resp = make_response("", 204)
+        return resp
 
     supabase = get_supabase()
     app.config["SUPABASE"] = supabase
