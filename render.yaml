@@ -1,6 +1,7 @@
 services:
   - type: web
     name: fyp-backend
+    plan: free
     env: python
     rootDir: backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
