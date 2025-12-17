@@ -6,3 +6,4 @@ pydantic==2.12.5
 pydantic-core==2.41.5
 psycopg2-binary
 requests>=2.31.0
+gunicorn

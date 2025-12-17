@@ -1,0 +1,69 @@
+services:
+  - type: web
+    name: fyp-backend
+    env: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn "server:create_app()" --bind 0.0.0.0:$PORT --workers 3
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: LIVE_CUST_SUPPORT_FALLBACK_CUSTOMER_ID
+        sync: false
+      - key: LIVE_CUST_SUPPORT_FALLBACK_AGENT_ID
+        sync: false
+      - key: LIVE_AGENT_AVG_HANDLE_SECONDS
+        value: "120"
+      - key: SESSION_TTL_HOURS
+        value: "168"
+      - key: RASA_RELAY_URL
+        sync: false
+      - key: RASA_PUSH_URL
+        sync: false
+      - key: RASA_FORWARD_URL
+        sync: false
+
+  - type: static
+    name: fyp-frontend
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://fyp-backend.onrender.com/api
+      - key: VITE_RASA_URL
+        value: https://fyp-rasa.onrender.com/webhooks/rest/webhook
+
+  - type: web
+    name: fyp-rasa
+    env: docker
+    rootDir: rasa
+    plan: starter
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: PORT
+        value: "5005"
