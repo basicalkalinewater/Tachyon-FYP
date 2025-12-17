@@ -49,7 +49,6 @@ services:
 
   - type: web
     name: fyp-frontend
-    plan: free
     env: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
