@@ -9,6 +9,9 @@ frontend/node_modules
 .pnp.js
 /**/.rasa
 # rasa/models
+rasa/.keras/
+rasa/.config/
+.config/
 rasa/.venv
 **/__pycache__/
 *.py[cod]
