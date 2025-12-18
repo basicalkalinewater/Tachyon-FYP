@@ -9,13 +9,12 @@ const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/we
 const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs etc.
 const SUPPORT_GUEST_ESCALATE_URL = `${SUPPORT_BASE_URL}/guest/escalate`;
 const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
-// Use intent payloads so Rasa matches directly (no NLU ambiguity).
 const QUICK_REPLIES = [
-  { title: "FAQs", payload: "/faq" },
-  { title: "Shipping info", payload: "/shipping_info" },
-  { title: "Return policy", payload: "/return_policy" },
-  { title: "Order status", payload: "/order_status" },
-  { title: "Products", payload: "/fetch_all_products" },
+  { title: "FAQs", payload: "FAQ" },
+  { title: "Shipping info", payload: "Shipping Info" },
+  { title: "Return policy", payload: "Return Policy" },
+  { title: "Order status", payload: "Order Status" },
+  { title: "Products", payload: "Products" },
   { title: "Talk to human", payload: "__handoff__" },
 ];
 
