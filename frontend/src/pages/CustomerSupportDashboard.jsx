@@ -153,6 +153,17 @@ const CustomerSupportDashboard = () => {
     }
   };
 
+  const pollSessionMessages = useCallback(async (sessionId) => {
+    // lightweight poll without toasts/loaders; ignore errors
+    try {
+      const data = await fetchSessionDetail(sessionId);
+      setSelectedSession(data.session);
+      setMessages(data.messages || []);
+    } catch (_) {
+      // ignore polling errors to keep loop alive
+    }
+  }, []);
+
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
@@ -161,6 +172,14 @@ const CustomerSupportDashboard = () => {
   useEffect(() => {
     loadSessions();
   }, [activeSection, loadSessions]);
+
+  // Fallback poll so agent feed stays fresh even if EventSource drops
+  useEffect(() => {
+    if (!selectedSession?.id) return undefined;
+    const sessionId = selectedSession.id;
+    const interval = setInterval(() => pollSessionMessages(sessionId), 5000);
+    return () => clearInterval(interval);
+  }, [selectedSession?.id, pollSessionMessages]);
 
   const loadCsat = useCallback(async () => {
     setLoadingCsat(true);
