@@ -24,6 +24,10 @@ try:
 except Exception as exc:
     logger.warning("Could not load .env file: %s", exc)
 
+# Service base URLs (use env to avoid localhost in prod)
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:4000").rstrip("/")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
+
 SUPABASE_BASE_URL = os.getenv("SUPABASE_URL") or ""
 SUPABASE_REST_URL = os.getenv("SUPABASE_REST_URL") or ""
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
@@ -49,7 +53,7 @@ HEADERS = {
 
 CSAT_ENDPOINT = os.getenv(
     "CSAT_WEBHOOK_URL",
-    "http://localhost:4000/support/sessions/from_rasa/csat",
+    f"{BACKEND_BASE_URL}/support/sessions/from_rasa/csat",
 )
 
 
@@ -168,9 +172,7 @@ class ActionFetchProductsWithFilters(Action):
                     SlotSet("product_brand", None),
                 ]
 
-            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
-                "/"
-            )
+            frontend_base = FRONTEND_BASE_URL
             product_links = []
             for item in filtered_products:
                 title = item.get("title", "Unnamed product")
@@ -235,9 +237,7 @@ class ActionFetchAllProducts(Action):
                 dispatcher.utter_message(text="The database currently contains no products.")
                 return []
 
-            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
-                "/"
-            )
+            frontend_base = FRONTEND_BASE_URL
             product_links = []
 
             for item in data:
@@ -344,7 +344,7 @@ class ActionForwardToAgent(Action):
         sender_id = tracker.sender_id
         backend_url = os.getenv(
             "LIVE_AGENT_FORWARD_URL",
-            "http://localhost:4000/support/sessions/from_rasa/message",
+            f"{BACKEND_BASE_URL}/support/sessions/from_rasa/message",
         )
 
         payload = {
