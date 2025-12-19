@@ -62,24 +62,54 @@ npm install
 npm run dev   # http://localhost:3000
 ```
 
-## Rasa Chatbot (Python 3.10)
+## Rasa Chatbot
+
+### Option A: Train locally (Python 3.10 venv)
 ```bash
 cd rasa
-# If you already have a Python 3.10 venv with Rasa installed, activate it and skip venv/pip.
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or: source .venv/bin/activate
-pip install -r requirements.txt   # installs rasa==3.6.20 plus python-dotenv
-rasa train
-rasa run --enable-api --cors "*"   # http://localhost:5005
+pip install -r requirements.txt   # pins rasa 3.6.x
+rasa train --fixed-model-name current
 ```
-In another terminal:
+Run bot + actions (two terminals):
 ```bash
-cd rasa
-.\.venv\Scripts\activate
-rasa run actions
+# Terminal 1
+cd rasa && .\.venv\Scripts\activate
+rasa run --enable-api --cors "*"   # http://localhost:5005
+
+# Terminal 2
+cd rasa && .\.venv\Scripts\activate
+rasa run actions --port 5055
 ```
-Deprecation warnings during `rasa train`/`run` (SQLAlchemy/pkg_resources) are expected on Rasa 3.6.20.
-If error trying to install rasa package, try upgrading pip (in the .venv)
+
+### Option B: Train with Docker Desktop (Windows, recommended)
+Prereqs: Docker Desktop running (WSL2 backend). Adjust the drive/path if needed.
+```powershell
+docker run --rm ^
+  -v "//d/Repo/FYP/Testing-for-FYP/rasa:/app" ^
+  -w /app rasa/rasa:3.6.16-full ^
+  train --fixed-model-name current --force ^
+  --config config.yml --domain domain.yml --data data --out models
+```
+- The trained model is written to `rasa/models/current.tar.gz`.
+- Keep only that tarball (delete older ones), commit, and push.
+
+### Runtime (Render)
+`rasa/Dockerfile` runs both bot (5005) and actions (5055):
+```Dockerfile
+FROM rasa/rasa:3.6.16-full
+WORKDIR /app
+COPY . .
+USER 1001
+EXPOSE 5005 5055
+ENTRYPOINT ["/bin/sh","-c"]
+CMD ["rasa run actions --port 5055 && rasa run --enable-api --cors '*' --port 5005 --model /app/models/current.tar.gz"]
+```
+Ensure Rasa service env vars on Render:
+- `BACKEND_BASE_URL=https://fyp-25-s4-25-backend-1hbj.onrender.com`
+- `FRONTEND_BASE_URL=https://fyp-25-s4-25-frontend-1hbj.onrender.com`
+- Supabase/DB creds as required by actions.
 
 ## Notes
 - Supabase schema/seed is optional; skip it if you prefer no sample data.
