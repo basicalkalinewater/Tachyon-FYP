@@ -83,17 +83,29 @@ cd rasa && .\.venv\Scripts\activate
 rasa run actions --port 5055
 ```
 
-### Option B: Train with Docker Desktop (Windows, recommended)
-Prereqs: Docker Desktop running (WSL2 backend). Adjust the drive/path if needed.
-```powershell
-docker run --rm ^
-  -v "//d/Repo/FYP/Testing-for-FYP/rasa:/app" ^
-  -w /app rasa/rasa:3.6.16-full ^
-  train --fixed-model-name current --force ^
-  --config config.yml --domain domain.yml --data data --out models
-```
-- The trained model is written to `rasa/models/current.tar.gz`.
-- Keep only that tarball (delete older ones), commit, and push.
+### Option B: Train with Docker Desktop (portable, works for all collaborators)
+Prereqs: Docker Desktop running (uses WSL2 backend on Windows by default).
+
+Use the command that matches your shell and replace the `-v` left side with your local path to the **rasa** folder (all collaborators are on Windows):
+
+- **PowerShell (Windows)**
+  ```powershell
+  docker run --rm `
+    -v "${PWD}/rasa:/app" `
+    -w /app rasa/rasa:3.6.16-full `
+    train --fixed-model-name current --force `
+    --config config.yml --domain domain.yml --data data --out models
+  ```
+  - If you are not running the command from the repo root, change `${PWD}/rasa` to your absolute path, e.g. `//d/Repo/FYP/Testing-for-FYP/rasa`.
+
+- **cmd.exe (Windows)**
+  ```cmd
+  docker run --rm -v "%cd%\\rasa:/app" -w /app rasa/rasa:3.6.16-full train --fixed-model-name current --force --config config.yml --domain domain.yml --data data --out models
+  ```
+
+Results:
+- The trained model is written to `rasa/models/current.tar.gz` inside your repo.
+- Keep only that tarball (delete older ones), commit, and push so Render can load it without retraining.
 
 ### Runtime (Render)
 `rasa/Dockerfile` runs both bot (5005) and actions (5055):
