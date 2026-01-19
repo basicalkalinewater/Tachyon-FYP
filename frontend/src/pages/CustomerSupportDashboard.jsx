@@ -359,11 +359,11 @@ const CustomerSupportDashboard = () => {
       ) : sessions.length === 0 ? (
         <p className="text-muted small mb-0">{emptyLabel}</p>
       ) : (
-        <div className="support-list" role="list">
-          {sessions.map((session) => (
-            <button
-              key={session.id}
-              type="button"
+                <div className="support-list" role="list">
+                  {sessions.map((session) => (
+                    <button
+                      key={session.id}
+                      type="button"
               className={`support-list-item ${selectedSession?.id === session.id ? "active" : ""}`}
               onClick={() => handleSelectSession(session.id)}
               aria-pressed={selectedSession?.id === session.id}
@@ -389,11 +389,16 @@ const CustomerSupportDashboard = () => {
                   Assigned to {formatAgentName(session)}
                 </div>
               )}
-              {session.priority && (
-                <div className="text-muted small">
-                  Priority: {session.priority.charAt(0).toUpperCase() + session.priority.slice(1)}
-                </div>
-              )}
+              <div className="d-flex align-items-center gap-2 mt-2">
+                {session.priority && (
+                  <div className="text-muted small">
+                    Priority: {session.priority.charAt(0).toUpperCase() + session.priority.slice(1)}
+                  </div>
+                )}
+                {/* <span className="ms-auto support-pill">
+                  {(STATUS_LABEL[session.status] || session.status || "").toUpperCase()}
+                </span> */}
+              </div>
               {sectionStatus === "pending" && session.queue_position && (
                 <div className="text-muted small">
                   Queue position: #{session.queue_position}
@@ -781,13 +786,13 @@ const CustomerSupportDashboard = () => {
       <div className="dashboard-layout">
         {/* Sidebar */}
         <aside className="dashboard-sidebar card-saas">
-          <div className="mb-4">
-            <p className="text-muted text-uppercase small fw-semibold mb-1">
-              Support Agent
-            </p>
-            <h4 className="mb-0">{displayName}</h4>
-            <p className="text-muted mb-0">{displayEmail}</p>
+          <div className="sidebar-identity mb-4">
+            <p className="eyebrow sidebar-label">Support Agent</p>
+            <h3 className="sidebar-name">{displayName}</h3>
+            <p className="muted-email">{displayEmail}</p>
           </div>
+
+          <div className="sidebar-divider" />
 
           {GROUPED_SUPPORT_SECTIONS.map(({ group, items }) => (
             <div className="sidebar-group" key={group}>
