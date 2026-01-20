@@ -10,7 +10,11 @@ from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.forms import FormValidationAction
 from rasa_sdk.executor import CollectingDispatcher
 
-from liveagent_action import ActionHandoffToLiveAgent
+# Support running from repo root (`rasa run actions --actions rasa.actions`) and from the rasa/ folder.
+try:
+    from .liveagent_action import ActionHandoffToLiveAgent  # package import
+except ImportError:
+    from liveagent_action import ActionHandoffToLiveAgent  # fallback when executed in rasa/
 
 logger = logging.getLogger(__name__)
 

@@ -1,9 +1,15 @@
 from flask import Blueprint, current_app, jsonify, request, g
 
-from services import customer_service
-from services import live_cust_support_service
-from services import session_service
-from utils.auth_middleware import require_session
+try:
+    from ..services import customer_service
+    from ..services import live_cust_support_service
+    from ..services import session_service
+    from ..utils.auth_middleware import require_session
+except ImportError:
+    from services import customer_service
+    from services import live_cust_support_service
+    from services import session_service
+    from utils.auth_middleware import require_session
 
 
 def fetch_agent_profile(supabase, user_id: str):

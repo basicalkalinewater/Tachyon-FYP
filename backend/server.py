@@ -7,13 +7,25 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
 
-from supabase_client import get_supabase
-from routes.live_cust_support import live_cust_support_bp
-from routes.products import products_bp
-from routes.carts import carts_bp
-from routes.auth import auth_bp
-from routes.customer import customer_bp, dashboard_bp
-from routes.admin_user_management import admin_users_bp
+# Support both execution styles:
+# - `flask --app server` from inside backend/ (imports as top-level module)
+# - `flask --app backend.server` or gunicorn from project root (package import)
+try:  # package-relative (preferred)
+    from .supabase_client import get_supabase
+    from .routes.live_cust_support import live_cust_support_bp
+    from .routes.products import products_bp
+    from .routes.carts import carts_bp
+    from .routes.auth import auth_bp
+    from .routes.customer import customer_bp, dashboard_bp
+    from .routes.admin_user_management import admin_users_bp
+except ImportError:  # fallback for top-level module import
+    from supabase_client import get_supabase
+    from routes.live_cust_support import live_cust_support_bp
+    from routes.products import products_bp
+    from routes.carts import carts_bp
+    from routes.auth import auth_bp
+    from routes.customer import customer_bp, dashboard_bp
+    from routes.admin_user_management import admin_users_bp
 
 
 def create_app() -> Flask:

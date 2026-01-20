@@ -4,7 +4,10 @@ from typing import Iterable, Optional
 
 from flask import current_app, g, jsonify, request
 
-from services import session_service
+try:
+    from ..services import session_service  # package import
+except ImportError:
+    from services import session_service  # fallback for module import
 
 
 def _extract_token() -> str:

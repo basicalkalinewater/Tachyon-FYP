@@ -1,5 +1,9 @@
 from typing import List, Dict, Any
-from utils.mappers import map_product
+
+try:
+    from ..utils.mappers import map_product  # package import
+except ImportError:
+    from utils.mappers import map_product  # fallback for module import
 
 
 def map_cart_items(supabase, cart_id: str) -> List[Dict[str, Any]]:

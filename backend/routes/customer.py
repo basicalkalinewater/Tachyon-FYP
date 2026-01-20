@@ -1,15 +1,26 @@
 from datetime import datetime
 from flask import Blueprint, current_app, jsonify, request
 
-from services import customer_service
-from services.customer_service import (
-    normalize_address_payload,
-    build_address_update,
-    normalize_payment_payload,
-    build_payment_update,
-)
-from utils.mappers import map_address, map_payment
-from utils.auth_middleware import require_session
+try:
+    from ..services import customer_service
+    from ..services.customer_service import (
+        normalize_address_payload,
+        build_address_update,
+        normalize_payment_payload,
+        build_payment_update,
+    )
+    from ..utils.mappers import map_address, map_payment
+    from ..utils.auth_middleware import require_session
+except ImportError:
+    from services import customer_service
+    from services.customer_service import (
+        normalize_address_payload,
+        build_address_update,
+        normalize_payment_payload,
+        build_payment_update,
+    )
+    from utils.mappers import map_address, map_payment
+    from utils.auth_middleware import require_session
 
 customer_bp = Blueprint("customer", __name__)
 dashboard_bp = Blueprint("dashboard", __name__)

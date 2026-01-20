@@ -1,7 +1,10 @@
 import secrets
 from typing import Dict, Optional, List
 
-from services import customer_service
+try:
+    from ..services import customer_service  # package import
+except ImportError:
+    from services import customer_service  # fallback for module import
 
 
 def _safe_fetch_profile(supabase, table, user_id, fields):

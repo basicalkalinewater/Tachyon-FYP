@@ -1,7 +1,11 @@
 from flask import Blueprint, request
 
-from services import live_cust_support_service as service
-from utils.auth_middleware import require_session
+try:
+    from ..services import live_cust_support_service as service  # package import (backend.<module>)
+    from ..utils.auth_middleware import require_session
+except ImportError:
+    from services import live_cust_support_service as service  # fallback for top-level import
+    from utils.auth_middleware import require_session
 from flask import current_app, g, jsonify
 
 # Blueprint for live customer support chat; mounted under /support

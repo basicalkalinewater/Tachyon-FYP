@@ -1,6 +1,9 @@
 from flask import Blueprint, current_app, jsonify, request
 
-from services.cart_service import map_cart_items
+try:
+    from ..services.cart_service import map_cart_items
+except ImportError:
+    from services.cart_service import map_cart_items
 
 # Blueprint for cart endpoints; registered under /api/carts
 carts_bp = Blueprint("carts", __name__)
