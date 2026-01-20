@@ -8,7 +8,7 @@ frontend/node_modules
 /.pnp
 .pnp.js
 /**/.rasa
-# rasa/models
+rasa/models
 rasa/.keras/
 rasa/.config/
 .config/
