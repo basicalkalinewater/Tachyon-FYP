@@ -12,9 +12,10 @@ import uuid
 import psycopg2
 from psycopg2.pool import SimpleConnectionPool
 import requests
-from flask import Response, jsonify, stream_with_context
+from flask import jsonify
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+
 
 # Load configuration from repo root
 env_path = Path(__file__).resolve().parents[2] / ".env"
@@ -287,7 +288,7 @@ def create_session_from_rasa(sender_id: str, last_message: str, customer_id: Opt
                     is_bot
                 )
                 VALUES (%s, 'customer', %s, %s, FALSE)
-                RETURNING id;
+                RETURNING id, session_id, sender_role, sender_id, message, is_bot, created_at;
                 """,
                 (session_id, customer_id, last_message),
             )
@@ -380,7 +381,7 @@ def send_customer_message(session_id: str, message: str, customer_id: Optional[s
                   is_bot
                 )
                 VALUES (%s, 'customer', 'customer', %s, %s, FALSE)
-                RETURNING id, created_at;
+                RETURNING id, session_id, sender_role, sender_id, message, is_bot, created_at;
                 """,
                 (session_id, customer_id, message),
             )
@@ -394,33 +395,20 @@ def send_customer_message(session_id: str, message: str, customer_id: Optional[s
         return error(str(exc), status=500)
 
 
-def stream_session(session_id: str):
-    """Return an SSE Response that streams new messages for a session."""
-
-    def event_stream():
-        last_id = 0
-        while True:
-            try:
-                with get_db() as conn:
-                    cur = conn.cursor(cursor_factory=RealDictCursor)
-                    cur.execute(
-                        """
-                        SELECT id, sender_role, sender_type, sender_id, message, is_bot, created_at
-                        FROM chat_messages
-                        WHERE session_id = %s AND id > %s
-                        ORDER BY id ASC;
-                        """,
-                        (session_id, last_id),
-                    )
-                    rows = cur.fetchall() or []
-                    if rows:
-                        last_id = rows[-1]["id"]
-                        yield f"data: {json.dumps(rows, default=str)}\n\n"
-            except Exception as exc:
-                print("WARN: stream error:", exc)
-            time.sleep(0.35)  # faster refresh, lower latency, still light on DB
-
-    return Response(stream_with_context(event_stream()), mimetype="text/event-stream")
+def fetch_messages_since(session_id: str, last_id: int):
+    """Fetch messages for a session with id > last_id, ordered ascending."""
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, sender_role, sender_type, sender_id, message, is_bot, created_at
+            FROM chat_messages
+            WHERE session_id = %s AND id > %s
+            ORDER BY id ASC;
+            """,
+            (session_id, last_id),
+        )
+        return cur.fetchall() or []
 
 
 def list_sessions(status: Optional[str]):

@@ -9,8 +9,10 @@ from flask_cors import CORS
 # Use package-relative import with fallback for local runs.
 try:
     from .limiter import init_limiter
+    from .ws import sock
 except ImportError:
     from limiter import init_limiter
+    from ws import sock
 
 # Support both execution styles:
 # - `flask --app server` from inside backend/ (imports as top-level module)
@@ -39,6 +41,8 @@ def create_app() -> Flask:
     load_dotenv(dotenv_path=env_path)
 
     app = Flask(__name__)
+    # WebSocket (flask-sock) config - keep idle connections alive.
+    app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
     # Avoid redirecting /path to /path/ which breaks CORS preflights
     app.url_map.strict_slashes = False
     # Allow the frontend origin (Render static site) and others during development.
@@ -68,6 +72,8 @@ def create_app() -> Flask:
     # Rate limiting
     limiter = init_limiter(app)
     app.config["LIMITER"] = limiter
+    # WebSocket routes
+    sock.init_app(app)
 
     supabase = get_supabase()
     app.config["SUPABASE"] = supabase

@@ -1,7 +1,7 @@
 """
 Centralized Flask-Limiter setup.
 
-- Uses Redis if REDIS_URL is set; otherwise falls back to in-memory storage for dev.
+- Uses in-memory storage.
 - Can be disabled with RATE_LIMIT_ENABLED=0.
 - Keying prefers a bearer/session token, falling back to remote IP.
 """
@@ -49,12 +49,11 @@ def init_limiter(app):
     if os.getenv("RATE_LIMIT_ENABLED", "1") == "0":
         return None
 
-    storage_uri = os.getenv("REDIS_URL")
-    # Memory storage is fine for local dev; warn via startup log.
+    # In-memory storage for rate limiting (no Redis).
     global limiter
     limiter = Limiter(
         key_func=_key_func(),
-        storage_uri=storage_uri or "memory://",
+        storage_uri="memory://",
         default_limits=[],
         application_limits=[],
         strategy="moving-window",

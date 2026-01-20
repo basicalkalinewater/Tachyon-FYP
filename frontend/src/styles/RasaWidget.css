@@ -160,6 +160,21 @@ body.cart-open .chat-widget {
   border-radius: 14px;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
   word-break: break-word;
+  text-align: left;
+}
+
+.chat-author {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #111;
+  text-align: left;
+  display: block;
+  line-height: 1.2;
+}
+
+.theme-dark .chat-author {
+  color: #fff;
 }
 
 .chat-message.bot .chat-message-bubble {
@@ -178,6 +193,17 @@ body.cart-open .chat-widget {
   display: flex;
   gap: 6px;
   align-items: center;
+}
+
+.chat-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  margin-left: 6px;
+}
+
+.theme-dark .chat-author {
+  color: #fff;
 }
 
 .chat-message.user .chat-meta {

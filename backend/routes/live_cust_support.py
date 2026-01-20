@@ -1,3 +1,5 @@
+import json
+import time
 from flask import Blueprint, request
 
 try:
@@ -6,16 +8,73 @@ try:
     from ..schemas.support import RasaHandoffPayload, CSATPayload
     from ..schemas.base import validate_body
     from ..limiter import maybe_limit
+    from ..services import session_service
+    from ..ws import sock
 except ImportError:
     from services import live_cust_support_service as service  # fallback for top-level import
     from utils.auth_middleware import require_session
     from schemas.support import RasaHandoffPayload, CSATPayload
     from schemas.base import validate_body
     from limiter import maybe_limit
+    from services import session_service
+    from ws import sock
 from flask import current_app, g, jsonify
+
+print("[ws] live_cust_support routes loaded")
 
 # Blueprint for live customer support chat; mounted under /support
 live_cust_support_bp = Blueprint("live_cust_support", __name__)
+
+@sock.route("/support/sessions/<session_id>/ws")
+def stream_session_ws(ws, session_id):
+    """WebSocket stream of new messages for a session."""
+    try:
+        print(f"[ws] connect attempt session={session_id}")
+        # Auth via session token (query param; browsers can't set WS headers).
+        token = (request.args.get("token") or request.args.get("sessionToken") or "").strip()
+        if not token:
+            print(f"[ws] missing token for session {session_id}")
+            ws.close(code=1008, reason="missing token")
+            return
+
+        supabase = current_app.config["SUPABASE"]
+        session_row, err = session_service.get_session(supabase, token)
+        if err or not session_row:
+            print(f"[ws] invalid session for {session_id}: {err}")
+            ws.close(code=1008, reason="invalid session")
+            return
+
+        user_id = session_row.get("user_id")
+        try:
+            res = supabase.table("app_user").select("role").eq("id", user_id).single().execute()
+            role = (res.data or {}).get("role")
+        except Exception as exc:
+            print(f"[ws] user lookup failed for {session_id}: {exc}")
+            role = None
+        if role not in ("support", "admin"):
+            print(f"[ws] forbidden role for {session_id}: {role}")
+            ws.close(code=1008, reason="forbidden role")
+            return
+        print(f"[ws] connected session={session_id} role={role}")
+    except Exception as exc:
+        print(f"[ws] exception during handshake for {session_id}: {exc}")
+        try:
+            ws.close(code=1011, reason="server error")
+        except Exception:
+            pass
+        return
+
+    last_id = 0
+    while True:
+        try:
+            rows = service.fetch_messages_since(session_id, last_id)
+            if rows:
+                last_id = rows[-1]["id"]
+                ws.send(json.dumps(rows, default=str))
+            time.sleep(0.35)
+        except Exception:
+            # Client disconnected or send failed.
+            break
 
 
 @live_cust_support_bp.post("/sessions/from_rasa")
@@ -48,13 +107,6 @@ def send_customer_message(session_id):
     if not message:
         return service.error("message is required")
     return service.send_customer_message(session_id, message, customer_id)
-
-
-@live_cust_support_bp.get("/sessions/<session_id>/stream")
-@require_session(allowed_roles=["support"])
-def stream_session(session_id):
-    # SSE stream of new messages for a session
-    return service.stream_session(session_id)
 
 
 @live_cust_support_bp.get("/queue/<sender_id>")

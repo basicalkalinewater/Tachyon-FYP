@@ -5,7 +5,7 @@ services:
     env: python
     rootDir: backend
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
-    startCommand: gunicorn "server:create_app()" --bind 0.0.0.0:$PORT --workers 3
+    startCommand: gunicorn "server:create_app()" --bind 0.0.0.0:$PORT --workers 1 --worker-class gthread --threads 50
     envVars:
       - key: PYTHON_VERSION
         value: 3.10.13

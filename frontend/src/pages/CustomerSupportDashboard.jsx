@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { logout, selectCurrentUser } from "../redux/authSlice";
 import { logoutRequest } from "../api/auth";
@@ -52,13 +52,17 @@ const CustomerSupportDashboard = () => {
   const [activeSection, setActiveSection] = useState("inbox");
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
+  const [selectedSessionId, setSelectedSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageText, setMessageText] = useState("");
   const [resolutionTag, setResolutionTag] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [summaryEmailInfo, setSummaryEmailInfo] = useState({ sent: false, sentAt: null });
-  const [eventSource, setEventSource] = useState(null);
+  const wsRef = useRef(null);
+  const connectRef = useRef(null);
+  const reconnectRef = useRef({ attempt: 0, timer: null, sessionId: null });
+  const selectedSessionIdRef = useRef(null);
   // CSAT
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [loadingCsat, setLoadingCsat] = useState(false);
@@ -71,6 +75,89 @@ const CustomerSupportDashboard = () => {
     in_progress: "In Progress",
     closed: "Resolved",
   };
+
+  const scheduleReconnect = useCallback(() => {
+    const state = reconnectRef.current;
+    if (!state.sessionId) return;
+    const attempt = Math.min(state.attempt + 1, 6);
+    state.attempt = attempt;
+    const base = Math.min(10000, 500 * Math.pow(2, attempt));
+    const jitter = Math.floor(Math.random() * 250);
+    const delay = base + jitter;
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = setTimeout(() => {
+      if (connectRef.current) {
+        connectRef.current(state.sessionId);
+      }
+    }, delay);
+  }, []);
+
+  const connectWebSocket = useCallback((sessionId) => {
+    const token = getSessionToken();
+    if (!token) return;
+    const wsBase = SUPPORT_BASE_URL.replace(/^http/, "ws");
+    const streamUrl = `${wsBase}/sessions/${sessionId}/ws?token=${encodeURIComponent(token)}`;
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    const ws = new WebSocket(streamUrl);
+    ws.onopen = () => {
+      reconnectRef.current.attempt = 0;
+      console.log("[ws] open", streamUrl);
+    };
+    ws.onmessage = (ev) => {
+      try {
+        const newMessages = JSON.parse(ev.data);
+        if (Array.isArray(newMessages) && newMessages.length > 0) {
+          setMessages((prev) => {
+            const lastId = prev.length ? prev[prev.length - 1].id : 0;
+            const mapped = newMessages
+              .filter((m) => !lastId || m.id > lastId)
+              .map((m) => ({
+                id: m.id,
+                sender_role: m.sender_role,
+                sender_id: m.sender_id,
+                message: m.message,
+                is_bot: m.is_bot,
+                created_at: m.created_at,
+              }));
+            if (!mapped.length) return prev;
+            return [...prev, ...mapped];
+          });
+        }
+      } catch {
+        // ignore parse errors
+      }
+    };
+    ws.onerror = () => {
+      console.log("[ws] error", streamUrl);
+      ws.close();
+    };
+    ws.onclose = () => {
+      console.log("[ws] close", streamUrl, ws.readyState);
+      if (reconnectRef.current.sessionId) {
+        scheduleReconnect();
+      }
+    };
+    wsRef.current = ws;
+  }, [scheduleReconnect]);
+  connectRef.current = connectWebSocket;
+
+  useEffect(() => {
+    return () => {
+      const state = reconnectRef.current;
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = null;
+      state.sessionId = null;
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -118,8 +205,11 @@ const CustomerSupportDashboard = () => {
       }
 
       setSessions(filtered);
-      if (selectedSession && !filtered.find((s) => s.id === selectedSession.id)) {
+      const activeId = selectedSessionIdRef.current;
+      if (activeId && !filtered.find((s) => s.id === activeId)) {
         setSelectedSession(null);
+        setSelectedSessionId(null);
+        selectedSessionIdRef.current = null;
         setMessages([]);
       }
 
@@ -133,13 +223,15 @@ const CustomerSupportDashboard = () => {
     } finally {
       setLoadingSessions(false);
     }
-  }, [activeSection, agentId, selectedSession]);
+  }, [activeSection, agentId]);
 
   const loadSessionDetail = async (sessionId, silent = false) => {
     if (!silent) setLoadingDetail(true);
     try {
       const data = await fetchSessionDetail(sessionId);
       setSelectedSession(data.session);
+      setSelectedSessionId(data.session?.id || sessionId);
+      selectedSessionIdRef.current = data.session?.id || sessionId;
       setMessages(data.messages || []);
       setResolutionTag(data.session?.resolution_tag || "");
       setSummaryEmailInfo({
@@ -158,7 +250,14 @@ const CustomerSupportDashboard = () => {
     try {
       const data = await fetchSessionDetail(sessionId);
       setSelectedSession(data.session);
-      setMessages(data.messages || []);
+      const incoming = data.messages || [];
+      if (incoming.length === 0) return;
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id).filter(Boolean));
+        const append = incoming.filter((m) => m.id && !existingIds.has(m.id));
+        if (!append.length) return prev;
+        return [...prev, ...append];
+      });
     } catch (_) {
       // ignore polling errors to keep loop alive
     }
@@ -166,18 +265,25 @@ const CustomerSupportDashboard = () => {
 
   useEffect(() => {
     loadSessions();
-  }, [loadSessions]);
-
-  // Refetch when tab changes so counters reflect the active filter
-  useEffect(() => {
-    loadSessions();
   }, [activeSection, loadSessions]);
 
-  // Fallback poll so agent feed stays fresh even if EventSource drops
+  // Periodic refresh for session list (keeps counts fresh without thrashing UI)
+  useEffect(() => {
+    const interval = setInterval(() => loadSessions(), 20000);
+    return () => clearInterval(interval);
+  }, [loadSessions]);
+
+  // Fallback poll so agent feed stays fresh even if WebSocket drops
   useEffect(() => {
     if (!selectedSession?.id) return undefined;
     const sessionId = selectedSession.id;
-    const interval = setInterval(() => pollSessionMessages(sessionId), 5000);
+    // Only enable fallback polling if WS is not connected.
+    const interval = setInterval(() => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        pollSessionMessages(sessionId);
+      }
+    }, 8000);
     return () => clearInterval(interval);
   }, [selectedSession?.id, pollSessionMessages]);
 
@@ -250,46 +356,20 @@ const CustomerSupportDashboard = () => {
         toast.error("Please log in to access session details.");
         return;
       }
+    setSelectedSessionId(sessionId);
+    selectedSessionIdRef.current = sessionId;
     // close prior stream
-    if (eventSource) {
-      eventSource.close();
-      setEventSource(null);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+    if (reconnectRef.current.timer) {
+      clearTimeout(reconnectRef.current.timer);
+      reconnectRef.current.timer = null;
     }
     loadSessionDetail(sessionId).then(() => {
-      const token = getSessionToken();
-      const streamUrl = token
-        ? `${SUPPORT_BASE_URL}/sessions/${sessionId}/stream?token=${encodeURIComponent(token)}`
-        : `${SUPPORT_BASE_URL}/sessions/${sessionId}/stream`;
-      const es = new EventSource(streamUrl);
-      es.onmessage = (ev) => {
-        try {
-          const newMessages = JSON.parse(ev.data);
-          if (Array.isArray(newMessages) && newMessages.length > 0) {
-            setMessages((prev) => {
-              const lastId = prev.length ? prev[prev.length - 1].id : 0;
-              const mapped = newMessages
-                .filter((m) => !lastId || m.id > lastId)
-                .map((m) => ({
-                  id: m.id,
-                  sender_role: m.sender_role,
-                  sender_id: m.sender_id,
-                  message: m.message,
-                  is_bot: m.is_bot,
-                  created_at: m.created_at,
-                }));
-              if (!mapped.length) return prev;
-              return [...prev, ...mapped];
-            });
-          }
-        } catch {
-          // ignore parse errors
-        }
-      };
-      es.onerror = () => {
-        es.close();
-        setEventSource(null);
-      };
-      setEventSource(es);
+      reconnectRef.current.sessionId = sessionId;
+      connectWebSocket(sessionId);
     });
   };
 

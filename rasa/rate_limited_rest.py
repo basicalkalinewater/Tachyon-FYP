@@ -10,9 +10,7 @@ from typing import Any, Dict, List, Optional, Text
 from sanic import Blueprint, response
 from sanic.request import Request
 from rasa.core.channels.rest import RestInput
-from rasa.shared.core.constants import INTENT_MESSAGE_PREFIX
-from rasa.shared.exceptions import InvalidConfigException
-from rasa.shared.utils.io import raise_warning
+from rasa.core.channels.channel import InputChannel
 
 
 class RateLimitedRestInput(RestInput):
@@ -29,7 +27,18 @@ class RateLimitedRestInput(RestInput):
 
     @classmethod
     def name(cls) -> Text:
-        return "ratelimited_rest"
+        # Keep the standard REST webhook path: /webhooks/rest/webhook
+        return "rest"
+
+    @classmethod
+    def from_credentials(cls, credentials: Optional[Dict[Text, Any]]) -> InputChannel:
+        if not credentials:
+            return cls()
+        return cls(
+            per_sender=int(credentials.get("per_sender", 60)),
+            window_seconds=int(credentials.get("window_seconds", 60)),
+            max_body=int(credentials.get("max_body", 4096)),
+        )
 
     # simple sliding window
     def _allow(self, key: str) -> bool:
@@ -85,4 +94,3 @@ class RateLimitedRestInput(RestInput):
             return response.json(collector.messages)
 
         return bp
-
