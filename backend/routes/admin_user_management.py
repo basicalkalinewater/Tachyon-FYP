@@ -3,9 +3,15 @@ from flask import Blueprint, current_app, jsonify, request, g
 try:
     from ..utils.auth_middleware import require_session
     from ..services import admin_user_management
+    from ..schemas.admin import CreateUserPayload
+    from ..schemas.base import validate_body
+    from ..limiter import maybe_limit
 except ImportError:
     from utils.auth_middleware import require_session
     from services import admin_user_management
+    from schemas.admin import CreateUserPayload
+    from schemas.base import validate_body
+    from limiter import maybe_limit
 
 
 admin_users_bp = Blueprint("admin_users", __name__)
@@ -17,6 +23,7 @@ def _ok(data=None):
 
 @admin_users_bp.get("/users")
 @require_session(allowed_roles=["admin"])
+@maybe_limit("120 per minute")
 def list_users():
     supabase = current_app.config["SUPABASE"]
     q = request.args
@@ -33,14 +40,17 @@ def list_users():
 
 @admin_users_bp.post("/users")
 @require_session(allowed_roles=["admin"])
+@maybe_limit("60 per minute")
 def create_user():
     supabase = current_app.config["SUPABASE"]
-    body = request.get_json(force=True, silent=True) or {}
-    email = (body.get("email") or "").strip().lower()
-    role = (body.get("role") or "").strip()
-    password = body.get("password") or ""
-    full_name = (body.get("full_name") or "").strip()
-    phone = (body.get("phone") or "").strip()
+    body, error = validate_body(CreateUserPayload)
+    if error:
+        return error
+    email = body.email.lower()
+    role = body.role
+    password = body.password
+    full_name = (body.full_name or "").strip() if hasattr(body, "full_name") else ""
+    phone = (body.phone or "").strip() if hasattr(body, "phone") else ""
     data = admin_user_management.create_user(supabase, email, role, password, full_name, phone)
     return _ok(data)
 

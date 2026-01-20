@@ -1,0 +1,88 @@
+"""
+Custom REST channel with simple in-memory rate limiting and payload validation.
+
+Limitations: per-process counters (good enough for local/dev). For clustered prod,
+swap the storage to Redis.
+"""
+import time
+from typing import Any, Dict, List, Optional, Text
+
+from sanic import Blueprint, response
+from sanic.request import Request
+from rasa.core.channels.rest import RestInput
+from rasa.shared.core.constants import INTENT_MESSAGE_PREFIX
+from rasa.shared.exceptions import InvalidConfigException
+from rasa.shared.utils.io import raise_warning
+
+
+class RateLimitedRestInput(RestInput):
+    def __init__(
+        self,
+        per_sender: int = 60,
+        window_seconds: int = 60,
+        max_body: int = 4096,
+    ):
+        self.per_sender = per_sender
+        self.window_seconds = window_seconds
+        self.max_body = max_body
+        self._buckets: Dict[str, List[float]] = {}
+
+    @classmethod
+    def name(cls) -> Text:
+        return "ratelimited_rest"
+
+    # simple sliding window
+    def _allow(self, key: str) -> bool:
+        now = time.monotonic()
+        bucket = self._buckets.setdefault(key, [])
+        while bucket and bucket[0] <= now - self.window_seconds:
+            bucket.pop(0)
+        if len(bucket) >= self.per_sender:
+            return False
+        bucket.append(now)
+        return True
+
+    def blueprint(self, on_new_message):
+        from rasa.core.channels.channel import (
+            UserMessage,
+            CollectingOutputChannel,
+            InputChannel,
+        )
+
+        bp = Blueprint("ratelimited_rest", __name__)
+
+        @bp.post("/webhooks/rest/webhook")
+        async def receive(request: Request):
+            if len(request.body or b"") > self.max_body:
+                return response.json({"error": "Payload too large"}, status=413)
+
+            payload = request.json or {}
+            sender_id = payload.get("sender") or payload.get("sender_id") or "anonymous"
+            text = payload.get("message") or payload.get("text")
+
+            key = f"{sender_id}"
+            if not self._allow(key):
+                return response.json({"error": "Too many requests"}, status=429)
+
+            if not text or not isinstance(text, str):
+                return response.json({"error": "Message text is required"}, status=400)
+            if len(text) > 1000:
+                return response.json({"error": "Message too long"}, status=413)
+
+            metadata = payload.get("metadata") or {}
+
+            # Replicate default REST channel behaviour
+            collector = CollectingOutputChannel()
+            await on_new_message(
+                UserMessage(
+                    text,
+                    collector,
+                    sender_id,
+                    input_channel=self.name(),
+                    metadata=metadata,
+                )
+            )
+            return response.json(collector.messages)
+
+        return bp
+

@@ -5,11 +5,17 @@ try:
     from ..services import live_cust_support_service
     from ..services import session_service
     from ..utils.auth_middleware import require_session
+    from ..schemas.auth import LoginPayload, RegisterPayload
+    from ..schemas.base import validate_body
+    from ..limiter import maybe_limit
 except ImportError:
     from services import customer_service
     from services import live_cust_support_service
     from services import session_service
     from utils.auth_middleware import require_session
+    from schemas.auth import LoginPayload, RegisterPayload
+    from schemas.base import validate_body
+    from limiter import maybe_limit
 
 
 def fetch_agent_profile(supabase, user_id: str):
@@ -45,16 +51,16 @@ auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.post("/login")
+@maybe_limit("5 per minute", "20 per hour")
 def login():
     # Basic email/password login; returns user info and redirect target
     supabase = current_app.config["SUPABASE"]
     try:
-        payload = request.get_json(force=True)
-        email = (payload.get("email") or "").strip().lower()
-        password = payload.get("password")
-
-        if not email or not password:
-            return jsonify({"error": "email and password are required"}), 400
+        payload, error = validate_body(LoginPayload)
+        if error:
+            return error
+        email = payload.email.lower()
+        password = payload.password
 
         user_row = customer_service.fetch_user_with_password(supabase, email)
         if not user_row or not customer_service.password_matches(password, user_row.get("password_hash")):
@@ -107,16 +113,17 @@ def login():
 
 
 @auth_bp.post("/register")
+@maybe_limit("5 per minute", "20 per hour")
 def register():
     # Register a new customer and return session payload
     supabase = current_app.config["SUPABASE"]
     try:
-        payload = request.get_json(force=True)
-        email = (payload.get("email") or "").strip().lower()
-        password = payload.get("password") or ""
-        full_name = (payload.get("fullName") or "").strip()
-        if not email or not password:
-            return jsonify({"error": "email and password are required"}), 400
+        payload, error = validate_body(RegisterPayload)
+        if error:
+            return error
+        email = payload.email.lower()
+        password = payload.password
+        full_name = (payload.fullName or "").strip()
 
         existing = customer_service.fetch_user_by_email(supabase, email)
         if existing:
@@ -174,6 +181,7 @@ def get_admin_profile():
 
 @auth_bp.put("/profile/admin")
 @require_session(allowed_roles=["admin"])
+@maybe_limit("30 per minute")
 def update_admin_profile():
     supabase = current_app.config["SUPABASE"]
     user_id = g.current_user["id"]
@@ -190,6 +198,7 @@ def update_admin_profile():
 
 
 @auth_bp.post("/profile/update")
+@maybe_limit("30 per minute")
 def update_profile():
     """Allow an agent to update email/password and display name."""
     supabase = current_app.config["SUPABASE"]
@@ -242,6 +251,7 @@ def _extract_bearer_token(req) -> str:
 
 
 @auth_bp.post("/logout")
+@maybe_limit("30 per minute")
 def logout_route():
     """Revoke a server-side session token."""
     supabase = current_app.config["SUPABASE"]

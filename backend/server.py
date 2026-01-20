@@ -6,6 +6,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
+# Use package-relative import with fallback for local runs.
+try:
+    from .limiter import init_limiter
+except ImportError:
+    from limiter import init_limiter
 
 # Support both execution styles:
 # - `flask --app server` from inside backend/ (imports as top-level module)
@@ -59,6 +64,10 @@ def create_app() -> Flask:
         """Explicit OPTIONS responder to help diagnose CORS."""
         resp = make_response("", 204)
         return resp
+
+    # Rate limiting
+    limiter = init_limiter(app)
+    app.config["LIMITER"] = limiter
 
     supabase = get_supabase()
     app.config["SUPABASE"] = supabase

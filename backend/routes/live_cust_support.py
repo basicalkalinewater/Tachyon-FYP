@@ -3,9 +3,15 @@ from flask import Blueprint, request
 try:
     from ..services import live_cust_support_service as service  # package import (backend.<module>)
     from ..utils.auth_middleware import require_session
+    from ..schemas.support import RasaHandoffPayload, CSATPayload
+    from ..schemas.base import validate_body
+    from ..limiter import maybe_limit
 except ImportError:
     from services import live_cust_support_service as service  # fallback for top-level import
     from utils.auth_middleware import require_session
+    from schemas.support import RasaHandoffPayload, CSATPayload
+    from schemas.base import validate_body
+    from limiter import maybe_limit
 from flask import current_app, g, jsonify
 
 # Blueprint for live customer support chat; mounted under /support
@@ -13,29 +19,27 @@ live_cust_support_bp = Blueprint("live_cust_support", __name__)
 
 
 @live_cust_support_bp.post("/sessions/from_rasa")
+@maybe_limit("30 per minute")
 def create_session_from_rasa():
     # Create a new session when Rasa hands off to a human
-    data = request.get_json(force=True, silent=True) or {}
-    sender_id = data.get("sender_id")
-    last_message = data.get("last_message")
-    customer_id = data.get("customer_id")
-    if not sender_id or not last_message:
-        return service.error("sender_id and last_message are required")
-    return service.create_session_from_rasa(sender_id, last_message, customer_id)
+    data, error = validate_body(RasaHandoffPayload)
+    if error:
+        return error
+    return service.create_session_from_rasa(data.sender_id, data.last_message, data.customer_id)
 
 
 @live_cust_support_bp.post("/sessions/from_rasa/message")
+@maybe_limit("60 per minute")
 def append_message_from_rasa():
     # Append a customer message to the latest open session for a sender
-    data = request.get_json(force=True, silent=True) or {}
-    sender_id = data.get("sender_id")
-    last_message = data.get("last_message")
-    if not sender_id or not last_message:
-        return service.error("sender_id and last_message are required")
-    return service.append_message_from_rasa(sender_id, last_message)
+    data, error = validate_body(RasaHandoffPayload)
+    if error:
+        return error
+    return service.append_message_from_rasa(data.sender_id, data.last_message)
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/customer/messages")
+@maybe_limit("60 per minute")
 def send_customer_message(session_id):
     # Direct customer message to a session (bypasses Rasa)
     data = request.get_json(force=True, silent=True) or {}
@@ -54,6 +58,7 @@ def stream_session(session_id):
 
 
 @live_cust_support_bp.get("/queue/<sender_id>")
+@maybe_limit("120 per minute")
 def get_queue_status(sender_id):
     # Return queue position/status for a Rasa sender_id
     return service.queue_status(sender_id)
@@ -97,6 +102,7 @@ def claim_session(session_id):
 
 @live_cust_support_bp.post("/sessions/<session_id>/messages")
 @require_session(allowed_roles=["support"])
+@maybe_limit("120 per minute")
 def send_agent_message(session_id):
     # Send a live agent message and mirror it to Rasa
     data = request.get_json(force=True, silent=True) or {}
@@ -133,25 +139,27 @@ def flag_question(session_id):
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/csat")
+@maybe_limit("20 per minute")
 def submit_csat(session_id):
     """Public CSAT submission endpoint (can be called by Rasa or email link)."""
-    data = request.get_json(force=True, silent=True) or {}
-    rating = data.get("rating")
-    feedback = data.get("feedback")
+    data, error = validate_body(CSATPayload)
+    if error:
+        return error
     token = request.args.get("token")  # reserved for future signed links
-    return service.submit_csat(session_id, rating, feedback, token)
+    return service.submit_csat(session_id, data.rating, data.feedback, token)
 
 
 @live_cust_support_bp.post("/sessions/from_rasa/csat")
+@maybe_limit("30 per minute")
 def submit_csat_from_rasa():
     """Rasa webhook: expects sender_id and rating (1-5), optional feedback."""
-    data = request.get_json(force=True, silent=True) or {}
-    sender_id = data.get("sender_id")
-    rating = data.get("rating")
-    feedback = data.get("feedback")
-    if not sender_id or rating is None:
-        return service.error("sender_id and rating are required")
-    return service.submit_csat_from_rasa(sender_id, rating, feedback)
+    data, error = validate_body(CSATPayload)
+    if error:
+        return error
+    sender_id = data.sender_id or ""
+    if not sender_id:
+        return service.error("sender_id is required")
+    return service.submit_csat_from_rasa(sender_id, data.rating, data.feedback)
 
 
 @live_cust_support_bp.post("/guest/escalate")
@@ -169,6 +177,7 @@ def guest_escalate():
 
 @live_cust_support_bp.get("/csat/summary")
 @require_session(allowed_roles=["admin", "support"])
+@maybe_limit("120 per minute")
 def csat_summary():
     window_days = int(request.args.get("window_days", 30))
     agent_id = request.args.get("agent_id")
@@ -177,6 +186,7 @@ def csat_summary():
 
 @live_cust_support_bp.get("/csat/responses")
 @require_session(allowed_roles=["admin", "support"])
+@maybe_limit("120 per minute")
 def csat_responses():
     limit = int(request.args.get("limit", 50))
     return service.list_csat_responses(limit)

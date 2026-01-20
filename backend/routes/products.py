@@ -1,14 +1,17 @@
 from flask import Blueprint, current_app, jsonify, request
 try:
     from ..utils.mappers import map_product
+    from ..limiter import maybe_limit
 except ImportError:
     from utils.mappers import map_product
+    from limiter import maybe_limit
 
 # Blueprint for product endpoints; registered under /api/products
 products_bp = Blueprint("products", __name__)
 
 
 @products_bp.get("/")
+@maybe_limit("300 per minute")
 def get_products():
     # List all products sorted by newest first
     supabase = current_app.config["SUPABASE"]
@@ -26,6 +29,7 @@ def get_products():
 
 
 @products_bp.get("/<product_id>")
+@maybe_limit("300 per minute")
 def get_product(product_id):
     # Fetch a single product by id; 404 if it does not exist
     supabase = current_app.config["SUPABASE"]
