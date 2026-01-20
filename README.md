@@ -59,7 +59,7 @@ Notes:
 - WebSocket live chat uses DB polling for updates.
 - `email-validator` is required for email input validation (included via `pip install -r requirements.txt`).
 
-### Local WebSocket Testing (Windows)
+### Local WebSocket Testing (Windows) IGNORE THIS if you don't understand
 Flask's dev server does not reliably handle WebSocket upgrades on Windows. Use Docker to run the backend with Gunicorn (do not use WSL):
 
 ```powershell
