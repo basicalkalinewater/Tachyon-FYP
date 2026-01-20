@@ -67,6 +67,7 @@ services:
     env: docker
     rootDir: rasa
     plan: starter
+    numInstances: 1
     dockerfilePath: Dockerfile
     envVars:
       - key: PORT
