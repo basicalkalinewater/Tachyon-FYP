@@ -28,3 +28,5 @@ export const disableAdminUser = (userId) =>
     method: "DELETE",
   });
 
+export const fetchAdminInsights = () =>
+  request(`/admin/insights`);

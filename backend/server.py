@@ -33,6 +33,7 @@ except ImportError:  # fallback for top-level module import
     from routes.auth import auth_bp
     from routes.customer import customer_bp, dashboard_bp
     from routes.admin_user_management import admin_users_bp
+from routes.admin_analytics import admin_analytics_bp
 
 
 def create_app() -> Flask:
@@ -86,6 +87,7 @@ def create_app() -> Flask:
     app.register_blueprint(customer_bp, url_prefix="/api/customer")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
     app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_analytics_bp, url_prefix="/api/admin")
 
     @app.get("/health")
     def health():

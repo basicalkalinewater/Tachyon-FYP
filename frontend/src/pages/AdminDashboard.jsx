@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
-import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser } from "../api/admin";
+import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser, fetchAdminInsights } from "../api/admin";
 import { toast } from "react-hot-toast";
 import "../styles/admin-dashboard.css";
 
@@ -10,6 +10,7 @@ const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
   { id: "products", label: "Products", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
+  { id: "management", label: "Management", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
 
@@ -25,10 +26,12 @@ const GROUPED_ADMIN_SECTIONS = ADMIN_SECTIONS.reduce((groups, section) => {
 
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
+  const [insights, setInsights] = useState({ bestMonth: null, worstMonth: null, totalSalesToday: 0, ordersToday: 0 });
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard");
+  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management
+  const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -47,16 +50,31 @@ const AdminDashboard = () => {
   const currentUser = useSelector((state) => state.auth.user);
   const displayName = currentUser?.fullName || currentUser?.email || "Admin";
   const displayEmail = currentUser?.email || "";
+  const currencyFormatter = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const summaryData = await fetchCsatSummary(120);
-      const responses = await fetchCsatResponses(20);
+      const [summaryData, responses, insightsRes] = await Promise.all([
+        fetchCsatSummary(120),
+        fetchCsatResponses(20),
+        fetchAdminInsights(),
+      ]);
       setCsat({
         summary: summaryData.summary || {},
         trend: summaryData.trend || [],
         verbatim: responses || [],
+      });
+      const insightsData = insightsRes?.data || insightsRes || {};
+      setInsights({
+        bestMonth: insightsData.best_selling_product_month || null,
+        worstMonth: insightsData.worst_selling_product_month || null,
+        totalSalesToday: insightsData.total_sales_today || 0,
+        ordersToday: insightsData.orders_today || 0,
       });
     } catch (err) {
       toast.error(err.message || "Failed to load admin metrics");
@@ -271,63 +289,33 @@ const AdminDashboard = () => {
       </section>
 
       <section className="admin-grid">
-        <div className="admin-card trend">
+        <div className="admin-card">
           <div className="card-header">
             <div>
-              <p className="eyebrow">Signal</p>
-              <h4>CSAT trajectory</h4>
-            </div>
-            <span className="muted small">{trend.length ? `${trend.length} days` : "No data"}</span>
-          </div>
-          {trend.length ? (
-            <div className="trend-bars">
-              {trend.slice(-20).map((point, idx) => {
-                const value = Math.max(0, Math.min(100, Number(point.csat_pct ?? 0)));
-                return (
-                  <div className="trend-bar" key={`${point.day || idx}-${idx}`}>
-                    <div
-                      className="trend-bar-fill"
-                      style={{ height: `${Math.max(10, value * 0.9)}%` }}
-                      title={`${value}% CSAT`}
-                    />
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="muted small mb-0">Trend data will appear after customer ratings arrive.</p>
-          )}
-        </div>
-
-        <div className="admin-card insights">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">At a glance</p>
-              <h4>Quality insights</h4>
+              <p className="eyebrow">Business insights</p>
+              <h4>Sales performance</h4>
             </div>
           </div>
           <ul className="insight-list">
             <li>
-              <p className="muted tiny mb-1">Current health</p>
+              <p className="muted tiny mb-1">Best-selling product (month)</p>
               <div className="insight-value">
-                <span className="badge soft">{Math.round(summary.csat_pct ?? 0)}% CSAT</span>
-                <span className="muted tiny">steady vs avg {averageTrend}%</span>
+                <strong>{insights.bestMonth?.name || "N/A"}</strong>
+                <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
               </div>
             </li>
             <li>
-              <p className="muted tiny mb-1">Volume</p>
+              <p className="muted tiny mb-1">Worst-selling product (month)</p>
               <div className="insight-value">
-                <strong>{summary.responses ?? 0}</strong>
-                <span className="muted tiny">responses captured</span>
+                <strong>{insights.worstMonth?.name || "N/A"}</strong>
+                <span className="muted tiny">{insights.worstMonth ? `${insights.worstMonth.quantity} sold` : "No sales yet"}</span>
               </div>
             </li>
             <li>
-              <p className="muted tiny mb-1">Best day</p>
+              <p className="muted tiny mb-1">Total sales today</p>
               <div className="insight-value">
-                {bestTrendPoint?.day ? new Date(bestTrendPoint.day).toLocaleDateString() : "TBC"}
-                <span className="muted tiny">
-                  {bestTrendPoint?.csat_pct ? `${Math.round(bestTrendPoint.csat_pct)}%` : "Awaiting data"}
-                </span>
+                <strong>{currencyFormatter.format(insights.totalSalesToday || 0)}</strong>
+                <span className="muted tiny">{insights.ordersToday} orders today</span>
               </div>
             </li>
           </ul>
@@ -422,6 +410,37 @@ const AdminDashboard = () => {
             </button>
           </div>
         </form>
+      </div>
+    </section>
+  );
+
+  const renderManagement = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Management</p>
+            <h4>Tools & settings</h4>
+          </div>
+        </div>
+        <div className="d-flex gap-2 mb-3">
+          <button
+            type="button"
+            className={`btn ${managementTab === "faqs" ? "btn-primary-saas" : "btn-outline-saas"}`}
+            onClick={() => setManagementTab("faqs")}
+          >
+            FAQs
+          </button>
+          <button
+            type="button"
+            className={`btn ${managementTab === "policies" ? "btn-primary-saas" : "btn-outline-saas"}`}
+            onClick={() => setManagementTab("policies")}
+          >
+            Policies
+          </button>
+        </div>
+        {managementTab === "faqs" && <p className="muted mb-0">FAQ management panel placeholder.</p>}
+        {managementTab === "policies" && <p className="muted mb-0">Policy management panel placeholder.</p>}
       </div>
     </section>
   );
@@ -782,6 +801,7 @@ const AdminDashboard = () => {
             {viewMode === "dashboard" && renderDashboard()}
             {viewMode === "profile" && renderProfile()}
             {viewMode === "users" && renderUsers()}
+            {viewMode === "management" && renderManagement()}
           </main>
         </div>
       </div>
