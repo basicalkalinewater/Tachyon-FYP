@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useSelector } from "react-redux";
-import { Link } from "react-router-dom";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
 import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser } from "../api/admin";
@@ -9,6 +8,7 @@ import "../styles/admin-dashboard.css";
 
 const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
+  { id: "products", label: "Products", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
@@ -28,7 +28,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users
+  const [viewMode, setViewMode] = useState("dashboard");
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -65,12 +65,7 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-    loadProfile();
-  }, [load]);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const res = await fetchAdminProfile();
       setProfile({
@@ -80,7 +75,12 @@ const AdminDashboard = () => {
     } catch (err) {
       toast.error(err.message || "Failed to load profile");
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    load();
+    loadProfile();
+  }, [load, loadProfile]);
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -238,87 +238,37 @@ const AdminDashboard = () => {
     return Math.round(total / trend.length);
   }, [trend]);
 
-  return (
-    <div className="admin-dashboard-page">
-      <div className="admin-shell">
-        <section className="admin-hero">
-          <div>
-            <p className="eyebrow">Tachyon Command Center</p>
-            <h1>
-              Welcome{currentUser?.fullName ? `, ${currentUser.fullName}` : ""}{" "}
-              <span className="hero-chip">Last 30 days</span>
-            </h1>
-            <p className="muted">
-              Monitor CSAT, spot risky trends, and review verbatim feedback across every channel.
-            </p>
-            <div className="hero-actions">
-              <button className="pill-btn" onClick={load} disabled={loading} hidden={viewMode !== "dashboard"}>
-                {loading ? "Refreshing..." : "Refresh data"}
-              </button>
-              <div className="btn-group">
-                {viewMode !== "dashboard" && (
-                  <button
-                    className="pill-btn ghost"
-                    type="button"
-                    onClick={() => setViewMode("dashboard")}
-                  >
-                    ← Back
-                  </button>
-                )}
-                <button
-                  className={`pill-btn ghost ${viewMode === "users" ? "active" : ""}`}
-                  type="button"
-                  onClick={() => setViewMode("users")}
-                >
-                  Users
-                </button>
-                <button
-                  className={`pill-btn ghost ${viewMode === "profile" ? "active" : ""}`}
-                  type="button"
-                  onClick={() => setViewMode("profile")}
-                >
-                  Edit profile
-                </button>
-              </div>
-            </div>
+  // Helper Render functions
+  const renderDashboard = () => (
+    <>
+      <section className="admin-metric-grid">
+        <div className="admin-card metric">
+          <p className="muted">CSAT %</p>
+          <div className="metric-value">{Math.round(summary.csat_pct ?? 0)}%</div>
+          <span className="muted small">Overall satisfaction</span>
+        </div>
+        <div className="admin-card metric">
+          <p className="muted">Avg Rating</p>
+          <div className="metric-value">{Number(summary.avg_rating ?? 0).toFixed(2)}</div>
+          <span className="muted small">5-point scale</span>
+        </div>
+        <div className="admin-card metric">
+          <p className="muted">Responses</p>
+          <div className="metric-value">{summary.responses ?? 0}</div>
+          <span className="muted small">Collected in the window</span>
+        </div>
+        <div className="admin-card metric">
+          <p className="muted">Peak day</p>
+          <div className="metric-value">
+            {bestTrendPoint?.csat_pct ? `${Math.round(bestTrendPoint.csat_pct)}%` : "—"}
           </div>
-          <div className="hero-meta">
-            <span className="muted tiny">Average trend</span>
-            <div className="hero-score">{averageTrend || 0}%</div>
-            <p className="muted tiny mb-0">CSAT across recorded days</p>
-          </div>
-        </section>
-
-        {viewMode === "dashboard" && (
-          <>
-            <section className="admin-metric-grid">
-              <div className="admin-card metric">
-                <p className="muted">CSAT %</p>
-                <div className="metric-value">{Math.round(summary.csat_pct ?? 0)}%</div>
-                <span className="muted small">Overall satisfaction</span>
-              </div>
-              <div className="admin-card metric">
-                <p className="muted">Avg Rating</p>
-                <div className="metric-value">{Number(summary.avg_rating ?? 0).toFixed(2)}</div>
-                <span className="muted small">5-point scale</span>
-              </div>
-              <div className="admin-card metric">
-                <p className="muted">Responses</p>
-                <div className="metric-value">{summary.responses ?? 0}</div>
-                <span className="muted small">Collected in the window</span>
-              </div>
-              <div className="admin-card metric">
-                <p className="muted">Peak day</p>
-                <div className="metric-value">
-                  {bestTrendPoint?.csat_pct ? `${Math.round(bestTrendPoint.csat_pct)}%` : "—"}
-                </div>
-                <span className="muted small">
-                  {bestTrendPoint?.day
-                    ? new Date(bestTrendPoint.day).toLocaleDateString()
-                    : "Best recorded CSAT"}
-                </span>
-              </div>
-            </section>
+          <span className="muted small">
+            {bestTrendPoint?.day
+              ? new Date(bestTrendPoint.day).toLocaleDateString()
+              : "Best recorded CSAT"}
+          </span>
+        </div>
+      </section>
 
       <section className="admin-grid">
         <div className="admin-card trend">
@@ -746,28 +696,6 @@ const AdminDashboard = () => {
                 placeholder="Leave blank to keep current"
               />
             </div>
-            {editUserForm.role === "customer" && (
-              <div className="mb-3">
-                <label className="form-label">Shipping addresses</label>
-                {editUserForm.shippingAddresses && editUserForm.shippingAddresses.length > 0 ? (
-                  <ul className="list-unstyled mb-0">
-                    {editUserForm.shippingAddresses.map((addr) => (
-                      <li key={addr.id || addr.label} className="mb-2">
-                        <strong>{addr.label || "Address"}</strong>{" "}
-                        {addr.is_default ? <span className="badge">Default</span> : null}
-                        <div className="muted small">
-                          {addr.recipient} · {addr.line1}
-                          {addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.country} {addr.postalCode || addr.postal_code || ""}
-                        </div>
-                        {addr.phone && <div className="muted small">Phone: {addr.phone}</div>}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="muted small mb-0">No shipping addresses on file.</p>
-                )}
-              </div>
-            )}
             <div className="d-flex gap-3 mt-3">
               <button type="submit" className="btn btn-primary-saas" disabled={editUserSaving}>
                 {editUserSaving ? "Saving..." : "Save changes"}
@@ -787,6 +715,7 @@ const AdminDashboard = () => {
     </section>
   );
 
+  // MAIN RETURN
   return (
     <div className="admin-dashboard-page">
       <div className="admin-shell">
@@ -828,7 +757,7 @@ const AdminDashboard = () => {
                   <span className="hero-chip">Last 30 days</span>
                 </h1>
                 <p className="muted">
-                  Monitor CSAT, spot risky trends, and review verbatim feedback across every channel.
+                  Monitor CSAT, spot risky trends, and review verbatim feedback.
                 </p>
                 <div className="hero-actions">
                   {viewMode === "dashboard" && (
