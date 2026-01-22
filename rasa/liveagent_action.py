@@ -20,9 +20,10 @@ class ActionHandoffToLiveAgent(Action):
     ) -> List[Dict[Text, Any]]:
         sender_id = tracker.sender_id
         last_user_message = tracker.latest_message.get("text", "")
+        backend_base = os.getenv("BACKEND_BASE_URL", "http://localhost:4000").rstrip("/")
         backend_url = os.getenv(
             "LIVE_AGENT_HANDOFF_URL",
-            "http://localhost:4000/support/sessions/from_rasa",
+            f"{backend_base}/support/sessions/from_rasa",
         )
 
         payload = {

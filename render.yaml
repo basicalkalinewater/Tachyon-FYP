@@ -1,0 +1,74 @@
+services:
+  - type: web
+    name: FYP-25-S4-25-backend
+    plan: free
+    env: python
+    rootDir: backend
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn "server:create_app()" --bind 0.0.0.0:$PORT --workers 1 --worker-class gthread --threads 50
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
+      - key: PYTHONPATH
+        value: /opt/render/project/src/backend
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: LIVE_CUST_SUPPORT_FALLBACK_CUSTOMER_ID
+        sync: false
+      - key: LIVE_CUST_SUPPORT_FALLBACK_AGENT_ID
+        sync: false
+      - key: LIVE_AGENT_AVG_HANDLE_SECONDS
+        value: "120"
+      - key: SESSION_TTL_HOURS
+        value: "168"
+      - key: RASA_RELAY_URL
+        value: https://fyp-25-s4-25-rasa-1hbj.onrender.com/webhooks/rest/webhook
+      - key: RASA_PUSH_URL
+        value: hhttps://fyp-25-s4-25-rasa-1hbj.onrender.com/conversations/{sender_id}/tracker/events
+      - key: RASA_FORWARD_URL
+        value: https://fyp-25-s4-25-backend.onrender.com/support/sessions/from_rasa/message
+
+  - type: web
+    name: FYP-25-S4-25-frontend
+    env: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://fyp-25-s4-25-backend.onrender.com/api
+      - key: VITE_RASA_URL
+        value: https://fyp-25-s4-25-rasa-1hbj.onrender.com/webhooks/rest/webhook
+
+  - type: web
+    name: FYP-25-S4-25-rasa
+    env: docker
+    rootDir: rasa
+    plan: starter
+    numInstances: 1
+    dockerfilePath: Dockerfile
+    envVars:
+      - key: PORT
+        value: "5005"

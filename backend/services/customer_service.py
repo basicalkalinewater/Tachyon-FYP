@@ -2,7 +2,16 @@ from datetime import datetime
 import secrets
 from typing import Any, Dict, Tuple, Optional, List
 
-from ..utils.mappers import map_product, map_address, map_payment, map_order, map_rma  # type: ignore
+try:
+    from ..utils.mappers import (
+        map_product,
+        map_address,
+        map_payment,
+        map_order,
+        map_rma,
+    )  # type: ignore
+except ImportError:
+    from utils.mappers import map_product, map_address, map_payment, map_order, map_rma  # type: ignore
 
 
 def ensure_profile_row(supabase, user_id: str) -> None:
@@ -184,13 +193,14 @@ def sanitize_user(row: Dict[str, Any]) -> Dict[str, Any]:
         "id": row.get("id"),
         "email": row.get("email"),
         "role": row.get("role"),
+        "status": row.get("status"),
     }
 
 
 def fetch_user_by_id(supabase, user_id: str) -> Optional[Dict[str, Any]]:
     res = (
         supabase.table("app_user")
-        .select("id, email, role")
+        .select("id, email, role, status")
         .eq("id", user_id)
         .single()
         .execute()
@@ -210,7 +220,7 @@ def require_customer(supabase, user_id: str) -> Tuple[Optional[Dict[str, Any]], 
 def fetch_user_with_password(supabase, email: str) -> Optional[Dict[str, Any]]:
     res = (
         supabase.table("app_user")
-        .select("id, email, role, password_hash")
+        .select("id, email, role, password_hash, status")
         .eq("email", email)
         .single()
         .execute()
@@ -225,7 +235,7 @@ def password_matches(password: str, stored_hash: str) -> bool:
 def fetch_user_by_email(supabase, email: str) -> Optional[Dict[str, Any]]:
     res = (
         supabase.table("app_user")
-        .select("id, email, role, password_hash")
+        .select("id, email, role, password_hash, status")
         .eq("email", email)
         .limit(1)
         .execute()

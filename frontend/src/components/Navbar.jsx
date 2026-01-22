@@ -22,6 +22,7 @@ const Navbar = () => {
   const currentUser = useSelector(selectCurrentUser);
   const isSupport = currentUser?.role === "support";
   const isAdmin = currentUser?.role === "admin";
+  const disableHomeNav = isSupport || isAdmin;
   const dashboardRoute =
     currentUser?.role === "customer"
       ? "/dashboard/customer"
@@ -85,12 +86,26 @@ const Navbar = () => {
       >
         <div className="container">
           {/* Brand */}
-          <NavLink className="navbar-brand d-flex align-items-center gap-2" to="/">
-            <div className="brand-logo-wrapper">
-              <img src="/assets/logo/logo.png" alt="Tachyon logo" className="brand-logo" />
+          {disableHomeNav ? (
+            <div
+              className="navbar-brand d-flex align-items-center gap-2 brand-disabled"
+              role="presentation"
+              aria-disabled="true"
+              title="Home navigation disabled"
+            >
+              <div className="brand-logo-wrapper">
+                <img src="/assets/logo/logo.png" alt="Tachyon logo" className="brand-logo" />
+              </div>
+              <span className="brand-text">Tachyon</span>
             </div>
-            <span className="brand-text">Tachyon</span>
-          </NavLink>
+          ) : (
+            <NavLink className="navbar-brand d-flex align-items-center gap-2" to="/">
+              <div className="brand-logo-wrapper">
+                <img src="/assets/logo/logo.png" alt="Tachyon logo" className="brand-logo" />
+              </div>
+              <span className="brand-text">Tachyon</span>
+            </NavLink>
+          )}
 
           {/* Mobile toggler */}
           <button

@@ -4,5 +4,9 @@ python-dotenv==1.0.1
 supabase==2.5.1
 pydantic==2.12.5
 pydantic-core==2.41.5
+email-validator==2.3.0
 psycopg2-binary
 requests>=2.31.0
+gunicorn
+flask-limiter==3.7.0
+flask-sock==0.7.0

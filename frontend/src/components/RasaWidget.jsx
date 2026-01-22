@@ -76,6 +76,7 @@ const RasaWidget = () => {
   const [mode, setMode] = useState("bot"); // bot | agent
   const [sessionId, setSessionId] = useState(null);
   const [agentReady, setAgentReady] = useState(false);
+  const [agentName, setAgentName] = useState("");
   const [queueInfo, setQueueInfo] = useState(null);
   const messagesEndRef = useRef(null);
   const [isDark, setIsDark] = useState(() =>
@@ -97,6 +98,7 @@ const RasaWidget = () => {
     localStorage.setItem("rasa_sender_id", generated);
     return generated;
   });
+  const [hydrating, setHydrating] = useState(true);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -124,19 +126,32 @@ const RasaWidget = () => {
     try {
       const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`, { signal: controller.signal });
       const data = await res.json();
-      const sessionStatus = data?.data?.session?.status || data?.session?.status;
+      const sessionData = data?.data?.session || data?.session || {};
+      const sessionStatus = sessionData.status;
+      const name =
+        (sessionData.agent_full_name && sessionData.agent_full_name.trim()) ||
+        (sessionData.agent_email && sessionData.agent_email.trim()) ||
+        "";
+      if (name) {
+        setAgentName(name);
+      }
       if (sessionStatus === "closed") {
         setMode("bot");
         setAgentReady(false);
         setQueueInfo(null);
+        setSessionId(null);
+        localStorage.removeItem("support_session_id");
       }
       const mapped =
         (data?.data?.messages || data?.messages || []).map((m) => {
           const ts = m.created_at || m.timestamp || Date.now();
           const text = m.message;
           const isCsat = isCsatPrompt(text);
+          const isAgent = m.sender_role === "agent";
+          const displayAgent = (name || "Support Agent").trim();
           return {
-            from: m.sender_role === "agent" || m.sender_role === "system" ? "bot" : "user",
+            from: m.sender_role === "system" || isAgent ? "bot" : "user",
+            author: isAgent ? `${displayAgent} - Support Agent` : "",
             text,
             id: m.id,
             timestamp: ts,
@@ -170,6 +185,41 @@ const RasaWidget = () => {
     return () => clearInterval(interval);
   }, [mode, sessionId]);
 
+  // Restore active support session after refresh (if any)
+  useEffect(() => {
+    const restore = async () => {
+      const storedSessionId = localStorage.getItem("support_session_id");
+      if (!storedSessionId) {
+        setHydrating(false);
+        return;
+      }
+      try {
+        // Check queue status first to see if a session is active
+        const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.data?.session_id) {
+            setMode("agent");
+            setSessionId(data.data.session_id);
+            setAgentReady(data.data.status === "in_progress");
+            fetchSessionMessages(data.data.session_id);
+            setHydrating(false);
+            return;
+          }
+        }
+      } catch {
+        // ignore and fallback to stored session
+      }
+      // Fallback: try the last stored session id
+      setMode("agent");
+      setSessionId(storedSessionId);
+      setAgentReady(true);
+      fetchSessionMessages(storedSessionId);
+      setHydrating(false);
+    };
+    restore();
+  }, [senderId]);
+
   const fetchQueueStatus = async () => {
     try {
       const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
@@ -184,6 +234,7 @@ const RasaWidget = () => {
         setQueueInfo(data.data);
         if (data.data.session_id && !sessionId) {
           setSessionId(data.data.session_id);
+          localStorage.setItem("support_session_id", data.data.session_id);
         }
         const ready = data.data.status === "in_progress";
         setAgentReady(ready);
@@ -304,6 +355,7 @@ const RasaWidget = () => {
       const ticketNum = data?.data?.ticket_number;
       if (newSessionId) {
         setSessionId(newSessionId);
+        localStorage.setItem("support_session_id", newSessionId);
         if (ticketNum) appendMessage("bot", `Ticket ${ticketNum} created.`);
         setAgentReady(true); // allow messaging immediately; backend will queue if not yet claimed
         fetchQueueStatus();
@@ -354,6 +406,7 @@ const RasaWidget = () => {
       const newSessionId = data.data.session_id;
       const ticket = data.data.ticket_number;
       setSessionId(newSessionId);
+      localStorage.setItem("support_session_id", newSessionId);
       setAgentReady(true);
       setMode("agent");
       setShowGuestForm(false);
@@ -373,15 +426,23 @@ const RasaWidget = () => {
     setGuestName("");
     setGuestEmail("");
     setMode("bot");
+    localStorage.removeItem("support_session_id");
     appendMessage("bot", "No problem—I’ll stay with the bot. Ask me anything!");
   };
 
   const sendMessage = async (text) => {
-    if (!text.trim()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    // If user explicitly asks for a human, trigger the same flow as the quick-reply handoff
+    const wantsHuman = /\b(live agent|human agent|talk to (a )?human|talk to (an )?agent)\b/i.test(trimmed);
+    if (wantsHuman) {
+      startGuestHandoff(trimmed);
+      return;
+    }
     if (mode === "agent" && sessionId) {
-      await sendToAgent(text);
+      await sendToAgent(trimmed);
     } else {
-      await sendToBot(text);
+      await sendToBot(trimmed);
     }
   };
 
@@ -478,6 +539,7 @@ const RasaWidget = () => {
                   {messages.map((msg, idx) => (
                     <div key={idx} className={`chat-message ${msg.from}`}>
                       <div className="chat-message-bubble">
+                        {msg.author && <div className="chat-author">{msg.author}</div>}
                         {msg.type === "csat" ? (
                           <CsatBlock
                             submitting={csatSubmitting}

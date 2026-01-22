@@ -1,38 +1,17 @@
 from flask import Blueprint, current_app, jsonify, request
-from ..utils.mappers import map_product
+try:
+    from ..utils.mappers import map_product
+    from ..limiter import maybe_limit
+except ImportError:
+    from utils.mappers import map_product
+    from limiter import maybe_limit
 
 products_bp = Blueprint("products", __name__)
 
-# --- 1. ROOT ROUTES ---
-@products_bp.route("/", methods=["GET", "POST"])
-def handle_products():
-    supabase = current_app.config["SUPABASE"]
-    if request.method == "GET":
-        try:
-            res = supabase.table("products").select("*").order("created_at", desc=True).execute()
-            return jsonify([map_product(r) for r in res.data or []])
-        except Exception as err:
-            return jsonify({"error": str(err)}), 500
 
-    if request.method == "POST":
-        try:
-            payload = request.get_json(force=True)
-            body = {
-                "title": payload.get("title"),
-                "price": payload.get("price"),
-                "description": payload.get("description", ""),
-                "image_url": payload.get("image"),
-                "category": payload.get("category", "General"),
-            }
-            res = supabase.table("products").insert(body).execute()
-            return jsonify(map_product(res.data[0])), 201
-        except Exception as err:
-            return jsonify({"error": str(err)}), 500
-
-# --- 2. SPECIFIC FILTER ROUTES (MUST BE ABOVE <product_id>) ---
-
-@products_bp.get("/price-range")
-def get_products_by_price_range():
+@products_bp.get("/")
+def get_products():
+    # List all products sorted by newest first
     supabase = current_app.config["SUPABASE"]
     try:
         min_price = float(request.args.get("min_price", 0))
@@ -49,9 +28,10 @@ def get_products_by_price_range():
     except Exception as err:
         return jsonify({"error": str(err)}), 500
 
-@products_bp.route("/title/<title_substring>", methods=["GET", "OPTIONS"])
-def get_products_by_title(title_substring):
-    if request.method == "OPTIONS": return "", 200
+
+@products_bp.get("/<product_id>")
+def get_product(product_id):
+    # Fetch a single product by id; 404 if it does not exist
     supabase = current_app.config["SUPABASE"]
     try:
         res = supabase.table("products").select("*").ilike("title", f"%{title_substring}%").execute()

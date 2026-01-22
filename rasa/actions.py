@@ -2,14 +2,19 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Text
+from typing import Any, Dict, List, Text, Optional
 
 import requests
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
+from rasa_sdk.forms import FormValidationAction
 from rasa_sdk.executor import CollectingDispatcher
 
-from liveagent_action import ActionHandoffToLiveAgent
+# Support running from repo root (`rasa run actions --actions rasa.actions`) and from the rasa/ folder.
+try:
+    from .liveagent_action import ActionHandoffToLiveAgent  # package import
+except ImportError:
+    from liveagent_action import ActionHandoffToLiveAgent  # fallback when executed in rasa/
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +27,10 @@ try:
     load_dotenv()
 except Exception as exc:
     logger.warning("Could not load .env file: %s", exc)
+
+# Service base URLs (use env to avoid localhost in prod)
+BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:4000").rstrip("/")
+FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
 
 SUPABASE_BASE_URL = os.getenv("SUPABASE_URL") or ""
 SUPABASE_REST_URL = os.getenv("SUPABASE_REST_URL") or ""
@@ -48,7 +57,7 @@ HEADERS = {
 
 CSAT_ENDPOINT = os.getenv(
     "CSAT_WEBHOOK_URL",
-    "http://localhost:4000/support/sessions/from_rasa/csat",
+    f"{BACKEND_BASE_URL}/support/sessions/from_rasa/csat",
 )
 
 
@@ -167,9 +176,7 @@ class ActionFetchProductsWithFilters(Action):
                     SlotSet("product_brand", None),
                 ]
 
-            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
-                "/"
-            )
+            frontend_base = FRONTEND_BASE_URL
             product_links = []
             for item in filtered_products:
                 title = item.get("title", "Unnamed product")
@@ -234,9 +241,7 @@ class ActionFetchAllProducts(Action):
                 dispatcher.utter_message(text="The database currently contains no products.")
                 return []
 
-            frontend_base = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip(
-                "/"
-            )
+            frontend_base = FRONTEND_BASE_URL
             product_links = []
 
             for item in data:
@@ -274,7 +279,8 @@ class ActionSendFAQLink(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        faq_url = "http://localhost:3000/faq"
+        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
+        faq_url = f"{base}/faq" if base else "/faq"
         dispatcher.utter_template("utter_faq_link", tracker, link=faq_url)
         return []
 
@@ -288,8 +294,27 @@ class ActionReturnPolicyLink(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        return_policy_url = "http://localhost:3000/shipping-returns"
+        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
+        return_policy_url = f"{base}/shipping-returns" if base else "/shipping-returns"
         dispatcher.utter_template("utter_return_policy_link", tracker, link=return_policy_url)
+        return []
+
+
+class ActionShippingInfoLink(Action):
+    """Send shipping info link (same as returns page)."""
+
+    def name(self) -> Text:
+        return "action_shipping_info_link"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
+        shipping_url = f"{base}/shipping-returns" if base else "/shipping-returns"
+        dispatcher.utter_template("utter_shipping_info", tracker, link=shipping_url)
         return []
 
 
@@ -323,7 +348,7 @@ class ActionForwardToAgent(Action):
         sender_id = tracker.sender_id
         backend_url = os.getenv(
             "LIVE_AGENT_FORWARD_URL",
-            "http://localhost:4000/support/sessions/from_rasa/message",
+            f"{BACKEND_BASE_URL}/support/sessions/from_rasa/message",
         )
 
         payload = {
@@ -351,14 +376,67 @@ class ActionForwardToAgent(Action):
         return []
 
 
-class ActionSubmitCsat(Action):
-    """
-    Collect a 1-5 rating (and optional free text) from the user and forward it
-    to the backend CSAT webhook that maps sender_id -> latest session.
-    """
+class ValidateProductFilterForm(FormValidationAction):
+    """Basic validation/normalization for product_filter_form slots."""
 
     def name(self) -> Text:
-        return "action_submit_csat"
+        return "validate_product_filter_form"
+
+    @staticmethod
+    def _clean(value: Any) -> Optional[Text]:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            val = value.strip()
+            return val or None
+        return str(value)
+
+    def validate_product_category(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        cleaned = self._clean(slot_value)
+        if not cleaned:
+            dispatcher.utter_message(text="Tell me which category you want (e.g., monitor, ssd, keyboard).")
+            return {"product_category": None}
+        return {"product_category": cleaned}
+
+    def validate_product_price(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_price": self._clean(slot_value)}
+
+    def validate_product_specs(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_specs": self._clean(slot_value)}
+
+    def validate_product_brand(
+        self,
+        slot_value: Any,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> Dict[Text, Any]:
+        return {"product_brand": self._clean(slot_value)}
+
+
+class ActionResetHandoff(Action):
+    """Reset handoff state so messages stop forwarding to agent."""
+
+    def name(self) -> Text:
+        return "action_reset_handoff"
 
     def run(
         self,
@@ -366,30 +444,4 @@ class ActionSubmitCsat(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[EventType]:
-        sender_id = tracker.sender_id
-        message_text = tracker.latest_message.get("text", "").strip()
-
-        # Extract first integer 1-5 from the user's reply
-        match = re.search(r"\b([1-5])\b", message_text)
-        if not match:
-            dispatcher.utter_message(text="Please rate from 1 to 5 (5 = excellent).")
-            return []
-
-        rating = int(match.group(1))
-        feedback = message_text  # keep full text as optional verbatim
-
-        payload = {"sender_id": sender_id, "rating": rating, "feedback": feedback}
-        try:
-            resp = requests.post(CSAT_ENDPOINT, json=payload, timeout=4)
-            logger.info("CSAT POST %s status=%s body=%s", CSAT_ENDPOINT, resp.status_code, resp.text)
-            if resp.status_code == 200:
-                dispatcher.utter_message(text="Thanks for your feedback! It helps us improve.")
-            elif resp.status_code == 409:
-                dispatcher.utter_message(text="Looks like we already recorded your rating. Thank you!")
-            else:
-                dispatcher.utter_message(text="Thanks! I couldn't save it right now, but I'll pass it on.")
-        except Exception as exc:
-            logger.error("CSAT submission failed: %s", exc)
-            dispatcher.utter_message(text="Thanks! I couldn't save it right now, but I'll pass it on.")
-
-        return []
+        return [SlotSet("handoff_active", False)]

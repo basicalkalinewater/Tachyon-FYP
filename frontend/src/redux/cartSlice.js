@@ -50,17 +50,38 @@ const normalizeItems = (items) => {
 };
 
 export const bootstrapCart = createAsyncThunk('cart/bootstrap', async (_, { getState }) => {
-  const cartId = await ensureCartId(getState);
-  const data = await fetchCart(cartId);
-  persistCartId(cartId);
-  return { cartId, items: normalizeItems(data.items) };
+  let cartId = await ensureCartId(getState);
+  try {
+    const data = await fetchCart(cartId);
+    persistCartId(cartId);
+    return { cartId, items: normalizeItems(data.items) };
+  } catch (err) {
+    // If stored cart is gone, start a fresh one
+    if (err.message === 'Cart not found') {
+      const created = await createCart();
+      cartId = created.cartId;
+      persistCartId(cartId);
+      return { cartId, items: [] };
+    }
+    throw err;
+  }
 });
 
 export const addItem = createAsyncThunk('cart/addItem', async (product, { getState }) => {
-  const cartId = await ensureCartId(getState);
+  let cartId = await ensureCartId(getState);
   const existing = getState().cart.items.find((item) => item.id === product.id);
   const nextQty = existing ? existing.qty + 1 : 1;
-  await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+  try {
+    await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+  } catch (err) {
+    if (err.message === 'Cart not found') {
+      const created = await createCart();
+      cartId = created.cartId;
+      await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+    } else {
+      throw err;
+    }
+  }
   const data = await fetchCart(cartId);
   persistCartId(cartId);
   return { cartId, items: normalizeItems(data.items) };

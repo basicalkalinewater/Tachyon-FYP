@@ -32,6 +32,48 @@ nlu:
       - I would like to see all your [keyboard](product_category)
       - List the [mouse](product_category) you sell
 
+      - show me [keyboard](product_category) 65% under [300](product_price)
+      - 65 percent [keyboard](product_category) below [300](product_price)
+      - compact [keyboard](product_category) under [200](product_price)
+      - TKL [keyboard](product_category) under [150](product_price)
+      - 75% [keyboard](product_category) with [wireless](product_specs) under [250](product_price)
+      - I need a [65%](product_specs) [keyboard](product_category) below [300](product_price)
+      - any [keyboard](product_category) with [hot swap](product_specs) under [200](product_price)
+      - show me [keyboards](product_category) with [tactile](product_specs) switches under [250](product_price)
+      - [gaming](product_specs) [mouse](product_category) under [100](product_price)
+      - [ultralight](product_specs) [mouse](product_category) below [120](product_price)
+      - [monitor](product_category) with [144hz](product_specs) under [400](product_price)
+      - [monitor](product_category) with [4k](product_specs) below [600](product_price)
+      - [ssd](product_category) [1tb](product_specs) under [150](product_price)
+      - [nvme](product_specs) [ssd](product_category) in the [100-300](product_price) range
+      - [Logitech](product_brand) [keyboard](product_category) under [200](product_price)
+      - [Razer](product_brand) [mouse](product_category) below [150](product_price)
+      - [Samsung](product_brand) [ssd](product_category) in the [200-400](product_price) range
+      - [Dell](product_brand) [monitor](product_category) with [ips](product_specs) under [500](product_price)
+
+      - [27 inch](product_specs) [monitor](product_category) with [240hz](product_specs) under [700](product_price)
+      - [34 inch](product_specs) [monitor](product_category) ultrawide with [144hz](product_specs) below [900](product_price)
+      - [IPS](product_specs) [monitor](product_category) with [1ms](product_specs) response under [450](product_price)
+      - [OLED](product_specs) [monitor](product_category) under [1200](product_price)
+      - [RTX](product_specs) [gaming](product_specs) [laptop](product_category) under [2000](product_price)
+      - [wireless](product_specs) [mouse](product_category) with [pixart 3395](product_specs) sensor under [150](product_price)
+      - [ergonomic](product_specs) [mouse](product_category) under [130](product_price)
+      - [hot swappable](product_specs) [keyboard](product_category) with [linear](product_specs) switches below [180](product_price)
+      - [low profile](product_specs) [keyboard](product_category) under [220](product_price)
+      - [80%](product_specs) [keyboard](product_category) with [rgb](product_specs) lighting under [250](product_price)
+      - [full size](product_specs) [keyboard](product_category) with [num pad](product_specs) under [200](product_price)
+      - [Gen4](product_specs) [nvme](product_specs) [ssd](product_category) 2TB under [250](product_price)
+      - [Gen5](product_specs) [ssd](product_category) 2TB under [400](product_price)
+      - [PCIe 4.0](product_specs) [ssd](product_category) with [7000](product_specs) MB/s read under [250](product_price)
+      - [PNY](product_brand) [ssd](product_category) under [180](product_price)
+      - [Sony](product_brand) [monitor](product_category) with [hdr](product_specs) under [800](product_price)
+      - [Asus](product_brand) [monitor](product_category) [1440p](product_specs) [165hz](product_specs) under [600](product_price)
+      - [Keychron](product_brand) [keyboard](product_category) [wireless](product_specs) under [250](product_price)
+      - [Glorious](product_brand) [mouse](product_category) [ultralight](product_specs) under [120](product_price)
+      - [Logitech](product_brand) [mouse](product_category) with [lightspeed](product_specs) under [180](product_price)
+      - [Razer](product_brand) [keyboard](product_category) [analog](product_specs) under [300](product_price)
+      - [SteelSeries](product_brand) [gaming](product_specs) [mouse](product_category) under [140](product_price)
+
       - Do you have any [Razer](product_brand) products?
       - Show me products from [Logitech](product_brand)
       - I want to see [Dell](product_brand) items
@@ -99,6 +141,25 @@ nlu:
       - Where is the FAQ page?
       - faq
       - FAQs
+
+  - intent: shipping_info
+    examples: |
+      - shipping info
+      - shipping information
+      - how much is shipping
+      - shipping cost
+      - delivery time
+      - when will my order arrive
+      - tell me about shipping
+
+  - intent: order_status
+    examples: |
+      - order status
+      - check my order
+      - track my order
+      - where is my order
+      - track order
+      - order tracking
 
   - intent: return_policy_link
     examples: |
