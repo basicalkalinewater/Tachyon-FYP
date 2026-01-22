@@ -16,4 +16,4 @@ export { default as Accessibility } from './Accessibility';
 export { default as CustomerDashboard } from './CustomerDashboard';
 export { default as CustomerSupportDashboard } from "./CustomerSupportDashboard";
 export { default as AdminDashboard } from "./AdminDashboard";
-
+export { default as AdminProducts } from './AdminProducts';

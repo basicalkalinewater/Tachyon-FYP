@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useSelector } from "react-redux";
+import { Link } from "react-router-dom";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
 import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser } from "../api/admin";
@@ -227,6 +228,11 @@ const AdminDashboard = () => {
                     ← Back
                   </button>
                 )}
+
+                <Link to="/dashboard/admin/products" className="pill-btn ghost">
+                  Products
+                </Link>
+
                 <button
                   className={`pill-btn ghost ${viewMode === "users" ? "active" : ""}`}
                   type="button"
