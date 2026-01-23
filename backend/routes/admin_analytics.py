@@ -1,7 +1,11 @@
 from flask import Blueprint, current_app, jsonify
 
-from utils.auth_middleware import require_session
-from services import admin_analytics
+try:
+    from ..utils.auth_middleware import require_session
+    from ..services import admin_analytics
+except ImportError:
+    from utils.auth_middleware import require_session
+    from services import admin_analytics
 
 
 admin_analytics_bp = Blueprint("admin_analytics", __name__)

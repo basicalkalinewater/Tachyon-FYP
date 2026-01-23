@@ -25,6 +25,7 @@ try:  # package-relative (preferred)
     from .routes.auth import auth_bp
     from .routes.customer import customer_bp, dashboard_bp
     from .routes.admin_user_management import admin_users_bp
+    from .routes.admin_analytics import admin_analytics_bp
 except ImportError:  # fallback for top-level module import
     from supabase_client import get_supabase
     from routes.live_cust_support import live_cust_support_bp
@@ -33,7 +34,7 @@ except ImportError:  # fallback for top-level module import
     from routes.auth import auth_bp
     from routes.customer import customer_bp, dashboard_bp
     from routes.admin_user_management import admin_users_bp
-from routes.admin_analytics import admin_analytics_bp
+    from routes.admin_analytics import admin_analytics_bp
 
 
 def create_app() -> Flask:
