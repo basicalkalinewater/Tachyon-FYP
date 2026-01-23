@@ -20,7 +20,6 @@ except ImportError:
     from ws import sock
 from flask import current_app, g, jsonify
 
-print("[ws] live_cust_support routes loaded")
 
 # Blueprint for live customer support chat; mounted under /support
 live_cust_support_bp = Blueprint("live_cust_support", __name__)
@@ -29,18 +28,15 @@ live_cust_support_bp = Blueprint("live_cust_support", __name__)
 def stream_session_ws(ws, session_id):
     """WebSocket stream of new messages for a session."""
     try:
-        print(f"[ws] connect attempt session={session_id}")
         # Auth via session token (query param; browsers can't set WS headers).
         token = (request.args.get("token") or request.args.get("sessionToken") or "").strip()
         if not token:
-            print(f"[ws] missing token for session {session_id}")
             ws.close(code=1008, reason="missing token")
             return
 
         supabase = current_app.config["SUPABASE"]
         session_row, err = session_service.get_session(supabase, token)
         if err or not session_row:
-            print(f"[ws] invalid session for {session_id}: {err}")
             ws.close(code=1008, reason="invalid session")
             return
 
@@ -49,15 +45,11 @@ def stream_session_ws(ws, session_id):
             res = supabase.table("app_user").select("role").eq("id", user_id).single().execute()
             role = (res.data or {}).get("role")
         except Exception as exc:
-            print(f"[ws] user lookup failed for {session_id}: {exc}")
             role = None
         if role not in ("support", "admin"):
-            print(f"[ws] forbidden role for {session_id}: {role}")
             ws.close(code=1008, reason="forbidden role")
             return
-        print(f"[ws] connected session={session_id} role={role}")
     except Exception as exc:
-        print(f"[ws] exception during handshake for {session_id}: {exc}")
         try:
             ws.close(code=1011, reason="server error")
         except Exception:
