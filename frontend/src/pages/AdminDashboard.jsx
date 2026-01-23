@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
 import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser, fetchAdminInsights } from "../api/admin";
+import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
 import "../styles/admin-dashboard.css";
 
@@ -35,6 +36,9 @@ const AdminDashboard = () => {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productFilters, setProductFilters] = useState({ title: "", category: ""});
   const [userForm, setUserForm] = useState({
     id: null,
     email: "",
@@ -43,6 +47,26 @@ const AdminDashboard = () => {
     phone: "",
     password: "",
   });
+  const [editProductForm, setEditProductForm] = useState(null); 
+  const [editProductSaving, setEditProductSaving] = useState(false);
+  const [showCreateProductForm, setShowCreateProductForm] = useState(false);
+  const [newProduct, setNewProduct] = useState({
+  title: "",
+  Brand: "",
+  category: "",
+  description: "",
+  price: "",
+  specs: {},
+  });
+  const [customFieldName, setCustomFieldName] = useState("");
+  const [isDeleting, setIsDeleting] = useState(null);
+  const CATEGORY_TEMPLATES = {
+  keyboard: { size: "", connection: "", switch_type: "" },
+  mouse: { connection: "", polling_hz: "", weight_grams: "" },
+  ssd: { interface: "", read_mb_s: "", write_mb_s: "", capacity_gb: "" },
+  monitor: { panel_type: "", refresh_hz: "", resolution: "", screen_size_inches: "" },
+  };
+  const [customCategory, setCustomCategory] = useState("");
   const [userSaving, setUserSaving] = useState(false);
   const [editUserForm, setEditUserForm] = useState(null);
   const [editUserSaving, setEditUserSaving] = useState(false);
@@ -99,6 +123,154 @@ const AdminDashboard = () => {
     load();
     loadProfile();
   }, [load, loadProfile]);
+
+  const loadProducts = useCallback(async () => {
+    setProductsLoading(true);
+    try {
+      let data;
+      if (productFilters.title) {
+        data = await searchProductsByTitle(productFilters.title);
+      } else if (productFilters.category) {
+        data = await filterProductsByCategory(productFilters.category);
+      } else {
+        data = await listProducts();
+      }
+
+      const list = data.data || data || [];
+      setProducts(list);
+    } catch (err) {
+      toast.error(err.message || "Failed to load products");
+    } finally {
+      setProductsLoading(false);
+    }
+  }, [productFilters]);
+  useEffect(() => {
+    if (viewMode === "products") {
+      loadProducts();
+    }
+  }, [viewMode, loadProducts]);
+
+  const startEditProduct = (p) => {
+    setEditProductForm({ ...p });
+  };
+
+  const handleEditProductSave = async (e) => {
+    e.preventDefault();
+    if (!editProductForm) return;
+
+    setEditProductSaving(true);
+    try {
+      await updateProduct(editProductForm.id, {
+        title: editProductForm.title,
+        category: editProductForm.category,
+        price: editProductForm.price,
+    });
+      toast.success("Product updated");
+      setEditProductForm(null);
+      await loadProducts();
+    } catch (err) {
+      toast.error(err.message || "Failed to update product");
+    } finally {
+      setEditProductSaving(false);
+    }
+  };
+
+  const handleCreateProduct = async (e) => {
+    e.preventDefault();
+
+    // Determine final category string
+    const finalCategory = newProduct.category === "other" 
+      ? customCategory 
+      : newProduct.category;
+
+    const cleanedSpecs = {};
+    Object.entries(newProduct.specs).forEach(([k, v]) => {
+      if (k.trim() !== "") cleanedSpecs[k] = v;
+    });
+
+    try {
+      await createProduct({
+        ...newProduct,
+        category: finalCategory, // Use the finalized string
+        price: parseFloat(newProduct.price),
+        specs: cleanedSpecs
+      });
+    
+      toast.success(`Product added to ${finalCategory}!`);
+      setShowCreateProductForm(false);
+    
+      // Reset everything
+      setNewProduct({ title: "", Brand: "", category: "", description: "", price: "", specs: {} });
+      setCustomCategory(""); 
+      loadProducts();
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  const handleDeleteProduct = async (id, title) => {
+    if (!window.confirm(`Are you sure you want to delete product "${title}"? This action cannot be undone.`)) return;
+    setIsDeleting(id);
+    try {
+      await deleteProduct(id);
+      toast.success("Product deleted");
+      loadProducts();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete product");
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const handleCategoryChange = (cat) => {
+    const template = CATEGORY_TEMPLATES[cat.toLowerCase()] || {};
+    setNewProduct({
+      ...newProduct,
+      category: cat,
+      specs: { ...template }
+    });
+  };
+
+  const updateSpec = (key, value) => {
+    setNewProduct((prev) => ({
+      ...prev,
+      specs: { ...prev.specs, [key]: value }
+    }));
+  };
+
+  const addCustomField = () => {
+    if (!customFieldName) return;
+    updateSpec(customFieldName, "");
+    setCustomFieldName("");
+  };
+
+  const addSpecField = () => {
+    setNewProduct(prev => ({
+      ...prev,
+      specs: { ...prev.specs, "": "" } // Adds an empty key-value pair
+    }));
+  };
+
+  const handleSpecKeyChange = (oldKey, newKey) => {
+    const { [oldKey]: value, ...rest } = newProduct.specs;
+    setNewProduct(prev => ({
+      ...prev,
+      specs: { ...rest, [newKey]: value }
+    }));
+  };
+
+  const handleSpecValueChange = (key, value) => {
+    setNewProduct(prev => ({
+      ...prev,
+      specs: { ...prev.specs, [key]: value }
+    }));
+  };
+
+  const removeSpecField = (key) => {
+    const updatedSpecs = { ...newProduct.specs };
+    delete updatedSpecs[key];
+    setNewProduct(prev => ({ ...prev, specs: updatedSpecs }));
+  };
 
   const handleProfileChange = (e) => {
     const { name, value } = e.target;
@@ -734,6 +906,347 @@ const AdminDashboard = () => {
     </section>
   );
 
+const renderProducts = () => (
+  <section className="admin-grid products-grid">
+    <div className="admin-card wide">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Inventory</p>
+          <h4>Catalog Management</h4>
+        </div>
+      </div>
+
+      {/* --- FILTER & ACTION BAR --- */}
+      <div className="d-flex gap-3 flex-wrap mb-4 align-items-center">
+        <div className="d-flex gap-2">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 220 }}
+            placeholder="Search by title..."
+            value={productFilters.title}
+            onChange={(e) => setProductFilters({ title: e.target.value, category: "" })}
+          />
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 180 }}
+            placeholder="Category..."
+            value={productFilters.category}
+            onChange={(e) => setProductFilters({ title: "", category: e.target.value })}
+          />
+        </div>
+        
+        <div className="d-flex gap-2">
+          <button 
+            className="btn btn-outline-saas" 
+            onClick={loadProducts} 
+            disabled={productsLoading}
+          >
+            {productsLoading ? "Loading..." : "Apply"}
+          </button>
+
+          <button 
+            className="btn btn-primary-saas" 
+            onClick={() => {
+              setShowCreateProductForm(!showCreateProductForm);
+              setEditProductForm(null); 
+            }}
+          >
+            {showCreateProductForm ? "Cancel" : "New Product"}
+          </button>
+        </div>
+      </div>
+
+      {/* --- CREATE PRODUCT FORM --- */}
+{showCreateProductForm && (
+  <div className="admin-card mb-4 bg-light border shadow-sm">
+    <div className="d-flex justify-content-between align-items-center mb-3">
+      <h5>Create New Product</h5>
+      <button className="btn-close" onClick={() => setShowCreateProductForm(false)}></button>
+    </div>
+
+    <form onSubmit={handleCreateProduct}>
+      <div className="row g-3">
+        {/* --- ROW 1: BASIC INFO --- */}
+        <div className="col-md-3">
+          <label className="small fw-bold">Product Title</label>
+          <input type="text" className="form-control" value={newProduct.title} onChange={e => setNewProduct({...newProduct, title: e.target.value})} required />
+        </div>
+        
+        <div className="col-md-3">
+          <label className="small fw-bold">Brand</label>
+          <input type="text" className="form-control" value={newProduct.Brand} onChange={e => setNewProduct({...newProduct, Brand: e.target.value})} required />
+        </div>
+
+        <div className="col-md-3">
+          <label className="small fw-bold">Category</label>
+          <select 
+            className="form-select" 
+            value={newProduct.category} 
+            onChange={e => handleCategoryChange(e.target.value)} 
+            required
+          >
+            <option value="">Select...</option>
+            <option value="keyboard">Keyboard</option>
+            <option value="mouse">Mouse</option>
+            <option value="ssd">SSD</option>
+            <option value="monitor">Monitor</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        {/* CONDITIONAL INPUT FOR "OTHER" */}
+        {newProduct.category === "other" && (
+          <div className="col-md-3">
+            <label className="small fw-bold text-primary">Custom Category Name</label>
+            <input 
+              type="text" 
+              className="form-control border-primary" 
+              placeholder="e.g. Headphones"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              required
+            />
+          </div>
+        )}
+
+        {/* PRICE IS BACK HERE */}
+        <div className="col-md-3">
+          <label className="small fw-bold">Price ($)</label>
+          <input 
+            type="number" 
+            step="0.01" 
+            className="form-control" 
+            placeholder="0.00"
+            value={newProduct.price} 
+            onChange={e => setNewProduct({...newProduct, price: e.target.value})} 
+            required 
+          />
+        </div>
+
+        {/* --- ROW 2: DESCRIPTION --- */}
+        <div className="col-md-12">
+          <label className="small fw-bold">Description</label>
+          <textarea 
+            className="form-control" 
+            rows="2" 
+            placeholder="Enter product details..."
+            value={newProduct.description} 
+            onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
+          />
+        </div>
+
+        {/* --- ROW 3: DYNAMIC SPECS --- */}
+        <div className="col-md-12 mt-4">
+          <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
+            <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
+            <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
+              + Add Field
+            </button>
+          </div>
+          
+          <div className="p-3 border rounded-bottom bg-white">
+            {Object.entries(newProduct.specs).map(([key, value], index) => (
+              <div className="row g-2 mb-2 align-items-center" key={index}>
+                <div className="col-md-5">
+                  <input 
+                    type="text" 
+                    className="form-control form-control-sm" 
+                    placeholder="Spec Title"
+                    value={key} 
+                    onChange={(e) => handleSpecKeyChange(key, e.target.value)} 
+                  />
+                </div>
+                <div className="col-md-6">
+                  <input 
+                    type="text" 
+                    className="form-control form-control-sm" 
+                    placeholder="Content"
+                    value={value} 
+                    onChange={(e) => handleSpecValueChange(key, e.target.value)} 
+                  />
+                </div>
+                <div className="col-md-1 text-center">
+                  <button 
+                    type="button" 
+                    className="btn btn-link btn-sm text-danger p-0"
+                    onClick={() => removeSpecField(key)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="col-md-12 mt-4 text-end">
+          <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
+            Save Product to Catalog
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+)}
+
+      {/* --- PRODUCTS TABLE --- */}
+      <div className="table-responsive">
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th className="text-end">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {productsLoading ? (
+               <tr><td colSpan="5" className="text-center py-4">Loading inventory...</td></tr>
+            ) : products.length > 0 ? (
+              products.map((p) => (
+                <tr key={p.id}>
+                  <td><code className="small">#{p.id.toString().slice(0,8)}</code></td>
+                  <td><strong>{p.title}</strong></td>
+                  <td><span className="badge bg-light text-dark border">{p.category}</span></td>
+                  <td>{currencyFormatter.format(p.price)}</td>
+                  <td className="text-end">
+                    <div className="d-flex gap-2 justify-content-end">
+                      <button 
+                        className="btn btn-outline-saas btn-sm"
+                        onClick={() => { startEditProduct(p); setShowCreateProductForm(false); }}
+                      >
+                        Edit
+                      </button>
+                      <button 
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={() => handleDeleteProduct(p.id, p.title)}
+                        disabled={isDeleting === p.id}
+                      >
+                        {isDeleting === p.id ? "..." : "Delete"}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr><td colSpan="5" className="text-center py-4 text-muted">No products found.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    
+    {editProductForm && renderEditProduct()}
+  </section>
+);
+
+const renderEditProduct = () => (
+  <div className="admin-card mt-4">
+    <div className="card-header">
+      <div>
+        <p className="eyebrow">Product Management</p>
+        <h4>Edit Product: {editProductForm.title}</h4>
+      </div>
+    </div>
+    <form className="profile-form" onSubmit={handleEditProductSave}>
+      <div className="mb-3">
+        <label className="form-label">Title</label>
+        <input
+          type="text"
+          className="form-control"
+          value={editProductForm.title}
+          onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
+          required
+        />
+      </div>
+      <div className="row">
+        <div className="col-md-6 mb-3">
+          <label className="form-label">Category</label>
+          <input
+            type="text"
+            className="form-control"
+            value={editProductForm.category}
+            onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
+            required
+          />
+        </div>
+        <div className="col-md-6 mb-3">
+          <label className="form-label">Price (USD)</label>
+          <input
+            type="number"
+            step="0.01"
+            className="form-control"
+            value={editProductForm.price}
+            onChange={(e) => setEditProductForm({ ...editProductForm, price: e.target.value })}
+            required
+          />
+        </div>
+      </div>
+      <div className="d-flex gap-3">
+        <button type="submit" className="btn btn-primary-saas" disabled={editProductSaving}>
+          {editProductSaving ? "Saving..." : "Save Changes"}
+        </button>
+        <button 
+          type="button" 
+          className="btn btn-outline-saas" 
+          onClick={() => setEditProductForm(null)}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
+);
+
+const renderCreateProductForm = () => (
+  <div className="admin-card mt-4 border-primary">
+    <div className="card-header">
+      <h4>Add New Product</h4>
+    </div>
+    <form className="profile-form" onSubmit={handleCreateProduct}>
+      <div className="mb-3">
+        <label className="form-label">Title</label>
+        <input
+          type="text"
+          className="form-control"
+          placeholder="e.g. Quantum CPU"
+          value={newProduct.title}
+          onChange={(e) => setNewProduct({...newProduct, title: e.target.value})}
+          required
+        />
+      </div>
+      <div className="row">
+        <div className="col-md-6 mb-3">
+          <label className="form-label">Category</label>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Electronics"
+            value={newProduct.category}
+            onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
+            required
+          />
+        </div>
+        <div className="col-md-6 mb-3">
+          <label className="form-label">Price</label>
+          <input
+            type="number"
+            step="0.01"
+            className="form-control"
+            value={newProduct.price}
+            onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
+            required
+          />
+        </div>
+      </div>
+      <button type="submit" className="btn btn-primary-saas">Save Product</button>
+    </form>
+  </div>
+);
+
   // MAIN RETURN
   return (
     <div className="admin-dashboard-page">
@@ -802,6 +1315,7 @@ const AdminDashboard = () => {
             {viewMode === "profile" && renderProfile()}
             {viewMode === "users" && renderUsers()}
             {viewMode === "management" && renderManagement()}
+            {viewMode === "products" && renderProducts()}
           </main>
         </div>
       </div>

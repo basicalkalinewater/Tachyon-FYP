@@ -11,22 +11,28 @@ products_bp = Blueprint("products", __name__)
 
 @products_bp.get("/")
 def get_products():
-    """List all products with optional price filtering."""
     supabase = current_app.config["SUPABASE"]
     try:
-        min_price = float(request.args.get("min_price", 0))
-        max_price = float(request.args.get("max_price", 1000000))
+        # Using .get() with defaults and a try/except for the float cast
+        try:
+            min_p = float(request.args.get("min_price", 0))
+            max_p = float(request.args.get("max_price", 1000000))
+        except (ValueError, TypeError):
+            min_p, max_p = 0, 1000000
         
         res = (
             supabase.table("products")
             .select("*")
-            .gte("price", min_price)
-            .lte("price", max_price)
-            .order("price", desc=False)
+            .gte("price", min_p)
+            .lte("price", max_p)
+            .order("id", desc=False) # Changed from price to id for stability
             .execute()
         )
+        
+        # This will now use your updated map_product
         return jsonify([map_product(r) for r in res.data or []])
     except Exception as err:
+        print(f"DEBUG ERROR: {err}") # This prints to your terminal!
         return jsonify({"error": str(err)}), 500
 
 @products_bp.get("/category/<category_name>")
@@ -46,8 +52,36 @@ def get_products_by_category(category_name):
         current_app.logger.error(f"Category search error: {err}")
         return jsonify({"error": str(err)}), 500
 
-# --- DYNAMIC ID ROUTE (Handles GET, PUT, DELETE) ---
+@products_bp.get("/title/<path:product_title>")
+def get_products_by_title(product_title):
+    """Search products by title (case-insensitive partial match)."""
+    supabase = current_app.config["SUPABASE"]
+    try:
+        res = (
+            supabase.table("products")
+            .select("*")
+            .ilike("title", f"%{product_title}%") 
+            .order("title", desc=False)
+            .execute()
+        )
+        return jsonify([map_product(r) for r in res.data or []])
+    except Exception as err:
+        current_app.logger.error(f"Title search error: {err}")
+        return jsonify({"error": str(err)}), 500
 
+@products_bp.post("/")
+def create_product():
+    supabase = current_app.config["SUPABASE"]
+    try:
+        payload = request.get_json(force=True)
+        # payload now looks like: 
+        # {"title": "...", "brand": "...", "category": "...", "specs": {...}, "price": 199.99}
+        res = supabase.table("products").insert(payload).execute()
+        return jsonify(map_product(res.data[0])), 201
+    except Exception as err:
+        return jsonify({"error": str(err)}), 500
+
+# --- DYNAMIC ID ROUTE (Handles GET, PUT, DELETE) ---
 @products_bp.route("/<product_id>", methods=["GET", "PUT", "DELETE"])
 def handle_product_by_id(product_id):
     supabase = current_app.config["SUPABASE"]

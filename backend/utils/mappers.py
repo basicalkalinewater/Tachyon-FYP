@@ -1,14 +1,12 @@
 def map_product(row):
-    """Normalize DB product row into the shape the frontend expects."""
     return {
         "id": row.get("id"),
         "title": row.get("title"),
+        "brand": row.get("Brand"),  # Accesses the DB "Brand" column
         "description": row.get("description"),
         "price": float(row.get("price", 0)),
         "image": row.get("image_url"),
         "category": row.get("category"),
-        "rating": row.get("rating"),
-        "rating_count": row.get("rating_count"),
         "specs": row.get("specs") or {},
     }
 
