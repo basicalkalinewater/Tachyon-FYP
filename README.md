@@ -53,7 +53,7 @@ cd backend
 py -3.10 -m venv .venv
 .\.venv\Scripts\activate   # or: source .venv/bin/activate
 pip install -r requirements.txt
-flask --app server run --port 4000
+python -m flask --app server run --port 4000
 ```
 Notes:
 - WebSocket live chat uses DB polling for updates.
