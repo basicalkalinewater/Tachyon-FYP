@@ -1,14 +1,43 @@
-import React from "react";
-import { useSelector } from "react-redux";
+import React, { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { selectCartItems, selectCartSubtotal } from "../redux/cartSlice";
+import {
+  selectCartItems,
+  selectCartSubtotal,
+  selectCartDiscount,
+  selectAppliedPromo,
+  selectPromoStatus,
+  selectPromoError,
+  applyPromoCode,
+  clearPromo,
+} from "../redux/cartSlice";
 
 const Checkout = () => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
+  const discount = useSelector(selectCartDiscount);
+  const appliedPromo = useSelector(selectAppliedPromo);
+  const promoStatus = useSelector(selectPromoStatus);
+  const promoError = useSelector(selectPromoError);
+  const dispatch = useDispatch();
+  const [promoInput, setPromoInput] = useState(appliedPromo?.code || "");
   const shipping = 30;
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
-  const total = subtotal + shipping;
+  const subtotalAfterDiscount = Math.max(subtotal - discount, 0);
+  const total = subtotalAfterDiscount + shipping;
+
+  const applyPromo = (e) => {
+    e.preventDefault();
+    if (!promoInput.trim()) return;
+    const code = promoInput.trim().toUpperCase();
+    setPromoInput(code);
+    dispatch(applyPromoCode(code));
+  };
+
+  const clearPromoAndInput = () => {
+    dispatch(clearPromo());
+    setPromoInput("");
+  };
 
   const EmptyCart = () => (
     <div className="container">
@@ -33,6 +62,38 @@ const Checkout = () => {
         </span>
       </div>
       <div className="card-body">
+        <form className="input-group mb-3" onSubmit={applyPromo}>
+          <input
+            type="text"
+            className="form-control"
+            placeholder="Promo code"
+            autoComplete="off"
+            maxLength={40}
+            value={promoInput}
+            onChange={(e) => setPromoInput(e.target.value)}
+          />
+          <button
+            className="btn btn-primary-saas"
+            type="submit"
+            disabled={promoStatus === "loading" || !promoInput.trim()}
+          >
+            {promoStatus === "loading" ? "Applying..." : "Apply"}
+          </button>
+        </form>
+        {promoError && <p className="text-danger small mb-2">{promoError}</p>}
+        {appliedPromo && (
+          <div className="alert alert-success py-2 px-3 d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{appliedPromo.code}</strong>{" "}
+              <span className="small text-muted">
+                {appliedPromo.description || "Promo applied"}
+              </span>
+            </div>
+            <button type="button" className="btn btn-sm btn-outline-danger" onClick={clearPromoAndInput}>
+              Remove
+            </button>
+          </div>
+        )}
         <ul className="list-group list-group-flush">
           {items.map((item) => (
             <li
@@ -58,6 +119,12 @@ const Checkout = () => {
             <span className="text-muted">Products</span>
             <span className="fw-semibold">${subtotal.toFixed(2)}</span>
           </li>
+          {discount > 0 && (
+            <li className="list-group-item d-flex justify-content-between px-0">
+              <span className="text-success">Promo discount {appliedPromo?.code ? `(${appliedPromo.code})` : ""}</span>
+              <span className="fw-semibold text-success">- ${discount.toFixed(2)}</span>
+            </li>
+          )}
           <li className="list-group-item d-flex justify-content-between px-0">
             <span className="text-muted">Shipping</span>
             <span className="fw-semibold">${shipping.toFixed(2)}</span>

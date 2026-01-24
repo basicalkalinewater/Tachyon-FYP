@@ -6,6 +6,7 @@ import {
   updateCartItem,
   removeCartItem,
 } from '../api/cart';
+import { validatePromoCode } from '../api/promo';
 
 const storageKey = 'cart_id';
 
@@ -31,6 +32,9 @@ const initialState = {
   items: [],
   status: 'idle',
   error: null,
+  promo: null,
+  promoStatus: 'idle',
+  promoError: null,
 };
 
 const ensureCartId = async (getState) => {
@@ -48,6 +52,9 @@ const normalizeItems = (items) => {
     qty: item.qty || item.quantity || 0,
   }));
 };
+
+const computeSubtotal = (items = []) =>
+  items.reduce((sum, item) => sum + (item.price || 0) * (item.qty || 0), 0);
 
 export const bootstrapCart = createAsyncThunk('cart/bootstrap', async (_, { getState }) => {
   let cartId = await ensureCartId(getState);
@@ -112,6 +119,13 @@ export const removeItem = createAsyncThunk('cart/removeItem', async (productId, 
   return { cartId, items: normalizeItems(data.items) };
 });
 
+export const applyPromoCode = createAsyncThunk('cart/applyPromoCode', async (code, { getState }) => {
+  const { cart } = getState();
+  const subtotal = computeSubtotal(cart.items);
+  const data = await validatePromoCode({ code, cartTotal: subtotal });
+  return data.promo;
+});
+
 const cartSlice = createSlice({
   name: 'cart',
   initialState,
@@ -120,6 +134,14 @@ const cartSlice = createSlice({
       state.items = [];
       state.cartId = null;
       persistCartId('');
+      state.promo = null;
+      state.promoStatus = 'idle';
+      state.promoError = null;
+    },
+    clearPromo(state) {
+      state.promo = null;
+      state.promoStatus = 'idle';
+      state.promoError = null;
     },
   },
   extraReducers: (builder) => {
@@ -128,6 +150,11 @@ const cartSlice = createSlice({
       state.error = null;
       state.cartId = action.payload.cartId;
       state.items = action.payload.items;
+      if (state.items.length === 0) {
+        state.promo = null;
+        state.promoStatus = 'idle';
+        state.promoError = null;
+      }
     };
 
     const pending = (state) => {
@@ -152,18 +179,44 @@ const cartSlice = createSlice({
       .addCase(decreaseItem.rejected, rejected)
       .addCase(removeItem.pending, pending)
       .addCase(removeItem.fulfilled, fulfilled)
-      .addCase(removeItem.rejected, rejected);
+      .addCase(removeItem.rejected, rejected)
+      .addCase(applyPromoCode.pending, (state) => {
+        state.promoStatus = 'loading';
+        state.promoError = null;
+      })
+      .addCase(applyPromoCode.fulfilled, (state, action) => {
+        state.promoStatus = 'succeeded';
+        state.promo = action.payload;
+      })
+      .addCase(applyPromoCode.rejected, (state, action) => {
+        state.promoStatus = 'failed';
+        state.promoError = action.error?.message || 'Unable to apply promo code';
+      });
   },
 });
 
-export const { clearCart } = cartSlice.actions;
+export const { clearCart, clearPromo } = cartSlice.actions;
 
 export const selectCartItems = (state) => state.cart.items;
 export const selectCartCount = (state) =>
   state.cart.items.reduce((sum, item) => sum + item.qty, 0);
 export const selectCartSubtotal = (state) =>
-  state.cart.items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  computeSubtotal(state.cart.items);
 export const selectCartStatus = (state) => state.cart.status;
 export const selectCartError = (state) => state.cart.error;
+export const selectAppliedPromo = (state) => state.cart.promo;
+export const selectPromoStatus = (state) => state.cart.promoStatus;
+export const selectPromoError = (state) => state.cart.promoError;
+export const selectCartDiscount = (state) => {
+  const promo = state.cart.promo;
+  const subtotal = computeSubtotal(state.cart.items);
+  if (!promo) return 0;
+  if (promo.discountType === 'percent') {
+    return Math.min(subtotal, +(subtotal * (promo.discountValue || 0) / 100).toFixed(2));
+  }
+  return Math.min(subtotal, +(promo.discountValue || 0));
+};
+export const selectCartTotalAfterDiscount = (state) =>
+  Math.max(selectCartSubtotal(state) - selectCartDiscount(state), 0);
 
 export default cartSlice.reducer;

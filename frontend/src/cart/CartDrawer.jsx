@@ -7,6 +7,7 @@ import { NavLink } from "react-router-dom";
 import {
   selectCartItems,
   selectCartSubtotal,
+  selectCartDiscount,
   addItem,
   decreaseItem,
   removeItem,
@@ -17,6 +18,8 @@ import "../styles/CartDrawer.css";   // <-- your cart drawer CSS file
 const CartDrawer = ({ isOpen, onClose }) => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
+  const discount = useSelector(selectCartDiscount);
+  const totalAfterDiscount = Math.max(subtotal - discount, 0);
   const dispatch = useDispatch();
 
   return (
@@ -92,6 +95,16 @@ const CartDrawer = ({ isOpen, onClose }) => {
               <div className="cart-subtotal">
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="cart-subtotal text-success">
+                  <span>Promo discount:</span>
+                  <span>- ${discount.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="cart-subtotal">
+                <span>Total:</span>
+                <span>${totalAfterDiscount.toFixed(2)}</span>
               </div>
 
               <div className="cart-actions">

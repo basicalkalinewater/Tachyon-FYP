@@ -7,6 +7,8 @@ import { Link } from "react-router-dom";
 import {
   selectCartItems,
   selectCartSubtotal,
+  selectCartDiscount,
+  selectAppliedPromo,
   selectCartStatus,
   selectCartError,
   addItem,
@@ -17,6 +19,8 @@ import {
 const Cart = () => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
+  const discount = useSelector(selectCartDiscount);
+  const appliedPromo = useSelector(selectAppliedPromo);
   const status = useSelector(selectCartStatus);
   const error = useSelector(selectCartError);
   const dispatch = useDispatch();
@@ -99,6 +103,14 @@ const Cart = () => {
           <h4>Subtotal:</h4>
           <h4>${subtotal.toFixed(2)}</h4>
         </div>
+        {discount > 0 && (
+          <div className="d-flex justify-content-between align-items-center mt-2">
+            <h6 className="text-success mb-0">
+              Promo {appliedPromo?.code ? `(${appliedPromo.code})` : ""}
+            </h6>
+            <h6 className="text-success mb-0">- ${discount.toFixed(2)}</h6>
+          </div>
+        )}
 
         <div className="mt-3 d-flex justify-content-between">
           <Link to="/products" className="btn btn-outline-secondary">

@@ -16,6 +16,10 @@ import {
   createPolicy,
   updatePolicy,
   deletePolicy,
+  listPromoCodes,
+  createPromoCode,
+  updatePromoCode,
+  deletePromoCode,
 } from "../api/admin";
 import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
@@ -25,7 +29,8 @@ const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
   { id: "products", label: "Products", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
-  { id: "management", label: "Management", group: "Management" },
+  { id: "management", label: "Content", group: "Management" },
+  { id: "promos", label: "Promo Codes", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
 
@@ -45,14 +50,31 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management
+  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management | promos
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
+  const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
   const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
+  const emptyPromoForm = {
+    id: null,
+    code: "",
+    description: "",
+    discountType: "percent",
+    discountValue: 10,
+    maxUses: "",
+    startsAt: "",
+    expiresAt: "",
+    active: true,
+  };
+  const [promoForm, setPromoForm] = useState(emptyPromoForm);
+  const [showCreatePromoForm, setShowCreatePromoForm] = useState(false);
+  const [editPromoForm, setEditPromoForm] = useState(null);
   const [faqLoading, setFaqLoading] = useState(false);
   const [policyLoading, setPolicyLoading] = useState(false);
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoFilters, setPromoFilters] = useState({ q: "", active: "all" });
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -99,6 +121,26 @@ const AdminDashboard = () => {
     currency: "USD",
     maximumFractionDigits: 2,
   });
+
+  const toInputDateTime = (value) => {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => `${n}`.padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const describeWindow = (start, end) => {
+    const fmt = (val) => {
+      const d = new Date(val);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
+    };
+    if (start && end) return `${fmt(start)} - ${fmt(end)}`;
+    if (start) return `From ${fmt(start)}`;
+    if (end) return `Until ${fmt(end)}`;
+    return "No expiry window";
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -170,15 +212,36 @@ const AdminDashboard = () => {
     }
   }, []);
 
+  const loadPromos = useCallback(async () => {
+    setPromoLoading(true);
+    try {
+      const params = {};
+      if (promoFilters.q.trim()) {
+        params.q = promoFilters.q.trim();
+      }
+      if (promoFilters.active === "active") params.active = true;
+      else if (promoFilters.active === "inactive") params.active = false;
+      const data = await listPromoCodes(params);
+      const list = data.data || data || [];
+      setPromoItems(list);
+    } catch (err) {
+      toast.error(err.message || "Failed to load promo codes");
+    } finally {
+      setPromoLoading(false);
+    }
+  }, [promoFilters]);
+
   useEffect(() => {
     if (viewMode === "management") {
       if (managementTab === "faqs") {
         loadFaqs();
-      } else {
+      } else if (managementTab === "policies") {
         loadPolicies();
       }
+    } else if (viewMode === "promos") {
+      loadPromos();
     }
-  }, [viewMode, managementTab, loadFaqs, loadPolicies]);
+  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadPromos]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -466,6 +529,103 @@ const AdminDashboard = () => {
     }
   };
 
+  const resetPromoForm = () => setPromoForm(emptyPromoForm);
+
+  const handlePromoSubmit = async (e) => {
+    e.preventDefault();
+    if (!promoForm.code.trim()) {
+      toast.error("Promo code is required");
+      return;
+    }
+    const numericValue = Number(promoForm.discountValue);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
+      return;
+    }
+    if (promoForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const toIso = (val) => (val ? new Date(val).toISOString() : null);
+    const payload = {
+      code: promoForm.code.trim().toUpperCase(),
+      description: (promoForm.description || "").trim(),
+      discountType: promoForm.discountType,
+      discountValue: numericValue,
+      maxUses: promoForm.maxUses === "" ? null : Number(promoForm.maxUses),
+      startsAt: toIso(promoForm.startsAt),
+      expiresAt: toIso(promoForm.expiresAt),
+      active: !!promoForm.active,
+    };
+    try {
+      await createPromoCode(payload);
+      toast.success("Promo created");
+      resetPromoForm();
+      setShowCreatePromoForm(false);
+      await loadPromos();
+    } catch (err) {
+      toast.error(err.message || "Failed to save promo");
+    }
+  };
+
+  const handlePromoUpdate = async (e) => {
+    e.preventDefault();
+    if (!editPromoForm) return;
+    if (!editPromoForm.code.trim()) {
+      toast.error("Promo code is required");
+      return;
+    }
+    const numericValue = Number(editPromoForm.discountValue);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
+      return;
+    }
+    if (editPromoForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const toIso = (val) => (val ? new Date(val).toISOString() : null);
+    const payload = {
+      code: editPromoForm.code.trim().toUpperCase(),
+      description: (editPromoForm.description || "").trim(),
+      discountType: editPromoForm.discountType,
+      discountValue: numericValue,
+      maxUses: editPromoForm.maxUses === "" ? null : Number(editPromoForm.maxUses),
+      startsAt: toIso(editPromoForm.startsAt),
+      expiresAt: toIso(editPromoForm.expiresAt),
+      active: !!editPromoForm.active,
+    };
+    try {
+      await updatePromoCode(editPromoForm.id, payload);
+      toast.success("Promo updated");
+      setEditPromoForm(null);
+      await loadPromos();
+    } catch (err) {
+      toast.error(err.message || "Failed to update promo");
+    }
+  };
+
+  const startCreatePromo = () => {
+    resetPromoForm();
+    setEditPromoForm(null);
+    setShowCreatePromoForm(true);
+  };
+
+  const startEditPromo = (promo) => {
+    setShowCreatePromoForm(false);
+    setEditPromoForm({
+      id: promo.id,
+      code: promo.code || "",
+      description: promo.description || "",
+      discountType: promo.discount_type || promo.discountType || "percent",
+      discountValue: Number(promo.discount_value ?? promo.discountValue ?? 0),
+      maxUses: promo.max_uses ?? promo.maxUses ?? "",
+      startsAt: toInputDateTime(promo.starts_at || promo.startsAt),
+      expiresAt: toInputDateTime(promo.expires_at || promo.expiresAt),
+      active: promo.active ?? true,
+    });
+  };
+
   const summary = csat.summary || {};
   const trend = csat.trend || [];
 
@@ -642,11 +802,11 @@ const AdminDashboard = () => {
     </section>
   );
 
-  const renderManagement = () => (
-    <section className="admin-grid">
-      <div className="admin-card wide">
-        <div className="card-header">
-          <div>
+const renderManagement = () => (
+  <section className="admin-grid">
+    <div className="admin-card wide">
+      <div className="card-header">
+        <div>
             <p className="eyebrow">Management</p>
             <h4>Tools & settings</h4>
           </div>
@@ -909,6 +1069,370 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+      </div>
+    </section>
+  );
+
+  const renderPromos = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Promo codes</p>
+            <h4>Discount rules</h4>
+          </div>
+        </div>
+        <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 220 }}
+            placeholder="Code contains"
+            value={promoFilters.q}
+            onChange={(e) => setPromoFilters((p) => ({ ...p, q: e.target.value }))}
+          />
+          <select
+            className="form-select"
+            style={{ maxWidth: 160 }}
+            value={promoFilters.active}
+            onChange={(e) => setPromoFilters((p) => ({ ...p, active: e.target.value }))}
+          >
+            <option value="all">Any status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button className="btn btn-outline-saas" onClick={loadPromos} disabled={promoLoading}>
+            {promoLoading ? "Loading..." : "Refresh"}
+          </button>
+          <div className="ms-auto">
+            <button type="button" className="btn btn-primary-saas" onClick={startCreatePromo}>
+              New promo
+            </button>
+          </div>
+        </div>
+
+        <div className="admin-grid">
+          {showCreatePromoForm && (
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">Create promo</p>
+                  <h4>New promo code</h4>
+                </div>
+                <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromoForm(false)}>
+                  Close
+                </button>
+              </div>
+              <form className="profile-form" onSubmit={handlePromoSubmit}>
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-code">Code</label>
+                    <input
+                      id="promo-code"
+                      type="text"
+                      className="form-control"
+                      value={promoForm.code}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                      placeholder="SAVE10"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-type">Discount type</label>
+                    <select
+                      id="promo-type"
+                      className="form-select"
+                      value={promoForm.discountType}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+                    >
+                      <option value="percent">Percent off</option>
+                      <option value="amount">Amount off</option>
+                    </select>
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-value">Value</label>
+                    <input
+                      id="promo-value"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="form-control"
+                      value={promoForm.discountValue}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+                      placeholder={promoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+                    />
+                  </div>
+                  <div className="col-md-12">
+                    <label className="form-label" htmlFor="promo-description">Description</label>
+                    <textarea
+                      id="promo-description"
+                      className="form-control"
+                      rows="2"
+                      value={promoForm.description}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Short description for admins/customers"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-max-uses">Max uses (optional)</label>
+                    <input
+                      id="promo-max-uses"
+                      type="number"
+                      min="0"
+                      className="form-control"
+                      value={promoForm.maxUses}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+                      placeholder="Blank = unlimited"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-starts">Starts at</label>
+                    <input
+                      id="promo-starts"
+                      type="datetime-local"
+                      className="form-control"
+                      value={promoForm.startsAt}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-expires">Expires at</label>
+                    <input
+                      id="promo-expires"
+                      type="datetime-local"
+                      className="form-control"
+                      value={promoForm.expiresAt}
+                      onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label d-block">Status</label>
+                    <div className="form-check form-switch">
+                      <input
+                        id="promo-active"
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!promoForm.active}
+                        onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                      />
+                      <label className="form-check-label" htmlFor="promo-active">
+                        {promoForm.active ? "Active" : "Inactive"}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="d-flex gap-3 mt-3">
+                  <button type="submit" className="btn btn-primary-saas">
+                    Create promo
+                  </button>
+                  <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
+                    Clear
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {editPromoForm && (
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">Edit promo</p>
+                  <h4>{editPromoForm.code}</h4>
+                </div>
+                <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromoForm(null)}>
+                  Close
+                </button>
+              </div>
+              <form className="profile-form" onSubmit={handlePromoUpdate}>
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-code-edit">Code</label>
+                    <input
+                      id="promo-code-edit"
+                      type="text"
+                      className="form-control"
+                      value={editPromoForm.code}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                      placeholder="SAVE10"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-type-edit">Discount type</label>
+                    <select
+                      id="promo-type-edit"
+                      className="form-select"
+                      value={editPromoForm.discountType}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+                    >
+                      <option value="percent">Percent off</option>
+                      <option value="amount">Amount off</option>
+                    </select>
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-value-edit">Value</label>
+                    <input
+                      id="promo-value-edit"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="form-control"
+                      value={editPromoForm.discountValue}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+                      placeholder={editPromoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+                    />
+                  </div>
+                  <div className="col-md-12">
+                    <label className="form-label" htmlFor="promo-description-edit">Description</label>
+                    <textarea
+                      id="promo-description-edit"
+                      className="form-control"
+                      rows="2"
+                      value={editPromoForm.description}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, description: e.target.value }))}
+                      placeholder="Short description for admins/customers"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-max-uses-edit">Max uses (optional)</label>
+                    <input
+                      id="promo-max-uses-edit"
+                      type="number"
+                      min="0"
+                      className="form-control"
+                      value={editPromoForm.maxUses}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+                      placeholder="Blank = unlimited"
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
+                    <input
+                      id="promo-starts-edit"
+                      type="datetime-local"
+                      className="form-control"
+                      value={editPromoForm.startsAt}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
+                    <input
+                      id="promo-expires-edit"
+                      type="datetime-local"
+                      className="form-control"
+                      value={editPromoForm.expiresAt}
+                      onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+                    />
+                  </div>
+                  <div className="col-md-4">
+                    <label className="form-label d-block">Status</label>
+                    <div className="form-check form-switch">
+                      <input
+                        id="promo-active-edit"
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!editPromoForm.active}
+                        onChange={(e) => setEditPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                      />
+                      <label className="form-check-label" htmlFor="promo-active-edit">
+                        {editPromoForm.active ? "Active" : "Inactive"}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                <div className="d-flex gap-3 mt-3">
+                  <button type="submit" className="btn btn-primary-saas">
+                    Save changes
+                  </button>
+                  <button type="button" className="btn btn-outline-saas" onClick={() => setEditPromoForm(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Existing promo codes</p>
+                <h4>Search & manage</h4>
+              </div>
+            </div>
+            {promoLoading ? (
+              <p className="muted mb-0">Loading promo codes...</p>
+            ) : promoItems.length === 0 ? (
+              <p className="muted mb-0">No promo codes yet.</p>
+            ) : (
+              <div className="table-responsive management-scroll">
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Discount</th>
+                      <th>Status</th>
+                      <th>Window</th>
+                      <th>Usage</th>
+                      <th className="text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {promoItems.map((promo) => (
+                      <tr key={promo.id}>
+                        <td className="fw-semibold">{promo.code}</td>
+                        <td>
+                          {(() => {
+                            const discountType = promo.discount_type || promo.discountType;
+                            const discountValue = Number(promo.discount_value ?? promo.discountValue ?? 0);
+                            return discountType === "percent"
+                              ? `${discountValue}% off`
+                              : `$${discountValue.toFixed(2)} off`;
+                          })()}
+                        </td>
+                        <td>
+                          <span className={`badge rounded-pill ${promo.active ? "bg-success" : "bg-secondary"}`}>
+                            {promo.active ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td className="small text-muted">
+                          {describeWindow(promo.starts_at || promo.startsAt, promo.expires_at || promo.expiresAt)}
+                        </td>
+                        <td className="small">
+                          {(promo.times_redeemed ?? promo.timesRedeemed ?? 0).toLocaleString()}
+                          {promo.max_uses || promo.maxUses ? ` / ${(promo.max_uses ?? promo.maxUses).toLocaleString()}` : ""}
+                        </td>
+                        <td className="text-end">
+                          <div className="d-flex gap-2 justify-content-end">
+                            <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => startEditPromo(promo)}>
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-outline-danger btn-sm"
+                              onClick={async () => {
+                                const confirm = window.confirm(`Delete promo ${promo.code}?`);
+                                if (!confirm) return;
+                                try {
+                                  await deletePromoCode(promo.id);
+                                  toast.success("Promo removed");
+                                  await loadPromos();
+                                } catch (err) {
+                                  toast.error(err.message || "Failed to delete promo");
+                                }
+                              }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1611,6 +2135,7 @@ const renderCreateProductForm = () => (
             {viewMode === "profile" && renderProfile()}
             {viewMode === "users" && renderUsers()}
             {viewMode === "management" && renderManagement()}
+            {viewMode === "promos" && renderPromos()}
             {viewMode === "products" && renderProducts()}
           </main>
         </div>

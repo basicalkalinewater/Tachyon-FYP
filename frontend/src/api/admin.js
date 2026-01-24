@@ -40,3 +40,12 @@ export const listPolicies = () => request(`/admin/policies`);
 export const createPolicy = (body) => request(`/admin/policies`, { method: "POST", body });
 export const updatePolicy = (id, body) => request(`/admin/policies/${id}`, { method: "PUT", body });
 export const deletePolicy = (id) => request(`/admin/policies/${id}`, { method: "DELETE" });
+
+export const listPromoCodes = (params = {}) => {
+  const qs = toQuery(params);
+  return request(`/admin/promo-codes${qs ? `?${qs}` : ""}`);
+};
+
+export const createPromoCode = (body) => request(`/admin/promo-codes`, { method: "POST", body });
+export const updatePromoCode = (id, body) => request(`/admin/promo-codes/${id}`, { method: "PUT", body });
+export const deletePromoCode = (id) => request(`/admin/promo-codes/${id}`, { method: "DELETE" });
