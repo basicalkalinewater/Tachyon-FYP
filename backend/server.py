@@ -26,6 +26,8 @@ try:  # package-relative (preferred)
     from .routes.customer import customer_bp, dashboard_bp
     from .routes.admin_user_management import admin_users_bp
     from .routes.admin_analytics import admin_analytics_bp
+    from .routes.admin_content import admin_content_bp
+    from .routes.content import content_bp
 except ImportError:  # fallback for top-level module import
     from supabase_client import get_supabase
     from routes.live_cust_support import live_cust_support_bp
@@ -35,6 +37,8 @@ except ImportError:  # fallback for top-level module import
     from routes.customer import customer_bp, dashboard_bp
     from routes.admin_user_management import admin_users_bp
     from routes.admin_analytics import admin_analytics_bp
+    from routes.admin_content import admin_content_bp
+    from routes.content import content_bp
 
 
 def create_app() -> Flask:
@@ -89,6 +93,8 @@ def create_app() -> Flask:
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
     app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_analytics_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_content_bp, url_prefix="/api/admin")
+    app.register_blueprint(content_bp, url_prefix="/api/content")
 
     @app.get("/health")
     def health():

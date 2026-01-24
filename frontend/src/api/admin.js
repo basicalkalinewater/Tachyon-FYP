@@ -30,3 +30,13 @@ export const disableAdminUser = (userId) =>
 
 export const fetchAdminInsights = () =>
   request(`/admin/insights`);
+
+export const listFaqs = () => request(`/admin/faqs`);
+export const createFaq = (body) => request(`/admin/faqs`, { method: "POST", body });
+export const updateFaq = (id, body) => request(`/admin/faqs/${id}`, { method: "PUT", body });
+export const deleteFaq = (id) => request(`/admin/faqs/${id}`, { method: "DELETE" });
+
+export const listPolicies = () => request(`/admin/policies`);
+export const createPolicy = (body) => request(`/admin/policies`, { method: "POST", body });
+export const updatePolicy = (id, body) => request(`/admin/policies/${id}`, { method: "PUT", body });
+export const deletePolicy = (id) => request(`/admin/policies/${id}`, { method: "DELETE" });

@@ -2,7 +2,21 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
-import { listAdminUsers, createAdminUser, updateAdminUser, disableAdminUser, fetchAdminInsights } from "../api/admin";
+import {
+  listAdminUsers,
+  createAdminUser,
+  updateAdminUser,
+  disableAdminUser,
+  fetchAdminInsights,
+  listFaqs,
+  createFaq,
+  updateFaq,
+  deleteFaq,
+  listPolicies,
+  createPolicy,
+  updatePolicy,
+  deletePolicy,
+} from "../api/admin";
 import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
 import "../styles/admin-dashboard.css";
@@ -33,16 +47,12 @@ const AdminDashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
-  const [faqItems, setFaqItems] = useState([
-    { id: 1, question: "What is your return policy?", answer: "You can return items within 30 days." },
-    { id: 2, question: "How do I track my order?", answer: "Use the tracking link in your confirmation email." },
-  ]);
-  const [policyItems, setPolicyItems] = useState([
-    { id: 1, title: "Privacy Policy", content: "We respect your privacy and protect your data." },
-    { id: 2, title: "Shipping Policy", content: "Standard shipping takes 3-5 business days." },
-  ]);
+  const [faqItems, setFaqItems] = useState([]);
+  const [policyItems, setPolicyItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
   const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
+  const [faqLoading, setFaqLoading] = useState(false);
+  const [policyLoading, setPolicyLoading] = useState(false);
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -133,6 +143,42 @@ const AdminDashboard = () => {
     load();
     loadProfile();
   }, [load, loadProfile]);
+
+  const loadFaqs = useCallback(async () => {
+    setFaqLoading(true);
+    try {
+      const data = await listFaqs();
+      const list = data.data || data || [];
+      setFaqItems(list);
+    } catch (err) {
+      toast.error(err.message || "Failed to load FAQs");
+    } finally {
+      setFaqLoading(false);
+    }
+  }, []);
+
+  const loadPolicies = useCallback(async () => {
+    setPolicyLoading(true);
+    try {
+      const data = await listPolicies();
+      const list = data.data || data || [];
+      setPolicyItems(list);
+    } catch (err) {
+      toast.error(err.message || "Failed to load policies");
+    } finally {
+      setPolicyLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "management") {
+      if (managementTab === "faqs") {
+        loadFaqs();
+      } else {
+        loadPolicies();
+      }
+    }
+  }, [viewMode, managementTab, loadFaqs, loadPolicies]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -632,25 +678,28 @@ const AdminDashboard = () => {
               </div>
               <form
                 className="profile-form"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
-                  if (faqForm.id) {
-                    setFaqItems((prev) =>
-                      prev.map((item) =>
-                        item.id === faqForm.id
-                          ? { ...item, question: faqForm.question.trim(), answer: faqForm.answer.trim() }
-                          : item
-                      )
-                    );
-                  } else {
-                    const nextId = Math.max(0, ...faqItems.map((i) => i.id)) + 1;
-                    setFaqItems((prev) => [
-                      { id: nextId, question: faqForm.question.trim(), answer: faqForm.answer.trim() },
-                      ...prev,
-                    ]);
+                  try {
+                    if (faqForm.id) {
+                      await updateFaq(faqForm.id, {
+                        question: faqForm.question.trim(),
+                        answer: faqForm.answer.trim(),
+                      });
+                      toast.success("FAQ updated");
+                    } else {
+                      await createFaq({
+                        question: faqForm.question.trim(),
+                        answer: faqForm.answer.trim(),
+                      });
+                      toast.success("FAQ created");
+                    }
+                    setFaqForm({ id: null, question: "", answer: "" });
+                    await loadFaqs();
+                  } catch (err) {
+                    toast.error(err.message || "Failed to save FAQ");
                   }
-                  setFaqForm({ id: null, question: "", answer: "" });
                 }}
               >
                 <div className="mb-3">
@@ -696,7 +745,9 @@ const AdminDashboard = () => {
                   <h4>Manage entries</h4>
                 </div>
               </div>
-              {faqItems.length === 0 ? (
+              {faqLoading ? (
+                <p className="muted mb-0">Loading FAQs...</p>
+              ) : faqItems.length === 0 ? (
                 <p className="muted mb-0">No FAQs yet.</p>
               ) : (
                 <div className="management-scroll">
@@ -716,7 +767,15 @@ const AdminDashboard = () => {
                           <button
                             type="button"
                             className="btn btn-outline-danger btn-sm"
-                            onClick={() => setFaqItems((prev) => prev.filter((i) => i.id !== item.id))}
+                            onClick={async () => {
+                              try {
+                                await deleteFaq(item.id);
+                                toast.success("FAQ removed");
+                                await loadFaqs();
+                              } catch (err) {
+                                toast.error(err.message || "Failed to remove FAQ");
+                              }
+                            }}
                           >
                             Remove
                           </button>
@@ -740,25 +799,28 @@ const AdminDashboard = () => {
               </div>
               <form
                 className="profile-form"
-                onSubmit={(e) => {
+                onSubmit={async (e) => {
                   e.preventDefault();
                   if (!policyForm.title.trim() || !policyForm.content.trim()) return;
-                  if (policyForm.id) {
-                    setPolicyItems((prev) =>
-                      prev.map((item) =>
-                        item.id === policyForm.id
-                          ? { ...item, title: policyForm.title.trim(), content: policyForm.content.trim() }
-                          : item
-                      )
-                    );
-                  } else {
-                    const nextId = Math.max(0, ...policyItems.map((i) => i.id)) + 1;
-                    setPolicyItems((prev) => [
-                      { id: nextId, title: policyForm.title.trim(), content: policyForm.content.trim() },
-                      ...prev,
-                    ]);
+                  try {
+                    if (policyForm.id) {
+                      await updatePolicy(policyForm.id, {
+                        title: policyForm.title.trim(),
+                        content: policyForm.content.trim(),
+                      });
+                      toast.success("Policy updated");
+                    } else {
+                      await createPolicy({
+                        title: policyForm.title.trim(),
+                        content: policyForm.content.trim(),
+                      });
+                      toast.success("Policy created");
+                    }
+                    setPolicyForm({ id: null, title: "", content: "" });
+                    await loadPolicies();
+                  } catch (err) {
+                    toast.error(err.message || "Failed to save policy");
                   }
-                  setPolicyForm({ id: null, title: "", content: "" });
                 }}
               >
                 <div className="mb-3">
@@ -804,7 +866,9 @@ const AdminDashboard = () => {
                   <h4>Manage documents</h4>
                 </div>
               </div>
-              {policyItems.length === 0 ? (
+              {policyLoading ? (
+                <p className="muted mb-0">Loading policies...</p>
+              ) : policyItems.length === 0 ? (
                 <p className="muted mb-0">No policies yet.</p>
               ) : (
                 <div className="management-scroll">
@@ -824,7 +888,15 @@ const AdminDashboard = () => {
                           <button
                             type="button"
                             className="btn btn-outline-danger btn-sm"
-                            onClick={() => setPolicyItems((prev) => prev.filter((i) => i.id !== item.id))}
+                            onClick={async () => {
+                              try {
+                                await deletePolicy(item.id);
+                                toast.success("Policy removed");
+                                await loadPolicies();
+                              } catch (err) {
+                                toast.error(err.message || "Failed to remove policy");
+                              }
+                            }}
                           >
                             Remove
                           </button>
