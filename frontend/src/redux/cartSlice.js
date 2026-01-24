@@ -72,12 +72,12 @@ export const addItem = createAsyncThunk('cart/addItem', async (product, { getSta
   const existing = getState().cart.items.find((item) => item.id === product.id);
   const nextQty = existing ? existing.qty + 1 : 1;
   try {
-    await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+    await addItemToCart(cartId, { productId: product.id, quantity: nextQty });
   } catch (err) {
     if (err.message === 'Cart not found') {
       const created = await createCart();
       cartId = created.cartId;
-      await addItemToCart(cartId, { product_id: product.id, quantity: nextQty });
+      await addItemToCart(cartId, { productId: product.id, quantity: nextQty });
     } else {
       throw err;
     }
