@@ -33,6 +33,16 @@ const AdminDashboard = () => {
   const [profileSaving, setProfileSaving] = useState(false);
   const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
+  const [faqItems, setFaqItems] = useState([
+    { id: 1, question: "What is your return policy?", answer: "You can return items within 30 days." },
+    { id: 2, question: "How do I track my order?", answer: "Use the tracking link in your confirmation email." },
+  ]);
+  const [policyItems, setPolicyItems] = useState([
+    { id: 1, title: "Privacy Policy", content: "We respect your privacy and protect your data." },
+    { id: 2, title: "Shipping Policy", content: "Standard shipping takes 3-5 business days." },
+  ]);
+  const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
+  const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -595,7 +605,7 @@ const AdminDashboard = () => {
             <h4>Tools & settings</h4>
           </div>
         </div>
-        <div className="d-flex gap-2 mb-3">
+        <div className="d-flex gap-2 mb-3 flex-wrap">
           <button
             type="button"
             className={`btn ${managementTab === "faqs" ? "btn-primary-saas" : "btn-outline-saas"}`}
@@ -611,8 +621,222 @@ const AdminDashboard = () => {
             Policies
           </button>
         </div>
-        {managementTab === "faqs" && <p className="muted mb-0">FAQ management panel placeholder.</p>}
-        {managementTab === "policies" && <p className="muted mb-0">Policy management panel placeholder.</p>}
+        {managementTab === "faqs" && (
+          <div className="admin-grid">
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">FAQs</p>
+                  <h4>{faqForm.id ? "Edit FAQ" : "Create FAQ"}</h4>
+                </div>
+              </div>
+              <form
+                className="profile-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
+                  if (faqForm.id) {
+                    setFaqItems((prev) =>
+                      prev.map((item) =>
+                        item.id === faqForm.id
+                          ? { ...item, question: faqForm.question.trim(), answer: faqForm.answer.trim() }
+                          : item
+                      )
+                    );
+                  } else {
+                    const nextId = Math.max(0, ...faqItems.map((i) => i.id)) + 1;
+                    setFaqItems((prev) => [
+                      { id: nextId, question: faqForm.question.trim(), answer: faqForm.answer.trim() },
+                      ...prev,
+                    ]);
+                  }
+                  setFaqForm({ id: null, question: "", answer: "" });
+                }}
+              >
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="faq-question">Question</label>
+                  <input
+                    id="faq-question"
+                    type="text"
+                    className="form-control"
+                    value={faqForm.question}
+                    onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
+                    placeholder="Enter FAQ question"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="faq-answer">Answer</label>
+                  <textarea
+                    id="faq-answer"
+                    className="form-control"
+                    rows="4"
+                    value={faqForm.answer}
+                    onChange={(e) => setFaqForm((p) => ({ ...p, answer: e.target.value }))}
+                    placeholder="Enter answer"
+                  />
+                </div>
+                <div className="d-flex gap-3">
+                  <button type="submit" className="btn btn-primary-saas">
+                    {faqForm.id ? "Update" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-saas"
+                    onClick={() => setFaqForm({ id: null, question: "", answer: "" })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">Existing FAQs</p>
+                  <h4>Manage entries</h4>
+                </div>
+              </div>
+              {faqItems.length === 0 ? (
+                <p className="muted mb-0">No FAQs yet.</p>
+              ) : (
+                <div className="management-scroll">
+                  <ul className="list-unstyled mb-0">
+                    {faqItems.map((item) => (
+                      <li key={item.id} className="mb-3">
+                        <strong>{item.question}</strong>
+                        <p className="muted small mb-2">{item.answer}</p>
+                        <div className="d-flex gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-outline-saas btn-sm"
+                            onClick={() => setFaqForm(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => setFaqItems((prev) => prev.filter((i) => i.id !== item.id))}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        {managementTab === "policies" && (
+          <div className="admin-grid">
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">Policies</p>
+                  <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
+                </div>
+              </div>
+              <form
+                className="profile-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!policyForm.title.trim() || !policyForm.content.trim()) return;
+                  if (policyForm.id) {
+                    setPolicyItems((prev) =>
+                      prev.map((item) =>
+                        item.id === policyForm.id
+                          ? { ...item, title: policyForm.title.trim(), content: policyForm.content.trim() }
+                          : item
+                      )
+                    );
+                  } else {
+                    const nextId = Math.max(0, ...policyItems.map((i) => i.id)) + 1;
+                    setPolicyItems((prev) => [
+                      { id: nextId, title: policyForm.title.trim(), content: policyForm.content.trim() },
+                      ...prev,
+                    ]);
+                  }
+                  setPolicyForm({ id: null, title: "", content: "" });
+                }}
+              >
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="policy-title">Title</label>
+                  <input
+                    id="policy-title"
+                    type="text"
+                    className="form-control"
+                    value={policyForm.title}
+                    onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
+                    placeholder="Policy title"
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="policy-content">Content</label>
+                  <textarea
+                    id="policy-content"
+                    className="form-control"
+                    rows="6"
+                    value={policyForm.content}
+                    onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
+                    placeholder="Policy content"
+                  />
+                </div>
+                <div className="d-flex gap-3">
+                  <button type="submit" className="btn btn-primary-saas">
+                    {policyForm.id ? "Update" : "Create"}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline-saas"
+                    onClick={() => setPolicyForm({ id: null, title: "", content: "" })}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div className="admin-card">
+              <div className="card-header">
+                <div>
+                  <p className="eyebrow">Existing policies</p>
+                  <h4>Manage documents</h4>
+                </div>
+              </div>
+              {policyItems.length === 0 ? (
+                <p className="muted mb-0">No policies yet.</p>
+              ) : (
+                <div className="management-scroll">
+                  <ul className="list-unstyled mb-0">
+                    {policyItems.map((item) => (
+                      <li key={item.id} className="mb-3">
+                        <strong>{item.title}</strong>
+                        <p className="muted small mb-2">{item.content}</p>
+                        <div className="d-flex gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-outline-saas btn-sm"
+                            onClick={() => setPolicyForm(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => setPolicyItems((prev) => prev.filter((i) => i.id !== item.id))}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
