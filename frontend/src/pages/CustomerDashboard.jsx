@@ -12,8 +12,9 @@ import {
   updatePaymentMethod,
   deletePaymentMethod,
   changePassword,
+  logoutRequest,
 } from "../api/auth";
-import { selectCurrentUser, setUserDetails } from "../redux/authSlice";
+import { logout, selectCurrentUser, setUserDetails } from "../redux/authSlice";
 
 import "../styles/dashboard.css";
 
@@ -1234,6 +1235,15 @@ const CustomerDashboard = () => {
 
   const displayName = profile.fullName?.trim() || user?.fullName || user?.email || "Customer";
   const displayEmail = profile.email || user?.email || "";
+  const handleLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // ignore server logout errors; still clear client session
+    } finally {
+      dispatch(logout());
+    }
+  };
 
   return (
     <div className="container py-5 dashboard-container">
@@ -1263,6 +1273,9 @@ const CustomerDashboard = () => {
               </nav>
             </div>
           ))}
+          <button className="btn btn-outline-saas mt-4 w-100" onClick={handleLogout}>
+            Log out
+          </button>
         </aside>
 
         <main className="dashboard-content">{renderActiveSection()}</main>

@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
-import { fetchAdminProfile, updateAdminProfile } from "../api/auth";
+import { fetchAdminProfile, logoutRequest, updateAdminProfile } from "../api/auth";
+import { logout } from "../redux/authSlice";
 import {
   listAdminUsers,
   createAdminUser,
@@ -113,9 +114,19 @@ const AdminDashboard = () => {
   const [editUserForm, setEditUserForm] = useState(null);
   const [editUserSaving, setEditUserSaving] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const dispatch = useDispatch();
   const currentUser = useSelector((state) => state.auth.user);
   const displayName = currentUser?.fullName || currentUser?.email || "Admin";
   const displayEmail = currentUser?.email || "";
+  const handleLogout = async () => {
+    try {
+      await logoutRequest();
+    } catch {
+      // ignore server logout errors; still clear client session
+    } finally {
+      dispatch(logout());
+    }
+  };
   const currencyFormatter = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
@@ -2071,7 +2082,7 @@ const renderCreateProductForm = () => (
       <div className="admin-shell">
         <div className="admin-layout">
           <aside className="admin-sidebar">
-            <div className="sidebar-identity">
+            <div className="sidebar-identity mb-4">
               <p className="eyebrow sidebar-label">Admin</p>
               <h3 className="sidebar-name">{displayName}</h3>
               <p className="muted-email">{displayEmail}</p>
@@ -2096,6 +2107,9 @@ const renderCreateProductForm = () => (
                 </nav>
               </div>
             ))}
+            <button className="btn btn-outline-saas mt-4 w-100" onClick={handleLogout}>
+              Log out
+            </button>
           </aside>
 
           <main className="admin-main">
