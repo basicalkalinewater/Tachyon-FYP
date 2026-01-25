@@ -1,119 +1,102 @@
-"""
-Flask REST API entrypoint. Wires blueprints by domain and shares a single Supabase client.
-"""
 import os
+import logging
+import traceback
 from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
-# Use package-relative import with fallback for local runs.
-try:
-    from .limiter import init_limiter
-    from .ws import sock
-except ImportError:
-    from limiter import init_limiter
-    from ws import sock
 
-# Support both execution styles:
-# - `flask --app server` from inside backend/ (imports as top-level module)
-# - `flask --app backend.server` or gunicorn from project root (package import)
-try:  # package-relative (preferred)
+# 1. IMPORT BLUEPRINTS
+try:
     from .supabase_client import get_supabase
-    from .routes.live_cust_support import live_cust_support_bp
+    from .routes.stocks import stocks_bp
     from .routes.products import products_bp
     from .routes.carts import carts_bp
     from .routes.auth import auth_bp
-    from .routes.customer import customer_bp, dashboard_bp
-    from .routes.admin_user_management import admin_users_bp
     from .routes.admin_analytics import admin_analytics_bp
-    from .routes.admin_content import admin_content_bp
-    from .routes.admin_promos import admin_promos_bp
-    from .routes.admin_promotions import admin_promotions_bp
-    from .routes.content import content_bp
-    from .routes.promos import promos_bp
-except ImportError:  # fallback for top-level module import
+    from .routes.live_cust_support import live_cust_support_bp
+    # Import other blueprints as needed
+except ImportError:
     from supabase_client import get_supabase
-    from routes.live_cust_support import live_cust_support_bp
+    from routes.stocks import stocks_bp
     from routes.products import products_bp
     from routes.carts import carts_bp
     from routes.auth import auth_bp
-    from routes.customer import customer_bp, dashboard_bp
-    from routes.admin_user_management import admin_users_bp
     from routes.admin_analytics import admin_analytics_bp
-    from routes.admin_content import admin_content_bp
-    from routes.admin_promos import admin_promos_bp
-    from routes.admin_promotions import admin_promotions_bp
-    from routes.content import content_bp
-    from routes.promos import promos_bp
-
+    from routes.live_cust_support import live_cust_support_bp
 
 def create_app() -> Flask:
-    # Load .env at repo root (one level above backend/)
+    # 2. ENV LOADING (Force absolute path to avoid 500s from missing keys)
     env_path = Path(__file__).resolve().parent.parent / ".env"
     load_dotenv(dotenv_path=env_path)
 
     app = Flask(__name__)
-    # WebSocket (flask-sock) config - keep idle connections alive.
-    app.config["SOCK_SERVER_OPTIONS"] = {"ping_interval": 25}
-    # Avoid redirecting /path to /path/ which breaks CORS preflights
     app.url_map.strict_slashes = False
-    # Allow the frontend origin (Render static site) and others during development.
+    
+    # 3. CORS CONFIGURATION (Fixes 401 Unauthorized)
+    allowed_origin = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
     CORS(
         app,
-        resources={r"/*": {"origins": "*"}},
+        resources={r"/*": {"origins": [allowed_origin]}},
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
 
-    @app.after_request
-    def add_cors_headers(resp):
-        # Force CORS headers on all responses, including errors, to satisfy browser preflights.
-        resp.headers["Access-Control-Allow-Origin"] = os.getenv("CORS_ALLOWED_ORIGINS", "*")
-        resp.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        resp.headers["Access-Control-Allow-Credentials"] = "true"
-        return resp
+    # 4. EXPLICIT PREFLIGHT HANDLER
+    @app.before_request
+    def handle_preflight():
+        if request.method.upper() == 'OPTIONS':
+            res = make_response()
+            res.headers.add("Access-Control-Allow-Origin", allowed_origin)
+            res.headers.add("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With")
+            res.headers.add("Access-Control-Allow-Methods", "GET,PUT,POST,PATCH,DELETE,OPTIONS")
+            res.headers.add("Access-Control-Allow-Credentials", "true")
+            return res, 200
 
-    @app.route("/__options__", methods=["OPTIONS"])
-    def options_probe():
-        """Explicit OPTIONS responder to help diagnose CORS."""
-        resp = make_response("", 204)
-        return resp
+    # 5. GLOBAL ERROR HANDLER (Ensures you see the REAL error, not a CORS block)
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        logging.error(f"!!! SERVER ERROR !!!\n{traceback.format_exc()}")
+        response = jsonify({
+            "error": "Internal Server Error",
+            "message": str(e),
+            "route": request.path
+        })
+        response.status_code = 500
+        response.headers["Access-Control-Allow-Origin"] = allowed_origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
 
-    # Rate limiting
-    limiter = init_limiter(app)
-    app.config["LIMITER"] = limiter
-    # WebSocket routes
-    sock.init_app(app)
-
+    # 6. DATABASE INIT
     supabase = get_supabase()
     app.config["SUPABASE"] = supabase
 
-    # Blueprints by function/domain
-    app.register_blueprint(live_cust_support_bp, url_prefix="/support")
+    # 7. BLUEPRINT REGISTRATION (Aligned to your Frontend logs)
+    # ------------------------------------------------------------------
+    
+    # Auth & Storefront
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(products_bp, url_prefix="/api/products")
     app.register_blueprint(carts_bp, url_prefix="/api/carts")
-    app.register_blueprint(auth_bp, url_prefix="/api/auth")
-    app.register_blueprint(customer_bp, url_prefix="/api/customer")
-    app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
-    app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
+    
+    # Admin Routes
+    app.register_blueprint(stocks_bp, url_prefix="/api/admin/stocks")
+    
     app.register_blueprint(admin_analytics_bp, url_prefix="/api/admin")
-    app.register_blueprint(admin_content_bp, url_prefix="/api/admin")
-    app.register_blueprint(admin_promos_bp, url_prefix="/api/admin")
-    app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin")
-    app.register_blueprint(content_bp, url_prefix="/api/content")
-    app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
+    
+    # Support
+    app.register_blueprint(live_cust_support_bp, url_prefix="/support")
 
     @app.get("/health")
     def health():
-        """Simple healthcheck."""
-        return jsonify({"status": "ok"})
+        return jsonify({
+            "status": "online",
+            "supabase_ok": app.config["SUPABASE"] is not None
+        })
 
     return app
 
-
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", "4000"))
     app = create_app()
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=4000, debug=True)

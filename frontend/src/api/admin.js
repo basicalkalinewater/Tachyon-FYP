@@ -58,3 +58,19 @@ export const listPromotions = (params = {}) => {
 export const createPromotion = (body) => request(`/admin/promotions`, { method: "POST", body });
 export const updatePromotion = (id, body) => request(`/admin/promotions/${id}`, { method: "PUT", body });
 export const deletePromotion = (id) => request(`/admin/promotions/${id}`, { method: "DELETE" });
+
+export const listProductStockView = (params = {}) => {
+  const qs = toQuery(params);
+  return request(`/admin/stocks${qs ? `?${qs}` : ""}`);
+};
+export const adjustStock = (body) =>
+  request(`/admin/stocks/adjust/`, {
+    method: "POST",
+    body,
+  });
+
+export const updateStock = (productId, body) =>
+  request(`/admin/stocks/${productId}`, {
+    method: "PATCH",
+    body,
+  });

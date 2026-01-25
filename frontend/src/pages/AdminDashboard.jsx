@@ -25,6 +25,9 @@ import {
   createPromotion,
   updatePromotion,
   deletePromotion,
+  listProductStockView,
+  adjustStock,
+  updateStock
 } from "../api/admin";
 import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
@@ -33,6 +36,7 @@ import "../styles/admin-dashboard.css";
 const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
   { id: "products", label: "Products", group: "Management" },
+  { id: "stocks", label: "Stock", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "management", label: "Content", group: "Management" },
   { id: "promotions", label: "Promotions", group: "Management" },
@@ -124,6 +128,14 @@ const AdminDashboard = () => {
   price: "",
   specs: {},
   });
+  const [stocks, setStocks] = useState([]);
+  const [stocksLoading, setStocksLoading] = useState(false);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockCategory, setStockCategory] = useState("all");
+  const [adjustingId, setAdjustingId] = useState(null);
+  const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 0, reason: "" });
+  const [adjustingThresholdId, setAdjustingThresholdId] = useState(null);
+  const [thresholdValue, setThresholdValue] = useState(15);
   const [customFieldName, setCustomFieldName] = useState("");
   const [isDeleting, setIsDeleting] = useState(null);
   const CATEGORY_TEMPLATES = {
@@ -451,6 +463,91 @@ const AdminDashboard = () => {
     const { name, value } = e.target;
     setProfile((prev) => ({ ...prev, [name]: value }));
   };
+
+  const loadStocks = useCallback(async () => {
+    setStocksLoading(true);
+    try {
+      const res = await listProductStockView();
+    
+      // Support both wrapped {data: []} and direct array responses
+      const data = res?.data || res || [];
+    
+      setStocks(data);
+    } catch (err) {
+      console.error("Stock Load Error:", err);
+      toast.error("Failed to load inventory data");
+      setStocks([]); 
+    } finally {
+      setStocksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+  if (viewMode === "stocks") {
+    loadStocks();
+  }
+}, [viewMode, loadStocks]);
+  
+const handleStockSubmit = async (productId) => {
+  // Prevent empty submissions
+  if (adjustmentForm.quantity === 0) {
+    toast.error("Please enter a valid adjustment (e.g., +10 or -5)");
+    return;
+  }
+
+  try {
+    await adjustStock({
+      productId,
+      adjustment: adjustmentForm.quantity,
+      description: adjustmentForm.reason || "Manual adjustment"
+    });
+
+    toast.success("Inventory updated");
+    
+    // Reset the local form state
+    setAdjustingId(null);
+    setAdjustmentForm({ quantity: 0, reason: "" });
+    
+    // REFRESH the list so the user sees the new stock level immediately
+    await loadStocks(); 
+  } catch (err) {
+    toast.error(err.message || "Failed to update stock");
+  }
+};
+
+  const handleSaveThreshold = async (productId) => {
+    if (isNaN(thresholdValue)) {
+      toast.error("Please enter a valid number");
+      return;
+    }
+
+    try {
+      // This uses the updateStock function imported from ../api/admin
+      await updateStock(productId, { 
+        low_stock_threshold: parseInt(thresholdValue, 10) 
+      });
+    
+      toast.success("Threshold updated!");
+      setAdjustingThresholdId(null); // Close the inline input
+      await loadStocks(); // Refresh the list
+    } catch (err) {
+      console.error("Threshold Update Error:", err);
+      toast.error(err.message || "Failed to update threshold");
+    }
+  };
+
+  const filteredStocks = useMemo(() => {
+    return stocks.filter((s) => {
+      const matchesTitle = (s.title || "").toLowerCase().includes(stockSearch.toLowerCase());
+      const matchesCategory = stockCategory === "all" || s.category === stockCategory;
+      return matchesTitle && matchesCategory;
+    });
+  }, [stocks, stockSearch, stockCategory]);
+
+  const stockCategories = useMemo(() => {
+    const cats = stocks.map(s => s.category).filter(Boolean);
+    return ["all", ...new Set(cats)];
+  }, [stocks]);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -2070,6 +2167,221 @@ const renderManagement = () => (
     </div>
   );
 
+const renderStocks = () => {
+  if (stocksLoading) return <div className="p-4 text-center">Loading inventory...</div>;
+
+  // 1. Single Omnisearch Logic
+  // This looks for your search term in BOTH the title and the category fields
+  const filteredStocks = stocks.filter((s) => {
+    const searchTerm = stockSearch.toLowerCase().trim();
+    if (!searchTerm) return true;
+
+    const matchesTitle = (s.title || "").toLowerCase().includes(searchTerm);
+    const matchesCategory = (s.category || "").toLowerCase().includes(searchTerm);
+    
+    return matchesTitle || matchesCategory;
+  });
+
+  return (
+    <div className="stock-container" style={{ padding: '20px' }}>
+      
+      {/* STANDALONE SEARCH FIELD */}
+      <div style={{ 
+        marginBottom: '30px', 
+        backgroundColor: '#fff', 
+        padding: '20px', 
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px'
+      }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#888', marginBottom: '8px', textTransform: 'uppercase' }}>
+            Inventory Search
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="text" 
+              placeholder="Search by title or category (e.g., 'keyboard', 'ssd', 'monitor')..." 
+              className="admin-input"
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+              style={{ 
+                width: '100%', 
+                padding: '12px 15px', 
+                borderRadius: '8px', 
+                border: '1px solid #ddd',
+                fontSize: '14px'
+              }}
+            />
+            {stockSearch && (
+              <button 
+                onClick={() => setStockSearch("")}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  border: 'none',
+                  background: 'none',
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontSize: '18px'
+                }}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ paddingTop: '20px' }}>
+          <span style={{ fontSize: '13px', color: '#666', fontWeight: '500', backgroundColor: '#f0f2f5', padding: '8px 12px', borderRadius: '6px' }}>
+            {filteredStocks.length} Results
+          </span>
+        </div>
+      </div>
+
+      {/* TABLE HEADERS */}
+      <div style={{ 
+        display: 'flex', 
+        padding: '0 25px 15px 25px', 
+        color: '#999', 
+        fontSize: '11px', 
+        fontWeight: 'bold', 
+        textTransform: 'uppercase', 
+        letterSpacing: '1px' 
+      }}>
+        <div style={{ flex: 2 }}>Product Information</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>In Stock</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>Status</div>
+        <div style={{ flex: 2, textAlign: 'right' }}>Actions</div>
+      </div>
+
+      {/* STOCK LIST */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredStocks.map((s) => {
+          const qty = Number(s.quantity_available ?? 0);
+          const threshold = Number(s.low_stock_threshold ?? 15);
+
+          let statusText = "In Stock";
+          let statusColor = "#2c7a7b"; let statusBg = "#e6fffa";
+          if (qty <= 0) {
+            statusText = "Out of Stock";
+            statusColor = "#e53e3e"; statusBg = "#fff5f5";
+          } else if (qty <= threshold) {
+            statusText = "Low Stock";
+            statusColor = "#dd6b20"; statusBg = "#fffaf0";
+          }
+
+          return (
+            <div key={s.id} style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              padding: '18px 25px', 
+              backgroundColor: '#fff', 
+              borderRadius: '10px', 
+              border: '1px solid #edf2f7',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}>
+              
+              <div style={{ flex: 2 }}>
+                <div style={{ fontWeight: '600', color: '#2d3748', fontSize: '15px' }}>{s.title}</div>
+                <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '4px' }}>
+                  <span style={{ 
+                    backgroundColor: '#ebf8ff', 
+                    color: '#2b6cb0', 
+                    padding: '2px 8px', 
+                    borderRadius: '4px', 
+                    marginRight: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '10px'
+                  }}>
+                    {s.category ? s.category.toUpperCase() : "GENERAL"}
+                  </span>
+                  ID: {s.id.toString().substring(0, 8)}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <span style={{ fontSize: '18px', fontWeight: '700', color: qty <= threshold ? '#e53e3e' : '#2d3748' }}>
+                  {qty}
+                </span>
+              </div>
+
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <span style={{ 
+                  backgroundColor: statusBg, 
+                  color: statusColor, 
+                  padding: '6px 14px', 
+                  borderRadius: '25px', 
+                  fontSize: '11px', 
+                  fontWeight: '800', 
+                  border: `1px solid ${statusColor}22`,
+                  display: 'inline-block'
+                }}>
+                  {statusText.toUpperCase()}
+                </span>
+              </div>
+
+              <div style={{ flex: 2, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                {adjustingId === s.id ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      className="admin-input-small" 
+                      style={{ width: '80px', textAlign: 'center' }}
+                      value={adjustmentForm.quantity}
+                      onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value) || 0 })}
+                      autoFocus
+                    />
+                    <button className="btn-save" onClick={() => handleStockSubmit(s.id)}>Save</button>
+                    <button className="btn-cancel" onClick={() => setAdjustingId(null)}>✕</button>
+                  </div>
+                ) : adjustingThresholdId === s.id ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      className="admin-input-small" 
+                      style={{ width: '80px', textAlign: 'center', borderColor: '#3182ce' }}
+                      value={thresholdValue}
+                      onChange={(e) => setThresholdValue(parseInt(e.target.value) || 0)}
+                      autoFocus
+                    />
+                    <button className="btn-save" style={{ backgroundColor: '#3182ce' }} onClick={() => handleSaveThreshold(s.id)}>Save</button>
+                    <button className="btn-cancel" onClick={() => setAdjustingThresholdId(null)}>✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <button className="admin-btn-secondary" onClick={() => {
+                      setAdjustingId(s.id);
+                      setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
+                    }}>
+                      Update Stock
+                    </button>
+                    <button className="admin-btn-outline" onClick={() => {
+                      setAdjustingThresholdId(s.id);
+                      setThresholdValue(threshold);
+                    }}>
+                      Set Threshold ({threshold})
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredStocks.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px', color: '#a0aec0' }}>
+            <p>No results found for "<strong>{stockSearch}</strong>".</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
   const renderUsers = () => (
     <section className="admin-grid users-grid">
       <div className="admin-card wide">
@@ -2790,6 +3102,7 @@ const renderCreateProductForm = () => (
             {viewMode === "promos" && renderPromos()}
             {viewMode === "promotions" && renderPromotions()}
             {viewMode === "products" && renderProducts()}
+            {viewMode === "stocks" && renderStocks()}
           </main>
         </div>
       </div>
