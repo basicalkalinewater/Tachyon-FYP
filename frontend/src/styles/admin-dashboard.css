@@ -107,14 +107,17 @@
 
 .sidebar-label {
   margin-bottom: 8px;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
+  color: var(--ad-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .admin-nav {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 
 .sidebar-link {
@@ -127,6 +130,10 @@
   background: transparent;
   transition: all 0.18s ease;
   text-align: left;
+}
+
+.sidebar-link + .sidebar-link {
+  margin-top: 10px;
 }
 
 .sidebar-link:hover,
