@@ -18,6 +18,7 @@ try:
     from .routes.admin_promotions import admin_promotions_bp
     from .routes.admin_promos import admin_promos_bp
     from .routes.admin_user_management import admin_users_bp
+    from .routes.customer import customer_bp, dashboard_bp
     from .routes.live_cust_support import live_cust_support_bp
     # Import other blueprints as needed
 except ImportError:
@@ -31,6 +32,7 @@ except ImportError:
     from routes.admin_promotions import admin_promotions_bp
     from routes.admin_promos import admin_promos_bp
     from routes.admin_user_management import admin_users_bp
+    from routes.customer import customer_bp, dashboard_bp
     from routes.live_cust_support import live_cust_support_bp
 
 def create_app() -> Flask:
@@ -96,7 +98,11 @@ def create_app() -> Flask:
     app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_promos_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
-    
+
+    # Customer Dashboard & Profile
+    app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+    app.register_blueprint(customer_bp, url_prefix="/api/customer")
+
     # Support
     app.register_blueprint(live_cust_support_bp, url_prefix="/support")
 
