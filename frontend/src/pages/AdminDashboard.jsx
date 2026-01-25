@@ -2125,7 +2125,7 @@ const renderCreateProductForm = () => (
                 </p>
                 <div className="hero-actions">
                   {viewMode === "dashboard" && (
-                    <button className="pill-btn" onClick={load} disabled={loading}>
+                    <button className="btn btn-outline-saas" onClick={load} disabled={loading}>
                       {loading ? "Refreshing..." : "Refresh data"}
                     </button>
                   )}

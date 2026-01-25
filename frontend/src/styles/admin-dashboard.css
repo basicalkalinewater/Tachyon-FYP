@@ -202,7 +202,7 @@
 
 .admin-metric-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 14px;
 }
 
@@ -231,7 +231,9 @@
 }
 
 .admin-card.metric {
-  min-height: 140px;
+  min-height: 0;
+  padding: 14px;
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;

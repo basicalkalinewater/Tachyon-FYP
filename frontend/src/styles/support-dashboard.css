@@ -184,6 +184,16 @@
   border-radius: 22px;
   padding: 14px;
   box-shadow: var(--sd-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 10%, rgba(99, 102, 241, 0.12), transparent 32%);
+  pointer-events: none;
 }
 
 .stat-label {
