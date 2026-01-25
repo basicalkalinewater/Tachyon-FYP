@@ -160,7 +160,7 @@ def send_agent_message(session_id):
 @live_cust_support_bp.post("/sessions/<session_id>/resolve")
 @require_session(allowed_roles=["support"])
 def resolve_session(session_id):
-    # Close a session and send a summary email if configured
+    # Close a session with a resolution tag
     data = request.get_json(force=True, silent=True) or {}
     agent_id = data.get("agent_id")
     resolution_tag = data.get("resolution_tag", "")

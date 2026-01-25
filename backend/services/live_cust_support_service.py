@@ -1,9 +1,7 @@
 import json
 import os
-import smtplib
 import time
 from contextlib import contextmanager
-from email.message import EmailMessage
 from pathlib import Path
 from typing import Optional, Tuple, Dict, Any
 import threading
@@ -42,11 +40,6 @@ DB_CONFIG = {
 RASA_RELAY_URL = os.getenv("RASA_RELAY_URL", "http://localhost:5005/webhooks/rest/webhook")
 RASA_PUSH_URL = os.getenv("RASA_PUSH_URL", "http://localhost:5005/conversations/{sender_id}/tracker/events")
 RASA_FORWARD_URL = os.getenv("RASA_FORWARD_URL", "http://localhost:4000/support/sessions/from_rasa/message")
-SMTP_HOST = os.getenv("SMTP_HOST")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
-EMAIL_FROM = os.getenv("EMAIL_FROM", SMTP_USER or "no-reply@example.com")
 AVERAGE_HANDLE_SECONDS = int(os.getenv("LIVE_AGENT_AVG_HANDLE_SECONDS", "120"))
 CSAT_PROMPT = os.getenv("CSAT_PROMPT", "Please rate your support experience from 1-5 (5 = excellent). You can reply with a number and an optional comment.")
 
@@ -95,30 +88,6 @@ def error(message, status=400):
     return jsonify({"success": False, "error": message}), status
 
 
-def format_chat_summary(session_row, messages, resolution_tag):
-    """Compose a plain-text summary email for a chat session."""
-    lines = [
-        "Hi,",
-        "",
-        "Here is a summary of your recent support chat:",
-        f"- Chat ID: {session_row.get('id')}",
-        f"- Status: {session_row.get('status')}",
-    ]
-    if resolution_tag:
-        lines.append(f"- Resolution: {resolution_tag}")
-    lines.append("")
-    lines.append("Conversation transcript:")
-    for msg in messages or []:
-        role = msg.get("sender_role") or msg.get("sender_type") or "unknown"
-        created = msg.get("created_at")
-        text = msg.get("message") or ""
-        lines.append(f"[{created}] {role}: {text}")
-    lines.append("")
-    lines.append("Thank you,")
-    lines.append("Customer Support")
-    return "\n".join(lines)
-
-
 def fetch_agent_profile(supabase, user_id: str):
     """Fetch agent profile (full_name, phone) from live_agent_profile."""
     try:
@@ -139,25 +108,6 @@ def upsert_agent_profile(supabase, user_id: str, full_name: str, phone: str):
     supabase.table("live_agent_profile").upsert(upsert_body).execute()
 
 
-def send_summary_email(to_email, subject, body):
-    """Send a summary email; return True/False depending on success."""
-    if not (SMTP_HOST and SMTP_USER and SMTP_PASSWORD and to_email):
-        print("WARN: SMTP config or recipient missing; skipping summary email")
-        return False
-    try:
-        msg = EmailMessage()
-        msg["From"] = EMAIL_FROM
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.set_content(body)
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as smtp:
-            smtp.starttls()
-            smtp.login(SMTP_USER, SMTP_PASSWORD)
-            smtp.send_message(msg)
-        return True
-    except Exception as exc:
-        print("WARN: failed to send summary email:", exc)
-        return False
 
 
 def _ticket_number_from_id(session_id):
@@ -428,8 +378,6 @@ def list_sessions(status: Optional[str]):
               s.agent_id,
               s.status,
               s.resolution_tag,
-              s.summary_email_sent,
-              s.summary_email_sent_at,
               s.ticket_number,
               s.subject,
               s.priority,
@@ -486,8 +434,6 @@ def get_session(session_id: str, limit: Optional[int] = 200):
               s.agent_id,
               s.status,
               s.resolution_tag,
-              s.summary_email_sent,
-              s.summary_email_sent_at,
               s.ticket_number,
               s.subject,
               s.priority,
@@ -671,7 +617,7 @@ def send_agent_message(session_id: str, agent_id: str, message: str):
 
 
 def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
-    """Close a session with a resolution tag and email a summary to the customer."""
+    """Close a session with a resolution tag."""
     close_notice = "This chat has been closed."
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -712,40 +658,13 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
         cur.execute(
             """
             SELECT
-              s.id, s.status, s.resolution_tag,
-              coalesce(s.guest_email, cu.email, s.rasa_sender_id) AS customer_email,
-              ag.email AS agent_email,
-              coalesce(s.guest_name, cp.full_name, cu.email, s.rasa_sender_id, 'Guest')  AS customer_full_name,
-              coalesce(lap.full_name, ag.email) AS agent_full_name
+              s.rasa_sender_id
             FROM chat_sessions s
-            LEFT JOIN app_user cu ON cu.id = s.customer_id
-            LEFT JOIN app_user ag ON ag.id = s.agent_id
-            LEFT JOIN customer_profile cp ON cp.user_id = s.customer_id
-            LEFT JOIN live_agent_profile lap ON lap.user_id = s.agent_id
             WHERE s.id = %s;
             """,
             (session_id,),
         )
         session_meta = cur.fetchone() or {}
-
-        cur.execute(
-            """
-            SELECT sender_role, sender_type, message, created_at
-            FROM chat_messages
-            WHERE session_id = %s
-            ORDER BY created_at ASC, id ASC;
-            """,
-            (session_id,),
-        )
-        messages = cur.fetchall() or []
-
-        email_body = format_chat_summary(session_meta, messages, resolution_tag)
-        customer_email = session_meta.get("customer_email")
-        email_sent = send_summary_email(
-            customer_email,
-            subject=f"Your support chat summary (Chat {session_id})",
-            body=email_body,
-        )
 
         try:
             cur.execute(
@@ -788,17 +707,7 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
         except Exception as exc:
             print("WARN: failed to append CSAT prompt to chat:", exc)
 
-        cur.execute(
-            """
-            UPDATE chat_sessions
-            SET summary_email_sent = %s,
-                summary_email_sent_at = CASE WHEN %s THEN NOW() ELSE summary_email_sent_at END,
-                summary_email_to = %s,
-                summary_email_body = %s
-            WHERE id = %s;
-            """,
-            (email_sent, email_sent, customer_email, email_body, session_id),
-        )
+        # Summary email removed; no post-close email persisted.
 
     rasa_sender_id = session_meta.get("rasa_sender_id") if isinstance(session_meta, dict) else None
     if rasa_sender_id:

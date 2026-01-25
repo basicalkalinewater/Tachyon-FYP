@@ -58,7 +58,6 @@ const CustomerSupportDashboard = () => {
   const [resolutionTag, setResolutionTag] = useState("");
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [summaryEmailInfo, setSummaryEmailInfo] = useState({ sent: false, sentAt: null });
   const wsRef = useRef(null);
   const connectRef = useRef(null);
   const reconnectRef = useRef({ attempt: 0, timer: null, sessionId: null });
@@ -234,10 +233,6 @@ const CustomerSupportDashboard = () => {
       selectedSessionIdRef.current = data.session?.id || sessionId;
       setMessages(data.messages || []);
       setResolutionTag(data.session?.resolution_tag || "");
-      setSummaryEmailInfo({
-        sent: Boolean(data.session?.summary_email_sent),
-        sentAt: data.session?.summary_email_sent_at || null,
-      });
     } catch (err) {
       toast.error(err.message || "Failed to load session");
     } finally {
@@ -508,10 +503,6 @@ const CustomerSupportDashboard = () => {
     const isClaimedByMe =
       selectedSession.agent_id && selectedSession.agent_id === agentId;
     const canClaim = selectedSession.status === "pending";
-    const summarySentLabel = summaryEmailInfo.sent
-      ? `Summary emailed${summaryEmailInfo.sentAt ? ` at ${new Date(summaryEmailInfo.sentAt).toLocaleString()}` : ""}`
-      : "Summary not sent";
-
     return (
       <div className="card-saas h-100 d-flex flex-column p-3 support-chat-card">
         <div className="d-flex justify-content-between align-items-start mb-3 gap-3">
@@ -536,9 +527,6 @@ const CustomerSupportDashboard = () => {
             <p className="text-muted small mb-0">
               Requestor: {formatCustomerName(selectedSession)} ({selectedSession.customer_email || "N/A"})
             </p>
-            {selectedSession.summary_email_sent !== undefined && (
-              <p className="text-muted small mb-0">{summarySentLabel}</p>
-            )}
           </div>
           {canClaim && (
             <button
@@ -662,7 +650,6 @@ const CustomerSupportDashboard = () => {
                 <th>Agent</th>
                 <th>Status</th>
                 <th>Resolution</th>
-                <th>Summary Email</th>
               </tr>
             </thead>
             <tbody>
@@ -675,13 +662,6 @@ const CustomerSupportDashboard = () => {
                   <td>{formatAgentName(s)}</td>
                   <td className="text-capitalize">{STATUS_LABEL[s.status] || s.status}</td>
                   <td>{s.resolution_tag || "N/A"}</td>
-                  <td>
-                    {s.summary_email_sent
-                      ? s.summary_email_sent_at
-                        ? new Date(s.summary_email_sent_at).toLocaleString()
-                        : "Sent"
-                      : "Not sent"}
-                  </td>
                 </tr>
               ))}
             </tbody>
