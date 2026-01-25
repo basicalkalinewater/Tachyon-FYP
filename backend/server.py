@@ -14,6 +14,10 @@ try:
     from .routes.carts import carts_bp
     from .routes.auth import auth_bp
     from .routes.admin_analytics import admin_analytics_bp
+    from .routes.admin_content import admin_content_bp
+    from .routes.admin_promotions import admin_promotions_bp
+    from .routes.admin_promos import admin_promos_bp
+    from .routes.admin_user_management import admin_users_bp
     from .routes.live_cust_support import live_cust_support_bp
     # Import other blueprints as needed
 except ImportError:
@@ -23,6 +27,10 @@ except ImportError:
     from routes.carts import carts_bp
     from routes.auth import auth_bp
     from routes.admin_analytics import admin_analytics_bp
+    from routes.admin_content import admin_content_bp
+    from routes.admin_promotions import admin_promotions_bp
+    from routes.admin_promos import admin_promos_bp
+    from routes.admin_user_management import admin_users_bp
     from routes.live_cust_support import live_cust_support_bp
 
 def create_app() -> Flask:
@@ -84,6 +92,10 @@ def create_app() -> Flask:
     app.register_blueprint(stocks_bp, url_prefix="/api/admin/stocks")
     
     app.register_blueprint(admin_analytics_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_content_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_promos_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
     
     # Support
     app.register_blueprint(live_cust_support_bp, url_prefix="/support")
