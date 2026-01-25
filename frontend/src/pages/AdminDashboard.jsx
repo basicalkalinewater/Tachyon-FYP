@@ -1548,188 +1548,204 @@ const renderManagement = () => (
       </div>
 
       {showCreateForm && (
-        <div className="admin-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Create user</p>
-              <h4>New account</h4>
-            </div>
-            <button
-              type="button"
-              className="btn btn-outline-saas btn-sm"
-              onClick={() => setShowCreateForm(false)}
-              disabled={userSaving}
-            >
-              Close
-            </button>
-          </div>
-          <form className="profile-form" onSubmit={handleUserSave}>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-email">Email</label>
-              <input
-                id="um-email"
-                name="email"
-                type="email"
-                className="form-control"
-                value={userForm.email}
-                onChange={handleUserChange}
-                placeholder="user@example.com"
-                required
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-role">Role</label>
-              <select
-                id="um-role"
-                name="role"
-                className="form-select"
-                value={userForm.role}
-                onChange={handleUserChange}
-                required
-              >
-                <option value="customer">Customer</option>
-                <option value="support">Support</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-full-name">Full name</label>
-              <input
-                id="um-full-name"
-                name="full_name"
-                type="text"
-                className="form-control"
-                value={userForm.full_name}
-                onChange={handleUserChange}
-                placeholder="Name"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-phone">Phone</label>
-              <input
-                id="um-phone"
-                name="phone"
-                type="tel"
-                className="form-control"
-                value={userForm.phone}
-                onChange={handleUserChange}
-                placeholder="+65 1234 5678"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-password">Password</label>
-              <input
-                id="um-password"
-                name="password"
-                type="password"
-                className="form-control"
-                value={userForm.password}
-                onChange={handleUserChange}
-                placeholder="Set an initial password"
-                required
-              />
-            </div>
-            <div className="d-flex gap-3 mt-3">
-              <button type="submit" className="btn btn-primary-saas" disabled={userSaving}>
-                {userSaving ? "Saving..." : "Save user"}
-              </button>
+        <div
+          className="admin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Create new user"
+          onClick={() => !userSaving && setShowCreateForm(false)}
+        >
+          <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Create user</p>
+                <h4>New account</h4>
+              </div>
               <button
                 type="button"
-                className="btn btn-outline-saas"
-                onClick={startCreateUser}
+                className="btn btn-outline-saas btn-sm"
+                onClick={() => setShowCreateForm(false)}
                 disabled={userSaving}
               >
-                Clear
+                Close
               </button>
             </div>
-          </form>
+            <form className="profile-form" onSubmit={handleUserSave}>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-email">Email</label>
+                <input
+                  id="um-email"
+                  name="email"
+                  type="email"
+                  className="form-control"
+                  value={userForm.email}
+                  onChange={handleUserChange}
+                  placeholder="user@example.com"
+                  required
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-role">Role</label>
+                <select
+                  id="um-role"
+                  name="role"
+                  className="form-select"
+                  value={userForm.role}
+                  onChange={handleUserChange}
+                  required
+                >
+                  <option value="customer">Customer</option>
+                  <option value="support">Support</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-full-name">Full name</label>
+                <input
+                  id="um-full-name"
+                  name="full_name"
+                  type="text"
+                  className="form-control"
+                  value={userForm.full_name}
+                  onChange={handleUserChange}
+                  placeholder="Name"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-phone">Phone</label>
+                <input
+                  id="um-phone"
+                  name="phone"
+                  type="tel"
+                  className="form-control"
+                  value={userForm.phone}
+                  onChange={handleUserChange}
+                  placeholder="+65 1234 5678"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-password">Password</label>
+                <input
+                  id="um-password"
+                  name="password"
+                  type="password"
+                  className="form-control"
+                  value={userForm.password}
+                  onChange={handleUserChange}
+                  placeholder="Set an initial password"
+                  required
+                />
+              </div>
+              <div className="d-flex gap-3 mt-3">
+                <button type="submit" className="btn btn-primary-saas" disabled={userSaving}>
+                  {userSaving ? "Saving..." : "Save user"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-saas"
+                  onClick={startCreateUser}
+                  disabled={userSaving}
+                >
+                  Clear
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
       {editUserForm && (
-        <div className="admin-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Edit user</p>
-              <h4>{editUserForm.email}</h4>
+        <div
+          className="admin-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit user"
+          onClick={() => !editUserSaving && setEditUserForm(null)}
+        >
+          <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Edit user</p>
+                <h4>{editUserForm.email}</h4>
+              </div>
             </div>
+            <form className="profile-form" onSubmit={handleEditUserSave}>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-edit-email">Email</label>
+                <input
+                  id="um-edit-email"
+                  type="email"
+                  className="form-control"
+                  value={editUserForm.email}
+                  disabled
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-edit-role">Role</label>
+                <select
+                  id="um-edit-role"
+                  name="role"
+                  className="form-select"
+                  value={editUserForm.role}
+                  onChange={(e) => setEditUserForm((p) => ({ ...p, role: e.target.value }))}
+                  required
+                >
+                  <option value="customer">Customer</option>
+                  <option value="support">Support</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-edit-full-name">Full name</label>
+                <input
+                  id="um-edit-full-name"
+                  name="full_name"
+                  type="text"
+                  className="form-control"
+                  value={editUserForm.full_name}
+                  onChange={(e) => setEditUserForm((p) => ({ ...p, full_name: e.target.value }))}
+                  placeholder="Name"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-edit-phone">Phone</label>
+                <input
+                  id="um-edit-phone"
+                  name="phone"
+                  type="tel"
+                  className="form-control"
+                  value={editUserForm.phone || ""}
+                  onChange={(e) => setEditUserForm((p) => ({ ...p, phone: e.target.value }))}
+                  placeholder="+65 1234 5678"
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label" htmlFor="um-edit-password">Reset password</label>
+                <input
+                  id="um-edit-password"
+                  name="password"
+                  type="password"
+                  className="form-control"
+                  value={editUserForm.password || ""}
+                  onChange={(e) => setEditUserForm((p) => ({ ...p, password: e.target.value }))}
+                  placeholder="Leave blank to keep current"
+                />
+              </div>
+              <div className="d-flex gap-3 mt-3">
+                <button type="submit" className="btn btn-primary-saas" disabled={editUserSaving}>
+                  {editUserSaving ? "Saving..." : "Save changes"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-saas"
+                  onClick={() => setEditUserForm(null)}
+                  disabled={editUserSaving}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
-          <form className="profile-form" onSubmit={handleEditUserSave}>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-edit-email">Email</label>
-              <input
-                id="um-edit-email"
-                type="email"
-                className="form-control"
-                value={editUserForm.email}
-                disabled
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-edit-role">Role</label>
-              <select
-                id="um-edit-role"
-                name="role"
-                className="form-select"
-                value={editUserForm.role}
-                onChange={(e) => setEditUserForm((p) => ({ ...p, role: e.target.value }))}
-                required
-              >
-                <option value="customer">Customer</option>
-                <option value="support">Support</option>
-                <option value="admin">Admin</option>
-              </select>
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-edit-full-name">Full name</label>
-              <input
-                id="um-edit-full-name"
-                name="full_name"
-                type="text"
-                className="form-control"
-                value={editUserForm.full_name}
-                onChange={(e) => setEditUserForm((p) => ({ ...p, full_name: e.target.value }))}
-                placeholder="Name"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-edit-phone">Phone</label>
-              <input
-                id="um-edit-phone"
-                name="phone"
-                type="tel"
-                className="form-control"
-                value={editUserForm.phone || ""}
-                onChange={(e) => setEditUserForm((p) => ({ ...p, phone: e.target.value }))}
-                placeholder="+65 1234 5678"
-              />
-            </div>
-            <div className="mb-3">
-              <label className="form-label" htmlFor="um-edit-password">Reset password</label>
-              <input
-                id="um-edit-password"
-                name="password"
-                type="password"
-                className="form-control"
-                value={editUserForm.password || ""}
-                onChange={(e) => setEditUserForm((p) => ({ ...p, password: e.target.value }))}
-                placeholder="Leave blank to keep current"
-              />
-            </div>
-            <div className="d-flex gap-3 mt-3">
-              <button type="submit" className="btn btn-primary-saas" disabled={editUserSaving}>
-                {editUserSaving ? "Saving..." : "Save changes"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline-saas"
-                onClick={() => setEditUserForm(null)}
-                disabled={editUserSaving}
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
         </div>
       )}
     </section>
