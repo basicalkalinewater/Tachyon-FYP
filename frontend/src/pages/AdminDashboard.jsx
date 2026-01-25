@@ -1101,15 +1101,13 @@ const renderManagement = () => (
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
           </select>
-          <button className="btn btn-outline-saas" onClick={loadPromos} disabled={promoLoading}>
-            {promoLoading ? "Loading..." : "Refresh"}
-          </button>
-          <div className="ms-auto">
+            <button className="btn btn-outline-saas" onClick={loadPromos} disabled={promoLoading}>
+              {promoLoading ? "Loading..." : "Refresh"}
+            </button>
             <button type="button" className="btn btn-primary-saas" onClick={startCreatePromo}>
               New promo
             </button>
           </div>
-        </div>
 
         <div className="admin-grid">
           {showCreatePromoForm && (

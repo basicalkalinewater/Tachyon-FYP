@@ -1239,11 +1239,12 @@ const CustomerDashboard = () => {
     <div className="container py-5 dashboard-container">
       <div className="dashboard-layout">
         <aside className="dashboard-sidebar card-saas">
-          <div className="mb-4">
+          <div className="sidebar-identity mb-4">
             <p className="text-muted text-uppercase small fw-semibold mb-1">Account Owner</p>
             <h4 className="mb-0">{displayName}</h4>
             {displayEmail && <p className="text-muted mb-0">{displayEmail}</p>}
           </div>
+          <div className="sidebar-divider" />
 
           {groupedSections.map(({ group, items }) => (
             <div className="sidebar-group" key={group}>
