@@ -1121,246 +1121,6 @@ const renderManagement = () => (
           </div>
 
         <div className="admin-grid">
-          {showCreatePromoForm && (
-            <div className="admin-card">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Create promo</p>
-                  <h4>New promo code</h4>
-                </div>
-                <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromoForm(false)}>
-                  Close
-                </button>
-              </div>
-              <form className="profile-form" onSubmit={handlePromoSubmit}>
-                <div className="row g-3">
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-code">Code</label>
-                    <input
-                      id="promo-code"
-                      type="text"
-                      className="form-control"
-                      value={promoForm.code}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
-                      placeholder="SAVE10"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-type">Discount type</label>
-                    <select
-                      id="promo-type"
-                      className="form-select"
-                      value={promoForm.discountType}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
-                    >
-                      <option value="percent">Percent off</option>
-                      <option value="amount">Amount off</option>
-                    </select>
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-value">Value</label>
-                    <input
-                      id="promo-value"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="form-control"
-                      value={promoForm.discountValue}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
-                      placeholder={promoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label" htmlFor="promo-description">Description</label>
-                    <textarea
-                      id="promo-description"
-                      className="form-control"
-                      rows="2"
-                      value={promoForm.description}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="Short description for admins/customers"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-max-uses">Max uses (optional)</label>
-                    <input
-                      id="promo-max-uses"
-                      type="number"
-                      min="0"
-                      className="form-control"
-                      value={promoForm.maxUses}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
-                      placeholder="Blank = unlimited"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-starts">Starts at</label>
-                    <input
-                      id="promo-starts"
-                      type="datetime-local"
-                      className="form-control"
-                      value={promoForm.startsAt}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-expires">Expires at</label>
-                    <input
-                      id="promo-expires"
-                      type="datetime-local"
-                      className="form-control"
-                      value={promoForm.expiresAt}
-                      onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label d-block">Status</label>
-                    <div className="form-check form-switch">
-                      <input
-                        id="promo-active"
-                        className="form-check-input"
-                        type="checkbox"
-                        checked={!!promoForm.active}
-                        onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))}
-                      />
-                      <label className="form-check-label" htmlFor="promo-active">
-                        {promoForm.active ? "Active" : "Inactive"}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="d-flex gap-3 mt-3">
-                  <button type="submit" className="btn btn-primary-saas">
-                    Create promo
-                  </button>
-                  <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
-                    Clear
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          {editPromoForm && (
-            <div className="admin-card">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Edit promo</p>
-                  <h4>{editPromoForm.code}</h4>
-                </div>
-                <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromoForm(null)}>
-                  Close
-                </button>
-              </div>
-              <form className="profile-form" onSubmit={handlePromoUpdate}>
-                <div className="row g-3">
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-code-edit">Code</label>
-                    <input
-                      id="promo-code-edit"
-                      type="text"
-                      className="form-control"
-                      value={editPromoForm.code}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
-                      placeholder="SAVE10"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-type-edit">Discount type</label>
-                    <select
-                      id="promo-type-edit"
-                      className="form-select"
-                      value={editPromoForm.discountType}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, discountType: e.target.value }))}
-                    >
-                      <option value="percent">Percent off</option>
-                      <option value="amount">Amount off</option>
-                    </select>
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-value-edit">Value</label>
-                    <input
-                      id="promo-value-edit"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      className="form-control"
-                      value={editPromoForm.discountValue}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
-                      placeholder={editPromoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label" htmlFor="promo-description-edit">Description</label>
-                    <textarea
-                      id="promo-description-edit"
-                      className="form-control"
-                      rows="2"
-                      value={editPromoForm.description}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, description: e.target.value }))}
-                      placeholder="Short description for admins/customers"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-max-uses-edit">Max uses (optional)</label>
-                    <input
-                      id="promo-max-uses-edit"
-                      type="number"
-                      min="0"
-                      className="form-control"
-                      value={editPromoForm.maxUses}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
-                      placeholder="Blank = unlimited"
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
-                    <input
-                      id="promo-starts-edit"
-                      type="datetime-local"
-                      className="form-control"
-                      value={editPromoForm.startsAt}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
-                    <input
-                      id="promo-expires-edit"
-                      type="datetime-local"
-                      className="form-control"
-                      value={editPromoForm.expiresAt}
-                      onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
-                    />
-                  </div>
-                  <div className="col-md-4">
-                    <label className="form-label d-block">Status</label>
-                    <div className="form-check form-switch">
-                      <input
-                        id="promo-active-edit"
-                        className="form-check-input"
-                        type="checkbox"
-                        checked={!!editPromoForm.active}
-                        onChange={(e) => setEditPromoForm((p) => ({ ...p, active: e.target.checked }))}
-                      />
-                      <label className="form-check-label" htmlFor="promo-active-edit">
-                        {editPromoForm.active ? "Active" : "Inactive"}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-                <div className="d-flex gap-3 mt-3">
-                  <button type="submit" className="btn btn-primary-saas">
-                    Save changes
-                  </button>
-                  <button type="button" className="btn btn-outline-saas" onClick={() => setEditPromoForm(null)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-
           <div className="admin-card">
             <div className="card-header">
               <div>
@@ -1444,6 +1204,262 @@ const renderManagement = () => (
         </div>
       </div>
     </section>
+  );
+
+  const promoCreateModal = showCreatePromoForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create new promo"
+      onClick={() => setShowCreatePromoForm(false)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Create promo</p>
+            <h4>New promo code</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromoForm(false)}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromoSubmit}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-code">Code</label>
+              <input
+                id="promo-code"
+                type="text"
+                className="form-control"
+                value={promoForm.code}
+                onChange={(e) => setPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                placeholder="SAVE10"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-type">Discount type</label>
+              <select
+                id="promo-type"
+                className="form-select"
+                value={promoForm.discountType}
+                onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-value">Value</label>
+              <input
+                id="promo-value"
+                type="number"
+                min="0"
+                step="0.01"
+                className="form-control"
+                value={promoForm.discountValue}
+                onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+                placeholder={promoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-description">Description</label>
+              <textarea
+                id="promo-description"
+                className="form-control"
+                rows="2"
+                value={promoForm.description}
+                onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Short description for admins/customers"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-max-uses">Max uses (optional)</label>
+              <input
+                id="promo-max-uses"
+                type="number"
+                min="0"
+                className="form-control"
+                value={promoForm.maxUses}
+                onChange={(e) => setPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+                placeholder="Blank = unlimited"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-starts">Starts at</label>
+              <input
+                id="promo-starts"
+                type="datetime-local"
+                className="form-control"
+                value={promoForm.startsAt}
+                onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-expires">Expires at</label>
+              <input
+                id="promo-expires"
+                type="datetime-local"
+                className="form-control"
+                value={promoForm.expiresAt}
+                onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label d-block">Status</label>
+              <div className="form-check form-switch">
+                <input
+                  id="promo-active"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={!!promoForm.active}
+                  onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promo-active">
+                  {promoForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">
+              Create promo
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
+              Clear
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promoEditModal = editPromoForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit promo"
+      onClick={() => setEditPromoForm(null)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Edit promo</p>
+            <h4>{editPromoForm.code}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromoForm(null)}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromoUpdate}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-code-edit">Code</label>
+              <input
+                id="promo-code-edit"
+                type="text"
+                className="form-control"
+                value={editPromoForm.code}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                placeholder="SAVE10"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-type-edit">Discount type</label>
+              <select
+                id="promo-type-edit"
+                className="form-select"
+                value={editPromoForm.discountType}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-value-edit">Value</label>
+              <input
+                id="promo-value-edit"
+                type="number"
+                min="0"
+                step="0.01"
+                className="form-control"
+                value={editPromoForm.discountValue}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+                placeholder={editPromoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-description-edit">Description</label>
+              <textarea
+                id="promo-description-edit"
+                className="form-control"
+                rows="2"
+                value={editPromoForm.description}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Short description for admins/customers"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-max-uses-edit">Max uses (optional)</label>
+              <input
+                id="promo-max-uses-edit"
+                type="number"
+                min="0"
+                className="form-control"
+                value={editPromoForm.maxUses}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+                placeholder="Blank = unlimited"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
+              <input
+                id="promo-starts-edit"
+                type="datetime-local"
+                className="form-control"
+                value={editPromoForm.startsAt}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
+              <input
+                id="promo-expires-edit"
+                type="datetime-local"
+                className="form-control"
+                value={editPromoForm.expiresAt}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label d-block">Status</label>
+              <div className="form-check form-switch">
+                <input
+                  id="promo-active-edit"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={!!editPromoForm.active}
+                  onChange={(e) => setEditPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promo-active-edit">
+                  {editPromoForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">
+              Save changes
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={() => setEditPromoForm(null)}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 
   const renderUsers = () => (
@@ -2168,6 +2184,8 @@ const renderCreateProductForm = () => (
           </main>
         </div>
       </div>
+      {promoCreateModal}
+      {promoEditModal}
     </div>
   );
 };
