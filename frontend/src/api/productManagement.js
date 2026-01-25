@@ -6,8 +6,8 @@ const buildQuery = (params = {}) =>
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
-export const listProducts = () => request("/products/");
-export const getProduct = (id) => request(`/products/${id}`);
+export const listProducts = () => request("/products/?include_promotions=false");
+export const getProduct = (id) => request(`/products/${id}?include_promotions=false`);
 
 export const createProduct = (body) =>
   request("/products/", { method: "POST", body });
@@ -21,10 +21,10 @@ export const deleteProduct = (id) =>
 // --- SEARCH & FILTER EXTENSIONS ---
 
 export const searchProductsByTitle = (title) => 
-  request(`/products/title/${encodeURIComponent(title)}`);
+  request(`/products/title/${encodeURIComponent(title)}?include_promotions=false`);
 
 export const filterProductsByCategory = (category) => 
-  request(`/products/category/${encodeURIComponent(category)}`);
+  request(`/products/category/${encodeURIComponent(category)}?include_promotions=false`);
 
 export const filterProductsByPrice = (min, max) => 
-  request(`/products/price-range?${buildQuery({ min_price: min, max_price: max })}`);
+  request(`/products/price-range?${buildQuery({ min_price: min, max_price: max, include_promotions: false })}`);

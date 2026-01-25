@@ -5,6 +5,7 @@ import Marquee from "react-fast-marquee";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProductById, fetchProducts } from "../api/products";
+import { formatCountdown, hasActivePromotion } from "../utils/promo";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/InnerImageZoom/styles.css";
 import "../styles/Product.css";
@@ -15,6 +16,7 @@ const Product = () => {
   const [similarProducts, setSimilarProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loading2, setLoading2] = useState(false);
+  const [now, setNow] = useState(Date.now());
 
   const dispatch = useDispatch();
 
@@ -49,6 +51,11 @@ const Product = () => {
     };
     getProduct();
   }, [id]);
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const Loading = () => {
     return (
@@ -98,9 +105,29 @@ const Product = () => {
               <p className="lead mb-4">
                 {product.rating} <i className="fa fa-star text-warning"></i>
               </p>
-              <h3 className="display-6 fw-bold text-primary mb-4">
-                ${product.price}
-              </h3>
+              {(() => {
+                const price = Number(product.price || 0);
+                const original = Number(product.originalPrice ?? product.price ?? 0);
+                const showPromo = hasActivePromotion(product);
+                const countdown = showPromo ? formatCountdown(product?.promotion?.expiresAt, now) : "";
+                return (
+                  <div className="mb-4">
+                    {showPromo && (
+                      <div className="text-muted text-decoration-line-through">
+                        ${original.toFixed(2)}
+                      </div>
+                    )}
+                    <h3 className="display-6 fw-bold text-primary mb-2">
+                      ${price.toFixed(2)}
+                    </h3>
+                    {showPromo && countdown && (
+                      <span className="badge bg-warning text-dark">
+                        Ends in {countdown}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               <p className="lead text-muted mb-5">{product.description}</p>
               {product.specs && (
                 <div className="p-4 rounded-4 mb-5 border border-light" style={{ backgroundColor: "var(--bg-card)" }}>

@@ -1,6 +1,6 @@
 // src/cart/CartDrawer.jsx
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { NavLink } from "react-router-dom";
 
@@ -12,6 +12,7 @@ import {
   decreaseItem,
   removeItem,
 } from "../redux/cartSlice";
+import { formatCountdown, hasActivePromotion } from "../utils/promo";
 
 import "../styles/CartDrawer.css";   // <-- your cart drawer CSS file
 
@@ -21,6 +22,12 @@ const CartDrawer = ({ isOpen, onClose }) => {
   const discount = useSelector(selectCartDiscount);
   const totalAfterDiscount = Math.max(subtotal - discount, 0);
   const dispatch = useDispatch();
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
     <>
@@ -58,7 +65,27 @@ const CartDrawer = ({ isOpen, onClose }) => {
                     <div className="cart-item-title">{item.title}</div>
 
                     <div className="cart-item-price">
-                      ${item.price.toFixed(2)}
+                      {(() => {
+                        const price = Number(item.price || 0);
+                        const original = Number(item.originalPrice ?? item.price ?? 0);
+                        const showPromo = hasActivePromotion(item);
+                        const countdown = showPromo ? formatCountdown(item?.promotion?.expiresAt, now) : "";
+                        return (
+                          <div className="d-flex flex-column">
+                            {showPromo && (
+                              <span className="small text-muted text-decoration-line-through">
+                                ${original.toFixed(2)}
+                              </span>
+                            )}
+                            <span>${price.toFixed(2)}</span>
+                            {showPromo && countdown && (
+                              <span className="badge bg-warning text-dark mt-1 align-self-start">
+                                Ends in {countdown}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     <div className="cart-item-qty d-flex align-items-center mt-2">

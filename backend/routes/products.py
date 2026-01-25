@@ -2,12 +2,21 @@ from flask import Blueprint, current_app, jsonify, request
 
 try:
     from ..utils.mappers import map_product
+    from ..services import promotion_service
     from ..limiter import maybe_limit
 except ImportError:
     from utils.mappers import map_product
+    from services import promotion_service
     from limiter import maybe_limit
 
 products_bp = Blueprint("products", __name__)
+
+
+def _include_promotions() -> bool:
+    raw = request.args.get("include_promotions")
+    if raw is None:
+        return True
+    return str(raw).strip().lower() in {"1", "true", "yes"}
 
 @products_bp.get("/")
 def get_products():
@@ -29,8 +38,11 @@ def get_products():
             .execute()
         )
         
-        # This will now use your updated map_product
-        return jsonify([map_product(r) for r in res.data or []])
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
     except Exception as err:
         print(f"DEBUG ERROR: {err}") # This prints to your terminal!
         return jsonify({"error": str(err)}), 500
@@ -47,7 +59,11 @@ def get_products_by_category(category_name):
             .order("created_at", desc=True)
             .execute()
         )
-        return jsonify([map_product(r) for r in res.data or []])
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
     except Exception as err:
         current_app.logger.error(f"Category search error: {err}")
         return jsonify({"error": str(err)}), 500
@@ -64,7 +80,11 @@ def get_products_by_title(product_title):
             .order("title", desc=False)
             .execute()
         )
-        return jsonify([map_product(r) for r in res.data or []])
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
     except Exception as err:
         current_app.logger.error(f"Title search error: {err}")
         return jsonify({"error": str(err)}), 500
@@ -92,7 +112,11 @@ def handle_product_by_id(product_id):
             res = supabase.table("products").select("*").eq("id", product_id).maybe_single().execute()
             if not res.data: 
                 return jsonify({"error": "Product not found"}), 404
-            return jsonify(map_product(res.data))
+            item = map_product(res.data)
+            if _include_promotions():
+                active_promos = promotion_service.list_active_promotions(supabase)
+                item = promotion_service.apply_best_promotion(item, active_promos)
+            return jsonify(item)
 
         elif request.method == "PUT":
             # Update product details

@@ -2,8 +2,10 @@ from typing import List, Dict, Any
 
 try:
     from ..utils.mappers import map_product  # package import
+    from ..services import promotion_service
 except ImportError:
     from utils.mappers import map_product  # fallback for module import
+    from services import promotion_service
 
 
 def map_cart_items(supabase, cart_id: str) -> List[Dict[str, Any]]:
@@ -11,6 +13,7 @@ def map_cart_items(supabase, cart_id: str) -> List[Dict[str, Any]]:
     Fetch cart items with joined product rows and normalize the shape.
     Raises on Supabase errors so the caller can return a 500 with the message.
     """
+    active_promos = promotion_service.list_active_promotions(supabase)
     res = (
         supabase.table("cart_items")
         .select(
@@ -22,8 +25,10 @@ def map_cart_items(supabase, cart_id: str) -> List[Dict[str, Any]]:
     items = []
     for row in res.data or []:
         product = row.get("products") or {}
+        mapped = map_product(product)
+        mapped = promotion_service.apply_best_promotion(mapped, active_promos)
         item = {
-            **map_product(product),
+            **mapped,
             "id": row.get("product_id"),
             "qty": row.get("quantity", 1),
         }

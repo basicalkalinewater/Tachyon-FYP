@@ -49,3 +49,12 @@ export const listPromoCodes = (params = {}) => {
 export const createPromoCode = (body) => request(`/admin/promo-codes`, { method: "POST", body });
 export const updatePromoCode = (id, body) => request(`/admin/promo-codes/${id}`, { method: "PUT", body });
 export const deletePromoCode = (id) => request(`/admin/promo-codes/${id}`, { method: "DELETE" });
+
+export const listPromotions = (params = {}) => {
+  const qs = toQuery(params);
+  return request(`/admin/promotions${qs ? `?${qs}` : ""}`);
+};
+
+export const createPromotion = (body) => request(`/admin/promotions`, { method: "POST", body });
+export const updatePromotion = (id, body) => request(`/admin/promotions/${id}`, { method: "PUT", body });
+export const deletePromotion = (id) => request(`/admin/promotions/${id}`, { method: "DELETE" });

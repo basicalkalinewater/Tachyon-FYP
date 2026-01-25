@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProducts } from "../api/products";
+import { formatCountdown, hasActivePromotion } from "../utils/promo";
 
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -16,6 +17,7 @@ const ProductsList = () => {
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [specFilters, setSpecFilters] = useState({});
+  const [now, setNow] = useState(Date.now());
 
   const dispatch = useDispatch();
 
@@ -37,6 +39,11 @@ const ProductsList = () => {
     };
 
     getProducts();
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
   }, []);
 
   const applyFilters = (category, nextSpecFilters = specFilters) => {
@@ -214,7 +221,27 @@ const ProductsList = () => {
 
                   <div className="mt-auto">
                     <div className="d-flex align-items-center justify-content-between mb-3">
-                      <span className="fs-5 fw-bold text-primary">${product.price}</span>
+                      {(() => {
+                        const price = Number(product.price || 0);
+                        const original = Number(product.originalPrice ?? product.price ?? 0);
+                        const showPromo = hasActivePromotion(product);
+                        const countdown = showPromo ? formatCountdown(product?.promotion?.expiresAt, now) : "";
+                        return (
+                          <div className="d-flex flex-column">
+                            {showPromo && (
+                              <span className="small text-muted text-decoration-line-through">
+                                ${original.toFixed(2)}
+                              </span>
+                            )}
+                            <span className="fs-5 fw-bold text-primary">${price.toFixed(2)}</span>
+                            {showPromo && countdown && (
+                              <span className="badge bg-warning text-dark mt-1 align-self-start">
+                                Ends in {countdown}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="d-grid gap-2">
                       <button

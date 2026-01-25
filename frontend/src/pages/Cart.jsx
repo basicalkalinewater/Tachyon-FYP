@@ -1,6 +1,6 @@
 // src/pages/Cart.jsx
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { Link } from "react-router-dom";
 
@@ -15,6 +15,7 @@ import {
   decreaseItem,
   removeItem,
 } from "../redux/cartSlice";
+import { formatCountdown, hasActivePromotion } from "../utils/promo";
 
 const Cart = () => {
   const items = useSelector(selectCartItems);
@@ -24,6 +25,12 @@ const Cart = () => {
   const status = useSelector(selectCartStatus);
   const error = useSelector(selectCartError);
   const dispatch = useDispatch();
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   if ((!items || items.length === 0) && status !== "loading") {
     return (
@@ -60,7 +67,27 @@ const Cart = () => {
 
             <div className="col-md-4 col-8">
               <h6 className="mb-1">{item.title}</h6>
-              <small className="text-muted">${item.price.toFixed(2)} each</small>
+              {(() => {
+                const price = Number(item.price || 0);
+                const original = Number(item.originalPrice ?? item.price ?? 0);
+                const showPromo = hasActivePromotion(item);
+                const countdown = showPromo ? formatCountdown(item?.promotion?.expiresAt, now) : "";
+                return (
+                  <div>
+                    {showPromo && (
+                      <div className="small text-muted text-decoration-line-through">
+                        ${original.toFixed(2)} each
+                      </div>
+                    )}
+                    <div className="small text-muted">${price.toFixed(2)} each</div>
+                    {showPromo && countdown && (
+                      <span className="badge bg-warning text-dark mt-1">
+                        Ends in {countdown}
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className="col-md-3 col-6 mt-3 mt-md-0">
@@ -84,7 +111,7 @@ const Cart = () => {
             </div>
 
             <div className="col-md-2 col-4 mt-3 mt-md-0">
-              <strong>${(item.price * item.qty).toFixed(2)}</strong>
+              <strong>${(Number(item.price || 0) * item.qty).toFixed(2)}</strong>
             </div>
 
             <div className="col-md-1 col-4 mt-3 mt-md-0 text-end">

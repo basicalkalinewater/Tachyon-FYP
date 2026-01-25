@@ -28,6 +28,7 @@ try:  # package-relative (preferred)
     from .routes.admin_analytics import admin_analytics_bp
     from .routes.admin_content import admin_content_bp
     from .routes.admin_promos import admin_promos_bp
+    from .routes.admin_promotions import admin_promotions_bp
     from .routes.content import content_bp
     from .routes.promos import promos_bp
 except ImportError:  # fallback for top-level module import
@@ -41,6 +42,7 @@ except ImportError:  # fallback for top-level module import
     from routes.admin_analytics import admin_analytics_bp
     from routes.admin_content import admin_content_bp
     from routes.admin_promos import admin_promos_bp
+    from routes.admin_promotions import admin_promotions_bp
     from routes.content import content_bp
     from routes.promos import promos_bp
 
@@ -99,6 +101,7 @@ def create_app() -> Flask:
     app.register_blueprint(admin_analytics_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_content_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_promos_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin")
     app.register_blueprint(content_bp, url_prefix="/api/content")
     app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
 

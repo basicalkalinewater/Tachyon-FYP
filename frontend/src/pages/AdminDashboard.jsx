@@ -21,6 +21,10 @@ import {
   createPromoCode,
   updatePromoCode,
   deletePromoCode,
+  listPromotions,
+  createPromotion,
+  updatePromotion,
+  deletePromotion,
 } from "../api/admin";
 import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
@@ -31,6 +35,7 @@ const ADMIN_SECTIONS = [
   { id: "products", label: "Products", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "management", label: "Content", group: "Management" },
+  { id: "promotions", label: "Promotions", group: "Management" },
   { id: "promos", label: "Promo Codes", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
 ];
@@ -51,7 +56,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management | promos
+  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management | promos | promotions
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
@@ -72,10 +77,28 @@ const AdminDashboard = () => {
   const [promoForm, setPromoForm] = useState(emptyPromoForm);
   const [showCreatePromoForm, setShowCreatePromoForm] = useState(false);
   const [editPromoForm, setEditPromoForm] = useState(null);
+  const emptyPromotionForm = {
+    id: null,
+    name: "",
+    scopeType: "product",
+    productId: "",
+    category: "",
+    discountType: "percent",
+    discountValue: 10,
+    startsAt: "",
+    expiresAt: "",
+    active: true,
+  };
+  const [promotionItems, setPromotionItems] = useState([]);
+  const [promotionForm, setPromotionForm] = useState(emptyPromotionForm);
+  const [showCreatePromotionForm, setShowCreatePromotionForm] = useState(false);
+  const [editPromotionForm, setEditPromotionForm] = useState(null);
   const [faqLoading, setFaqLoading] = useState(false);
   const [policyLoading, setPolicyLoading] = useState(false);
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoFilters, setPromoFilters] = useState({ q: "", active: "all" });
+  const [promotionLoading, setPromotionLoading] = useState(false);
+  const [promotionFilters, setPromotionFilters] = useState({ q: "", active: "all", scope: "all" });
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -242,6 +265,26 @@ const AdminDashboard = () => {
     }
   }, [promoFilters]);
 
+  const loadPromotions = useCallback(async () => {
+    setPromotionLoading(true);
+    try {
+      const params = {};
+      if (promotionFilters.q.trim()) {
+        params.q = promotionFilters.q.trim();
+      }
+      if (promotionFilters.active === "active") params.active = true;
+      else if (promotionFilters.active === "inactive") params.active = false;
+      if (promotionFilters.scope !== "all") params.scope = promotionFilters.scope;
+      const data = await listPromotions(params);
+      const list = data.data || data || [];
+      setPromotionItems(list);
+    } catch (err) {
+      toast.error(err.message || "Failed to load promotions");
+    } finally {
+      setPromotionLoading(false);
+    }
+  }, [promotionFilters]);
+
   useEffect(() => {
     if (viewMode === "management") {
       if (managementTab === "faqs") {
@@ -251,8 +294,10 @@ const AdminDashboard = () => {
       }
     } else if (viewMode === "promos") {
       loadPromos();
+    } else if (viewMode === "promotions") {
+      loadPromotions();
     }
-  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadPromos]);
+  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadPromos, loadPromotions]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -275,7 +320,7 @@ const AdminDashboard = () => {
     }
   }, [productFilters]);
   useEffect(() => {
-    if (viewMode === "products") {
+    if (viewMode === "products" || viewMode === "promotions") {
       loadProducts();
     }
   }, [viewMode, loadProducts]);
@@ -637,6 +682,116 @@ const AdminDashboard = () => {
     });
   };
 
+  const resetPromotionForm = () => setPromotionForm(emptyPromotionForm);
+
+  const handlePromotionSubmit = async (e) => {
+    e.preventDefault();
+    const scopeType = promotionForm.scopeType;
+    if (scopeType === "product" && !promotionForm.productId) {
+      toast.error("Select a product for this promotion");
+      return;
+    }
+    if (scopeType === "category" && !promotionForm.category.trim()) {
+      toast.error("Enter a category for this promotion");
+      return;
+    }
+    const numericValue = Number(promotionForm.discountValue);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
+      return;
+    }
+    if (promotionForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const toIso = (val) => (val ? new Date(val).toISOString() : null);
+    const payload = {
+      name: (promotionForm.name || "").trim(),
+      scopeType,
+      productId: scopeType === "product" ? promotionForm.productId : null,
+      category: scopeType === "category" ? promotionForm.category.trim() : null,
+      discountType: promotionForm.discountType,
+      discountValue: numericValue,
+      startsAt: toIso(promotionForm.startsAt),
+      expiresAt: toIso(promotionForm.expiresAt),
+      active: !!promotionForm.active,
+    };
+    try {
+      await createPromotion(payload);
+      toast.success("Promotion created");
+      resetPromotionForm();
+      setShowCreatePromotionForm(false);
+      await loadPromotions();
+    } catch (err) {
+      toast.error(err.message || "Failed to save promotion");
+    }
+  };
+
+  const handlePromotionUpdate = async (e) => {
+    e.preventDefault();
+    if (!editPromotionForm) return;
+    const scopeType = editPromotionForm.scopeType;
+    if (scopeType === "product" && !editPromotionForm.productId) {
+      toast.error("Select a product for this promotion");
+      return;
+    }
+    if (scopeType === "category" && !editPromotionForm.category.trim()) {
+      toast.error("Enter a category for this promotion");
+      return;
+    }
+    const numericValue = Number(editPromotionForm.discountValue);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
+      return;
+    }
+    if (editPromotionForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const toIso = (val) => (val ? new Date(val).toISOString() : null);
+    const payload = {
+      name: (editPromotionForm.name || "").trim(),
+      scopeType,
+      productId: scopeType === "product" ? editPromotionForm.productId : null,
+      category: scopeType === "category" ? editPromotionForm.category.trim() : null,
+      discountType: editPromotionForm.discountType,
+      discountValue: numericValue,
+      startsAt: toIso(editPromotionForm.startsAt),
+      expiresAt: toIso(editPromotionForm.expiresAt),
+      active: !!editPromotionForm.active,
+    };
+    try {
+      await updatePromotion(editPromotionForm.id, payload);
+      toast.success("Promotion updated");
+      setEditPromotionForm(null);
+      await loadPromotions();
+    } catch (err) {
+      toast.error(err.message || "Failed to update promotion");
+    }
+  };
+
+  const startCreatePromotion = () => {
+    resetPromotionForm();
+    setEditPromotionForm(null);
+    setShowCreatePromotionForm(true);
+  };
+
+  const startEditPromotion = (promotion) => {
+    setShowCreatePromotionForm(false);
+    setEditPromotionForm({
+      id: promotion.id,
+      name: promotion.name || "",
+      scopeType: promotion.scope_type || promotion.scopeType || "product",
+      productId: promotion.product_id || promotion.productId || "",
+      category: promotion.category || "",
+      discountType: promotion.discount_type || promotion.discountType || "percent",
+      discountValue: Number(promotion.discount_value ?? promotion.discountValue ?? 0),
+      startsAt: toInputDateTime(promotion.starts_at || promotion.startsAt),
+      expiresAt: toInputDateTime(promotion.expires_at || promotion.expiresAt),
+      active: promotion.active ?? true,
+    });
+  };
+
   const summary = csat.summary || {};
   const trend = csat.trend || [];
 
@@ -654,6 +809,17 @@ const AdminDashboard = () => {
     const total = trend.reduce((sum, p) => sum + Number(p.csat_pct ?? 0), 0);
     return Math.round(total / trend.length);
   }, [trend]);
+
+  const promotionCategories = useMemo(() => {
+    const cats = (products || [])
+      .map((p) => p.category)
+      .filter((c) => !!c);
+    return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  const promotionProductMap = useMemo(() => {
+    return new Map((products || []).map((p) => [p.id, p.title]));
+  }, [products]);
 
   // Helper Render functions
   const renderDashboard = () => (
@@ -1206,6 +1372,143 @@ const renderManagement = () => (
     </section>
   );
 
+  const renderPromotions = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Promotions</p>
+            <h4>Auto-applied discounts</h4>
+          </div>
+        </div>
+        <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 220 }}
+            placeholder="Name or category"
+            value={promotionFilters.q}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, q: e.target.value }))}
+          />
+          <select
+            className="form-select"
+            style={{ maxWidth: 170 }}
+            value={promotionFilters.active}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, active: e.target.value }))}
+          >
+            <option value="all">Any status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select
+            className="form-select"
+            style={{ maxWidth: 170 }}
+            value={promotionFilters.scope}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, scope: e.target.value }))}
+          >
+            <option value="all">Any scope</option>
+            <option value="product">Product</option>
+            <option value="category">Category</option>
+          </select>
+          <button className="btn btn-outline-saas" onClick={loadPromotions} disabled={promotionLoading}>
+            {promotionLoading ? "Loading..." : "Refresh"}
+          </button>
+          <button type="button" className="btn btn-primary-saas" onClick={startCreatePromotion}>
+            New promotion
+          </button>
+        </div>
+
+        <div className="admin-grid">
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Existing promotions</p>
+                <h4>Search & manage</h4>
+              </div>
+            </div>
+            {promotionLoading ? (
+              <p className="muted mb-0">Loading promotions...</p>
+            ) : promotionItems.length === 0 ? (
+              <p className="muted mb-0">No promotions yet.</p>
+            ) : (
+              <div className="table-responsive management-scroll">
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Target</th>
+                      <th>Discount</th>
+                      <th>Status</th>
+                      <th>Window</th>
+                      <th className="text-end">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {promotionItems.map((promotion) => {
+                      const scopeType = promotion.scope_type || promotion.scopeType;
+                      const discountType = promotion.discount_type || promotion.discountType;
+                      const discountValue = Number(promotion.discount_value ?? promotion.discountValue ?? 0);
+                      const productTitle = promotionProductMap.get(promotion.product_id || promotion.productId);
+                      const targetLabel =
+                        scopeType === "product"
+                          ? productTitle || "Product"
+                          : promotion.category || "Category";
+                      return (
+                        <tr key={promotion.id}>
+                          <td className="fw-semibold">{promotion.name || "Untitled"}</td>
+                          <td className="small">
+                            {scopeType === "product" ? "Product" : "Category"}: {targetLabel}
+                          </td>
+                          <td>
+                            {discountType === "percent"
+                              ? `${discountValue}% off`
+                              : `$${discountValue.toFixed(2)} off`}
+                          </td>
+                          <td>
+                            <span className={`badge rounded-pill ${promotion.active ? "bg-success" : "bg-secondary"}`}>
+                              {promotion.active ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td className="small text-muted">
+                            {describeWindow(promotion.starts_at || promotion.startsAt, promotion.expires_at || promotion.expiresAt)}
+                          </td>
+                          <td className="text-end">
+                            <div className="d-flex gap-2 justify-content-end">
+                              <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => startEditPromotion(promotion)}>
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={async () => {
+                                  const confirm = window.confirm(`Delete promotion ${promotion.name || "untitled"}?`);
+                                  if (!confirm) return;
+                                  try {
+                                    await deletePromotion(promotion.id);
+                                    toast.success("Promotion removed");
+                                    await loadPromotions();
+                                  } catch (err) {
+                                    toast.error(err.message || "Failed to delete promotion");
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
   const promoCreateModal = showCreatePromoForm && (
     <div
       className="admin-modal"
@@ -1457,6 +1760,311 @@ const renderManagement = () => (
               Cancel
             </button>
           </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promotionCreateModal = showCreatePromotionForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create new promotion"
+      onClick={() => setShowCreatePromotionForm(false)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Create promotion</p>
+            <h4>New auto-applied discount</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromotionForm(false)}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromotionSubmit}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-name">Name</label>
+              <input
+                id="promotion-name"
+                type="text"
+                className="form-control"
+                value={promotionForm.name}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, name: e.target.value }))}
+                placeholder="Winter Flash Sale"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-scope">Scope</label>
+              <select
+                id="promotion-scope"
+                className="form-select"
+                value={promotionForm.scopeType}
+                onChange={(e) =>
+                  setPromotionForm((p) => ({
+                    ...p,
+                    scopeType: e.target.value,
+                    productId: "",
+                    category: "",
+                  }))
+                }
+              >
+                <option value="product">Single product</option>
+                <option value="category">Category</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              {promotionForm.scopeType === "product" ? (
+                <>
+                  <label className="form-label" htmlFor="promotion-product">Product</label>
+                  <select
+                    id="promotion-product"
+                    className="form-select"
+                    value={promotionForm.productId}
+                    onChange={(e) => setPromotionForm((p) => ({ ...p, productId: e.target.value }))}
+                  >
+                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.title}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="form-label" htmlFor="promotion-category">Category</label>
+                  <input
+                    id="promotion-category"
+                    list="promotion-category-list"
+                    className="form-control"
+                    value={promotionForm.category}
+                    onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
+                    placeholder="keyboard"
+                  />
+                  <datalist id="promotion-category-list">
+                    {promotionCategories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-type">Discount type</label>
+              <select
+                id="promotion-type"
+                className="form-select"
+                value={promotionForm.discountType}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-value">Value</label>
+              <input
+                id="promotion-value"
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={promotionForm.discountValue}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
+                placeholder={promotionForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-starts">Starts at</label>
+              <input
+                id="promotion-starts"
+                type="datetime-local"
+                className="form-control"
+                value={promotionForm.startsAt}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-expires">Expires at</label>
+              <input
+                id="promotion-expires"
+                type="datetime-local"
+                className="form-control"
+                value={promotionForm.expiresAt}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4 d-flex align-items-end">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="promotion-active"
+                  checked={!!promotionForm.active}
+                  onChange={(e) => setPromotionForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promotion-active">
+                  {promotionForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary-saas mt-3">
+            Create promotion
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promotionEditModal = editPromotionForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit promotion"
+      onClick={() => setEditPromotionForm(null)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Edit promotion</p>
+            <h4>Update auto-applied discount</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromotionForm(null)}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromotionUpdate}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-name-edit">Name</label>
+              <input
+                id="promotion-name-edit"
+                type="text"
+                className="form-control"
+                value={editPromotionForm.name}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-scope-edit">Scope</label>
+              <select
+                id="promotion-scope-edit"
+                className="form-select"
+                value={editPromotionForm.scopeType}
+                onChange={(e) =>
+                  setEditPromotionForm((p) => ({
+                    ...p,
+                    scopeType: e.target.value,
+                    productId: "",
+                    category: "",
+                  }))
+                }
+              >
+                <option value="product">Single product</option>
+                <option value="category">Category</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              {editPromotionForm.scopeType === "product" ? (
+                <>
+                  <label className="form-label" htmlFor="promotion-product-edit">Product</label>
+                  <select
+                    id="promotion-product-edit"
+                    className="form-select"
+                    value={editPromotionForm.productId}
+                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, productId: e.target.value }))}
+                  >
+                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.title}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="form-label" htmlFor="promotion-category-edit">Category</label>
+                  <input
+                    id="promotion-category-edit"
+                    list="promotion-category-list-edit"
+                    className="form-control"
+                    value={editPromotionForm.category}
+                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
+                  />
+                  <datalist id="promotion-category-list-edit">
+                    {promotionCategories.map((cat) => (
+                      <option key={cat} value={cat} />
+                    ))}
+                  </datalist>
+                </>
+              )}
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-type-edit">Discount type</label>
+              <select
+                id="promotion-type-edit"
+                className="form-select"
+                value={editPromotionForm.discountType}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-value-edit">Value</label>
+              <input
+                id="promotion-value-edit"
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={editPromotionForm.discountValue}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-starts-edit">Starts at</label>
+              <input
+                id="promotion-starts-edit"
+                type="datetime-local"
+                className="form-control"
+                value={editPromotionForm.startsAt}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-expires-edit">Expires at</label>
+              <input
+                id="promotion-expires-edit"
+                type="datetime-local"
+                className="form-control"
+                value={editPromotionForm.expiresAt}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4 d-flex align-items-end">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="promotion-active-edit"
+                  checked={!!editPromotionForm.active}
+                  onChange={(e) => setEditPromotionForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promotion-active-edit">
+                  {editPromotionForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary-saas mt-3">
+            Save changes
+          </button>
         </form>
       </div>
     </div>
@@ -2180,12 +2788,15 @@ const renderCreateProductForm = () => (
             {viewMode === "users" && renderUsers()}
             {viewMode === "management" && renderManagement()}
             {viewMode === "promos" && renderPromos()}
+            {viewMode === "promotions" && renderPromotions()}
             {viewMode === "products" && renderProducts()}
           </main>
         </div>
       </div>
       {promoCreateModal}
       {promoEditModal}
+      {promotionCreateModal}
+      {promotionEditModal}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link } from "react-router-dom";
 import {
@@ -11,6 +11,7 @@ import {
   applyPromoCode,
   clearPromo,
 } from "../redux/cartSlice";
+import { formatCountdown, hasActivePromotion } from "../utils/promo";
 
 const Checkout = () => {
   const items = useSelector(selectCartItems);
@@ -21,10 +22,16 @@ const Checkout = () => {
   const promoError = useSelector(selectPromoError);
   const dispatch = useDispatch();
   const [promoInput, setPromoInput] = useState(appliedPromo?.code || "");
+  const [now, setNow] = useState(Date.now());
   const shipping = 30;
   const totalItems = items.reduce((sum, item) => sum + item.qty, 0);
   const subtotalAfterDiscount = Math.max(subtotal - discount, 0);
   const total = subtotalAfterDiscount + shipping;
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const applyPromo = (e) => {
     e.preventDefault();
@@ -108,11 +115,29 @@ const Checkout = () => {
               />
               <div className="flex-grow-1">
                 <div className="fw-semibold text-truncate">{item.title}</div>
-                <div className="text-muted small">
-                  Qty {item.qty} · ${item.price.toFixed(2)} each
-                </div>
+                {(() => {
+                  const price = Number(item.price || 0);
+                  const original = Number(item.originalPrice ?? item.price ?? 0);
+                  const showPromo = hasActivePromotion(item);
+                  const countdown = showPromo ? formatCountdown(item?.promotion?.expiresAt, now) : "";
+                  return (
+                    <div className="text-muted small">
+                      {showPromo && (
+                        <div className="text-decoration-line-through">
+                          ${original.toFixed(2)} each
+                        </div>
+                      )}
+                      <div>Qty {item.qty} · ${price.toFixed(2)} each</div>
+                      {showPromo && countdown && (
+                        <span className="badge bg-warning text-dark mt-1">
+                          Ends in {countdown}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
-              <div className="fw-bold">${(item.price * item.qty).toFixed(2)}</div>
+              <div className="fw-bold">${(Number(item.price || 0) * item.qty).toFixed(2)}</div>
             </li>
           ))}
           <li className="list-group-item d-flex justify-content-between px-0">
