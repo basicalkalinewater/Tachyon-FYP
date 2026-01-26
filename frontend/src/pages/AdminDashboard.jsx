@@ -2412,7 +2412,7 @@ const renderStocks = () => {
             <option value="admin">Admin</option>
           </select>
           <button className="btn btn-outline-saas" onClick={loadUsers} disabled={usersLoading}>
-            {usersLoading ? "Loading..." : "Apply"}
+            {usersLoading ? "Loading..." : "Refresh"}
           </button>
           <button
             className="btn btn-primary-saas"
@@ -2724,7 +2724,7 @@ const renderProducts = () => (
             onClick={loadProducts} 
             disabled={productsLoading}
           >
-            {productsLoading ? "Loading..." : "Apply"}
+            {productsLoading ? "Loading..." : "Refresh"}
           </button>
 
           <button 
