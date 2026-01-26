@@ -5,6 +5,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 
 # 1. IMPORT BLUEPRINTS
 try:
@@ -20,6 +21,7 @@ try:
     from .routes.admin_user_management import admin_users_bp
     from .routes.customer import customer_bp, dashboard_bp
     from .routes.live_cust_support import live_cust_support_bp
+    from .routes.promos import promos_bp
     # Import other blueprints as needed
 except ImportError:
     from supabase_client import get_supabase
@@ -34,6 +36,7 @@ except ImportError:
     from routes.admin_user_management import admin_users_bp
     from routes.customer import customer_bp, dashboard_bp
     from routes.live_cust_support import live_cust_support_bp
+    from routes.promos import promos_bp
 
 def create_app() -> Flask:
     # 2. ENV LOADING (Force absolute path to avoid 500s from missing keys)
@@ -67,6 +70,11 @@ def create_app() -> Flask:
     # 5. GLOBAL ERROR HANDLER (Ensures you see the REAL error, not a CORS block)
     @app.errorhandler(Exception)
     def handle_exception(e):
+        if isinstance(e, HTTPException):
+            response = e.get_response()
+            response.headers["Access-Control-Allow-Origin"] = allowed_origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            return response
         logging.error(f"!!! SERVER ERROR !!!\n{traceback.format_exc()}")
         response = jsonify({
             "error": "Internal Server Error",
@@ -89,6 +97,7 @@ def create_app() -> Flask:
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(products_bp, url_prefix="/api/products")
     app.register_blueprint(carts_bp, url_prefix="/api/carts")
+    app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
     
     # Admin Routes
     app.register_blueprint(stocks_bp, url_prefix="/api/admin/stocks")

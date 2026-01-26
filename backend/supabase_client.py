@@ -1,6 +1,25 @@
 import os
 from supabase import Client, create_client
 from dotenv import load_dotenv
+from postgrest._sync.client import SyncPostgrestClient
+from postgrest.utils import SyncClient as PostgrestSyncClient
+
+
+def _disable_postgrest_http2():
+    def _create_session_no_http2(self, base_url, headers, timeout, verify=True):
+        return PostgrestSyncClient(
+            base_url=base_url,
+            headers=headers,
+            timeout=timeout,
+            verify=verify,
+            follow_redirects=True,
+            http2=False,
+        )
+
+    SyncPostgrestClient.create_session = _create_session_no_http2
+
+
+_disable_postgrest_http2()
 
 
 def get_supabase() -> Client:

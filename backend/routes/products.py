@@ -46,6 +46,78 @@ def get_products():
         logging.error(f"DEBUG ERROR: {err}")
         return jsonify({"error": str(err)}), 500
 
+@products_bp.get("/title/<search_title>")
+def search_products_by_title(search_title):
+    supabase = current_app.config["SUPABASE"]
+    try:
+        term = (search_title or "").strip()
+        if not term:
+            return jsonify([]), 200
+        res = (
+            supabase.table("products")
+            .select("*")
+            .ilike("title", f"%{term}%")
+            .order("id", desc=False)
+            .execute()
+        )
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
+    except Exception as err:
+        logging.error(f"Search Products Error: {err}")
+        return jsonify({"error": str(err)}), 500
+
+@products_bp.get("/category/<category>")
+def filter_products_by_category(category):
+    supabase = current_app.config["SUPABASE"]
+    try:
+        cat = (category or "").strip()
+        if not cat:
+            return jsonify([]), 200
+        res = (
+            supabase.table("products")
+            .select("*")
+            .ilike("category", cat)
+            .order("id", desc=False)
+            .execute()
+        )
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
+    except Exception as err:
+        logging.error(f"Filter Products Error: {err}")
+        return jsonify({"error": str(err)}), 500
+
+@products_bp.get("/price-range")
+def filter_products_by_price():
+    supabase = current_app.config["SUPABASE"]
+    try:
+        try:
+            min_p = float(request.args.get("min_price", 0))
+            max_p = float(request.args.get("max_price", 1000000))
+        except (ValueError, TypeError):
+            min_p, max_p = 0, 1000000
+        res = (
+            supabase.table("products")
+            .select("*")
+            .gte("price", min_p)
+            .lte("price", max_p)
+            .order("id", desc=False)
+            .execute()
+        )
+        items = [map_product(r) for r in res.data or []]
+        if _include_promotions():
+            active_promos = promotion_service.list_active_promotions(supabase)
+            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
+        return jsonify(items)
+    except Exception as err:
+        logging.error(f"Filter Products Error: {err}")
+        return jsonify({"error": str(err)}), 500
+
 @products_bp.post("/")
 def create_product():
     supabase = current_app.config["SUPABASE"]
