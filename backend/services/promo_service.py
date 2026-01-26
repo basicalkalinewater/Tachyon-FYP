@@ -10,6 +10,17 @@ except ImportError:
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
+def _normalize_dt(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+def _ensure_not_past(value: Optional[datetime], label: str):
+    if not value:
+        return
+    if _normalize_dt(value) < _now():
+        raise ValueError(f"{label} cannot be in the past")
+
 
 def _normalize_code(code: str) -> str:
     return (code or "").strip().upper()
@@ -29,6 +40,10 @@ def _parse_ts(value) -> Optional[datetime]:
 
 
 def list_promos(supabase, filters: Dict) -> List[Dict]:
+    try:
+        supabase.table("promo_codes").update({"active": False}).lt("expires_at", _now().isoformat()).eq("active", True).execute()
+    except Exception:
+        pass
     query = supabase.table("promo_codes").select("*")
     search = filters.get("search")
     if search:
@@ -48,16 +63,25 @@ def list_promos(supabase, filters: Dict) -> List[Dict]:
 
 def create_promo(supabase, payload: PromoCreatePayload) -> Dict:
     body = payload.model_dump()
+    normalized_code = _normalize_code(body["code"])
+    existing = supabase.table("promo_codes").select("id").eq("code", normalized_code).limit(1).execute()
+    if existing.data:
+        raise ValueError("Promo code already exists")
     starts_at = body.get("startsAt")
     expires_at = body.get("expiresAt")
     if starts_at and expires_at and starts_at > expires_at:
         raise ValueError("startsAt must be before expiresAt")
+    _ensure_not_past(starts_at, "startsAt")
+    _ensure_not_past(expires_at, "expiresAt")
+    if body.get("active", True):
+        if not starts_at or not expires_at:
+            raise ValueError("Active promo codes require startsAt and expiresAt")
 
     def _to_iso(val):
         return val.isoformat() if isinstance(val, datetime) else val
 
     data = {
-        "code": _normalize_code(body["code"]),
+        "code": normalized_code,
         "description": (body.get("description") or "").strip(),
         "discount_type": body["discountType"],
         "discount_value": body["discountValue"],
@@ -74,7 +98,18 @@ def update_promo(supabase, promo_id: str, payload: PromoUpdatePayload) -> Dict:
     body = payload.model_dump(exclude_none=True)
     updates = {}
     if "code" in body:
-        updates["code"] = _normalize_code(body["code"])
+        normalized_code = _normalize_code(body["code"])
+        existing = (
+            supabase.table("promo_codes")
+            .select("id")
+            .eq("code", normalized_code)
+            .neq("id", promo_id)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            raise ValueError("Promo code already exists")
+        updates["code"] = normalized_code
     if "description" in body:
         updates["description"] = (body.get("description") or "").strip()
     if "discountType" in body:
@@ -87,6 +122,10 @@ def update_promo(supabase, promo_id: str, payload: PromoUpdatePayload) -> Dict:
     expires_at = body.get("expiresAt") if "expiresAt" in body else None
     if starts_at and expires_at and starts_at > expires_at:
         raise ValueError("startsAt must be before expiresAt")
+    if "startsAt" in body:
+        _ensure_not_past(starts_at, "startsAt")
+    if "expiresAt" in body:
+        _ensure_not_past(expires_at, "expiresAt")
     def _to_iso(val):
         return val.isoformat() if isinstance(val, datetime) else val
     if "startsAt" in body:
@@ -95,6 +134,25 @@ def update_promo(supabase, promo_id: str, payload: PromoUpdatePayload) -> Dict:
         updates["expires_at"] = _to_iso(expires_at)
     if "active" in body:
         updates["active"] = bool(body.get("active"))
+        if updates["active"]:
+            if not (starts_at and expires_at):
+                existing = (
+                    supabase.table("promo_codes")
+                    .select("starts_at, expires_at")
+                    .eq("id", promo_id)
+                    .single()
+                    .execute()
+                    .data
+                    or {}
+                )
+                starts_at = starts_at or _parse_ts(existing.get("starts_at"))
+                expires_at = expires_at or _parse_ts(existing.get("expires_at"))
+            if not starts_at or not expires_at:
+                raise ValueError("Active promo codes require startsAt and expiresAt")
+            if starts_at > expires_at:
+                raise ValueError("startsAt must be before expiresAt")
+            _ensure_not_past(starts_at, "startsAt")
+            _ensure_not_past(expires_at, "expiresAt")
 
     if not updates:
         return {}

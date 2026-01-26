@@ -176,6 +176,24 @@ const AdminDashboard = () => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
 
+  const parseLocalDateTime = (value) => {
+    if (!value) return null;
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return null;
+    return d;
+  };
+
+  const validateDateWindow = (startsAt, expiresAt, isActive) => {
+    const now = new Date();
+    const start = parseLocalDateTime(startsAt);
+    const end = parseLocalDateTime(expiresAt);
+    if (start && start < now) return "Start date/time cannot be in the past";
+    if (end && end < now) return "End date/time cannot be in the past";
+    if (start && end && start > end) return "Start date/time must be before end date/time";
+    if (isActive && (!start || !end)) return "Active items require both start and end dates";
+    return null;
+  };
+
   const describeWindow = (start, end) => {
     const fmt = (val) => {
       const d = new Date(val);
@@ -691,12 +709,17 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(promoForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      toast.error("Discount value must be greater than 0");
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Discount value must be 0 or greater");
       return;
     }
-    if (promoForm.discountType === "percent" && numericValue > 100) {
-      toast.error("Percent discounts cannot exceed 100%");
+    if (promoForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
+      toast.error("Percent discounts must be between 0 and 100");
+      return;
+    }
+    const windowError = validateDateWindow(promoForm.startsAt, promoForm.expiresAt, promoForm.active);
+    if (windowError) {
+      toast.error(windowError);
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -729,12 +752,17 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(editPromoForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      toast.error("Discount value must be greater than 0");
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Discount value must be 0 or greater");
       return;
     }
-    if (editPromoForm.discountType === "percent" && numericValue > 100) {
-      toast.error("Percent discounts cannot exceed 100%");
+    if (editPromoForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
+      toast.error("Percent discounts must be between 0 and 100");
+      return;
+    }
+    const windowError = validateDateWindow(editPromoForm.startsAt, editPromoForm.expiresAt, editPromoForm.active);
+    if (windowError) {
+      toast.error(windowError);
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -793,12 +821,28 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(promotionForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      toast.error("Discount value must be greater than 0");
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Discount value must be 0 or greater");
       return;
     }
-    if (promotionForm.discountType === "percent" && numericValue > 100) {
-      toast.error("Percent discounts cannot exceed 100%");
+    if (promotionForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
+      toast.error("Percent discounts must be between 0 and 100");
+      return;
+    }
+    if (scopeType === "product" && promotionForm.discountType === "amount") {
+      const price = promotionProductPriceMap.get(promotionForm.productId);
+      if (!Number.isFinite(price)) {
+        toast.error("Unable to validate product price for this promotion");
+        return;
+      }
+      if (numericValue > price) {
+        toast.error("Discount amount cannot exceed the product price");
+        return;
+      }
+    }
+    const windowError = validateDateWindow(promotionForm.startsAt, promotionForm.expiresAt, promotionForm.active);
+    if (windowError) {
+      toast.error(windowError);
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -837,12 +881,28 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(editPromotionForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue <= 0) {
-      toast.error("Discount value must be greater than 0");
+    if (!Number.isFinite(numericValue) || numericValue < 0) {
+      toast.error("Discount value must be 0 or greater");
       return;
     }
-    if (editPromotionForm.discountType === "percent" && numericValue > 100) {
-      toast.error("Percent discounts cannot exceed 100%");
+    if (editPromotionForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
+      toast.error("Percent discounts must be between 0 and 100");
+      return;
+    }
+    if (scopeType === "product" && editPromotionForm.discountType === "amount") {
+      const price = promotionProductPriceMap.get(editPromotionForm.productId);
+      if (!Number.isFinite(price)) {
+        toast.error("Unable to validate product price for this promotion");
+        return;
+      }
+      if (numericValue > price) {
+        toast.error("Discount amount cannot exceed the product price");
+        return;
+      }
+    }
+    const windowError = validateDateWindow(editPromotionForm.startsAt, editPromotionForm.expiresAt, editPromotionForm.active);
+    if (windowError) {
+      toast.error(windowError);
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -916,6 +976,10 @@ const handleStockSubmit = async (productId) => {
 
   const promotionProductMap = useMemo(() => {
     return new Map((products || []).map((p) => [p.id, p.title]));
+  }, [products]);
+
+  const promotionProductPriceMap = useMemo(() => {
+    return new Map((products || []).map((p) => [p.id, Number(p.price)]));
   }, [products]);
 
   // Helper Render functions
@@ -1656,6 +1720,7 @@ const renderManagement = () => (
                 type="number"
                 min="0"
                 step="0.01"
+                max={promoForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={promoForm.discountValue}
                 onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -1690,6 +1755,7 @@ const renderManagement = () => (
               <input
                 id="promo-starts"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promoForm.startsAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -1700,6 +1766,7 @@ const renderManagement = () => (
               <input
                 id="promo-expires"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promoForm.expiresAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -1784,6 +1851,7 @@ const renderManagement = () => (
                 type="number"
                 min="0"
                 step="0.01"
+                max={editPromoForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={editPromoForm.discountValue}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -1818,6 +1886,7 @@ const renderManagement = () => (
               <input
                 id="promo-starts-edit"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromoForm.startsAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -1828,6 +1897,7 @@ const renderManagement = () => (
               <input
                 id="promo-expires-edit"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromoForm.expiresAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -1933,19 +2003,17 @@ const renderManagement = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category">Category</label>
-                  <input
+                  <select
                     id="promotion-category"
-                    list="promotion-category-list"
-                    className="form-control"
+                    className="form-select"
                     value={promotionForm.category}
                     onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                    placeholder="keyboard"
-                  />
-                  <datalist id="promotion-category-list">
+                  >
+                    <option value="">Select category</option>
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat} />
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
-                  </datalist>
+                  </select>
                 </>
               )}
             </div>
@@ -1967,6 +2035,8 @@ const renderManagement = () => (
                 id="promotion-value"
                 type="number"
                 step="0.01"
+                min="0"
+                max={promotionForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={promotionForm.discountValue}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -1978,6 +2048,7 @@ const renderManagement = () => (
               <input
                 id="promotion-starts"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promotionForm.startsAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -1988,6 +2059,7 @@ const renderManagement = () => (
               <input
                 id="promotion-expires"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promotionForm.expiresAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -2086,18 +2158,17 @@ const renderManagement = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category-edit">Category</label>
-                  <input
+                  <select
                     id="promotion-category-edit"
-                    list="promotion-category-list-edit"
-                    className="form-control"
+                    className="form-select"
                     value={editPromotionForm.category}
                     onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  />
-                  <datalist id="promotion-category-list-edit">
+                  >
+                    <option value="">Select category</option>
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat} />
+                      <option key={cat} value={cat}>{cat}</option>
                     ))}
-                  </datalist>
+                  </select>
                 </>
               )}
             </div>
@@ -2119,6 +2190,8 @@ const renderManagement = () => (
                 id="promotion-value-edit"
                 type="number"
                 step="0.01"
+                min="0"
+                max={editPromotionForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={editPromotionForm.discountValue}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -2129,6 +2202,7 @@ const renderManagement = () => (
               <input
                 id="promotion-starts-edit"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromotionForm.startsAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -2139,6 +2213,7 @@ const renderManagement = () => (
               <input
                 id="promotion-expires-edit"
                 type="datetime-local"
+                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromotionForm.expiresAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}

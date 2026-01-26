@@ -10,7 +10,7 @@ class PromotionCreatePayload(BaseModel):
     productId: Optional[str] = None
     category: Optional[str] = None
     discountType: str = Field(..., pattern="^(percent|amount)$")
-    discountValue: float = Field(..., gt=0)
+    discountValue: float = Field(..., ge=0)
     startsAt: Optional[datetime] = None
     expiresAt: Optional[datetime] = None
     active: bool = True
@@ -44,7 +44,7 @@ class PromotionUpdatePayload(BaseModel):
     productId: Optional[str] = None
     category: Optional[str] = None
     discountType: Optional[str] = Field(None, pattern="^(percent|amount)$")
-    discountValue: Optional[float] = Field(None, gt=0)
+    discountValue: Optional[float] = Field(None, ge=0)
     startsAt: Optional[datetime] = None
     expiresAt: Optional[datetime] = None
     active: Optional[bool] = None

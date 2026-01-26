@@ -5,6 +5,17 @@ from typing import Dict, List, Optional
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
+def _normalize_dt(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
+
+def _ensure_not_past(value: Optional[datetime], label: str):
+    if not value:
+        return
+    if _normalize_dt(value) < _now():
+        raise ValueError(f"{label} cannot be in the past")
+
 
 def _parse_ts(value) -> Optional[datetime]:
     if value is None:
@@ -29,6 +40,10 @@ def _to_iso(val):
 
 
 def list_promotions(supabase, filters: Dict) -> List[Dict]:
+    try:
+        supabase.table("promotions").update({"active": False}).lt("expires_at", _now().isoformat()).eq("active", True).execute()
+    except Exception:
+        pass
     query = supabase.table("promotions").select("*")
     search = (filters.get("search") or "").strip()
     if search:
@@ -52,6 +67,19 @@ def list_promotions(supabase, filters: Dict) -> List[Dict]:
 def _validate_window(starts_at, expires_at):
     if starts_at and expires_at and starts_at > expires_at:
         raise ValueError("startsAt must be before expiresAt")
+    _ensure_not_past(starts_at, "startsAt")
+    _ensure_not_past(expires_at, "expiresAt")
+
+def _fetch_product_price(supabase, product_id: Optional[str]) -> Optional[float]:
+    if not product_id:
+        return None
+    res = supabase.table("products").select("price").eq("id", product_id).limit(1).execute()
+    if not res.data:
+        return None
+    try:
+        return float(res.data[0].get("price") or 0)
+    except (TypeError, ValueError):
+        return None
 
 
 def create_promotion(supabase, payload) -> Dict:
@@ -59,6 +87,28 @@ def create_promotion(supabase, payload) -> Dict:
     starts_at = body.get("startsAt")
     expires_at = body.get("expiresAt")
     _validate_window(starts_at, expires_at)
+    if body.get("active", True):
+        if not starts_at or not expires_at:
+            raise ValueError("Active promotions require startsAt and expiresAt")
+
+    if body.get("scopeType") == "product" and body.get("productId"):
+        existing = (
+            supabase.table("promotions")
+            .select("id")
+            .eq("scope_type", "product")
+            .eq("product_id", body.get("productId"))
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            raise ValueError("A promotion already exists for this product")
+
+    if body.get("scopeType") == "product" and body.get("discountType") == "amount":
+        price = _fetch_product_price(supabase, body.get("productId"))
+        if price is None:
+            raise ValueError("Unable to validate product price for this promotion")
+        if float(body.get("discountValue") or 0) > price:
+            raise ValueError("Discount amount cannot exceed product price")
 
     data = {
         "name": (body.get("name") or "").strip(),
@@ -95,16 +145,96 @@ def update_promotion(supabase, promotion_id: str, payload) -> Dict:
     if starts_at and expires_at:
         _validate_window(starts_at, expires_at)
     if "startsAt" in body:
+        _ensure_not_past(starts_at, "startsAt")
+    if "expiresAt" in body:
+        _ensure_not_past(expires_at, "expiresAt")
+    if "startsAt" in body:
         updates["starts_at"] = _to_iso(starts_at)
     if "expiresAt" in body:
         updates["expires_at"] = _to_iso(expires_at)
     if "active" in body:
         updates["active"] = bool(body.get("active"))
+        if updates["active"]:
+            if not (starts_at and expires_at):
+                existing = (
+                    supabase.table("promotions")
+                    .select("starts_at, expires_at")
+                    .eq("id", promotion_id)
+                    .single()
+                    .execute()
+                    .data
+                    or {}
+                )
+                starts_at = starts_at or _parse_ts(existing.get("starts_at"))
+                expires_at = expires_at or _parse_ts(existing.get("expires_at"))
+            if not starts_at or not expires_at:
+                raise ValueError("Active promotions require startsAt and expiresAt")
+            if starts_at > expires_at:
+                raise ValueError("startsAt must be before expiresAt")
+            _ensure_not_past(starts_at, "startsAt")
+            _ensure_not_past(expires_at, "expiresAt")
 
     if updates.get("scope_type") == "product" and "category" not in updates:
         updates["category"] = None
     if updates.get("scope_type") == "category" and "product_id" not in updates:
         updates["product_id"] = None
+
+    if updates.get("scope_type") == "product":
+        product_id = updates.get("product_id")
+        if not product_id:
+            existing = (
+                supabase.table("promotions")
+                .select("product_id")
+                .eq("id", promotion_id)
+                .single()
+                .execute()
+                .data
+                or {}
+            )
+            product_id = existing.get("product_id")
+        if product_id:
+            dup = (
+                supabase.table("promotions")
+                .select("id")
+                .eq("scope_type", "product")
+                .eq("product_id", product_id)
+                .neq("id", promotion_id)
+                .limit(1)
+                .execute()
+            )
+            if dup.data:
+                raise ValueError("A promotion already exists for this product")
+
+    if updates.get("scope_type") == "product" and updates.get("discount_type") == "amount":
+        product_id = updates.get("product_id")
+        if not product_id:
+            existing = (
+                supabase.table("promotions")
+                .select("product_id")
+                .eq("id", promotion_id)
+                .single()
+                .execute()
+                .data
+                or {}
+            )
+            product_id = existing.get("product_id")
+        price = _fetch_product_price(supabase, product_id)
+        if price is None:
+            raise ValueError("Unable to validate product price for this promotion")
+        discount_value = updates.get("discount_value")
+        if discount_value is None:
+            existing = (
+                supabase.table("promotions")
+                .select("discount_value")
+                .eq("id", promotion_id)
+                .single()
+                .execute()
+                .data
+                or {}
+            )
+            discount_value = existing.get("discount_value")
+        if discount_value is not None and float(discount_value) > price:
+            raise ValueError("Discount amount cannot exceed product price")
 
     if not updates:
         return {}

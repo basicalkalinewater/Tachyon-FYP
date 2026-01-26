@@ -7,7 +7,7 @@ import { formatCountdown, hasActivePromotion } from "../utils/promo";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const ProductsList = () => {
@@ -18,6 +18,7 @@ const ProductsList = () => {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [specFilters, setSpecFilters] = useState({});
   const [now, setNow] = useState(Date.now());
+  const location = useLocation();
 
   const dispatch = useDispatch();
 
@@ -45,6 +46,21 @@ const ProductsList = () => {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const raw = (params.get("cat") || "").trim().toLowerCase();
+    if (!raw) {
+      setSelectedCategory(null);
+      setSpecFilters({});
+      setFilter(data);
+      return;
+    }
+    const normalized = raw === "mice" ? "mouse" : raw;
+    setSelectedCategory(normalized);
+    setSpecFilters({});
+    applyFilters(normalized, {});
+  }, [location.search, data]);
 
   const applyFilters = (category, nextSpecFilters = specFilters) => {
     let list = data;
