@@ -1,4 +1,5 @@
-from flask import Blueprint, current_app, jsonify
+from datetime import datetime
+from flask import Blueprint, current_app, jsonify, request
 
 try:
     from ..utils.auth_middleware import require_session
@@ -19,5 +20,15 @@ def _ok(data=None):
 @require_session(allowed_roles=["admin"])
 def get_business_insights():
     supabase = current_app.config["SUPABASE"]
-    data = admin_analytics.fetch_business_insights(supabase)
+    year = request.args.get("year", type=int)
+    month = request.args.get("month", type=int)
+    if month is not None and (month < 1 or month > 12):
+        month = None
+    now = datetime.utcnow()
+    year = year or now.year
+    month = month or now.month
+    try:
+        data = admin_analytics.fetch_business_insights(supabase, year=year, month=month)
+    except Exception:
+        data = admin_analytics.fetch_backup_insights(supabase, year=year, month=month)
     return _ok(data)

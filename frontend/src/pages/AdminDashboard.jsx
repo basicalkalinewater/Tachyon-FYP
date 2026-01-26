@@ -57,6 +57,12 @@ const GROUPED_ADMIN_SECTIONS = ADMIN_SECTIONS.reduce((groups, section) => {
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [insights, setInsights] = useState({ bestMonth: null, worstMonth: null, totalSalesToday: 0, ordersToday: 0 });
+  const [insightMonth, setInsightMonth] = useState(() => {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  });
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -167,6 +173,20 @@ const AdminDashboard = () => {
     currency: "USD",
     maximumFractionDigits: 2,
   });
+  const insightMonthOptions = useMemo(() => {
+    const opts = [];
+    const now = new Date();
+    for (let i = 0; i < 12; i += 1) {
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      opts.push({
+        value: `${year}-${month}`,
+        label: date.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      });
+    }
+    return opts;
+  }, []);
 
   const toInputDateTime = (value) => {
     if (!value) return "";
@@ -209,10 +229,13 @@ const AdminDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const [yearStr, monthStr] = (insightMonth || "").split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
       const [summaryData, responses, insightsRes] = await Promise.all([
         fetchCsatSummary(120),
         fetchCsatResponses(20),
-        fetchAdminInsights(),
+        fetchAdminInsights({ year: Number.isFinite(year) ? year : undefined, month: Number.isFinite(month) ? month : undefined }),
       ]);
       setCsat({
         summary: summaryData.summary || {},
@@ -231,7 +254,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [insightMonth]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -1020,6 +1043,19 @@ const handleStockSubmit = async (productId) => {
             <div>
               <p className="eyebrow">Business insights</p>
               <h4>Sales performance</h4>
+            </div>
+            <div className="insight-controls">
+              <label className="muted tiny" htmlFor="insight-month">Month</label>
+              <select
+                id="insight-month"
+                className="form-select form-select-sm"
+                value={insightMonth}
+                onChange={(e) => setInsightMonth(e.target.value)}
+              >
+                {insightMonthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           <ul className="insight-list">

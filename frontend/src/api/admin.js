@@ -28,8 +28,10 @@ export const disableAdminUser = (userId) =>
     method: "DELETE",
   });
 
-export const fetchAdminInsights = () =>
-  request(`/admin/insights`);
+export const fetchAdminInsights = (params = {}) => {
+  const qs = toQuery(params);
+  return request(`/admin/insights${qs ? `?${qs}` : ""}`);
+};
 
 export const listFaqs = () => request(`/admin/faqs`);
 export const createFaq = (body) => request(`/admin/faqs`, { method: "POST", body });

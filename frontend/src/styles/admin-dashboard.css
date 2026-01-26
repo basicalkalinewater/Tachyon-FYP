@@ -331,6 +331,18 @@ h1 {
   margin-bottom: 10px;
 }
 
+.insight-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.insight-controls .form-select {
+  font-size: 0.85rem;
+  padding: 6px 10px;
+}
+
 .trend-bars {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12px, 1fr));

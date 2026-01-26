@@ -8,9 +8,8 @@ def _start_end_today_utc():
     return start.isoformat(), end.isoformat()
 
 
-def _start_end_month_utc():
-    now = datetime.utcnow()
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+def _start_end_month_utc(year: int, month: int):
+    start = datetime(year, month, 1).replace(hour=0, minute=0, second=0, microsecond=0)
     if start.month == 12:
         end = start.replace(year=start.year + 1, month=1)
     else:
@@ -41,8 +40,47 @@ def _pick_best_worst(product_totals: Dict[str, Dict]):
     return best, worst
 
 
-def fetch_business_insights(supabase) -> Dict:
-    month_start, month_end = _start_end_month_utc()
+def _save_snapshot(supabase, year: int, month: int, best, worst, total_sales: float, orders_count: int):
+    payload = {
+        "year": year,
+        "month": month,
+        "best_product_name": best.get("name") if best else None,
+        "best_product_qty": best.get("quantity") if best else None,
+        "worst_product_name": worst.get("name") if worst else None,
+        "worst_product_qty": worst.get("quantity") if worst else None,
+        "total_sales": round(total_sales, 2),
+        "orders_count": orders_count,
+        "computed_at": datetime.utcnow().isoformat(),
+    }
+    supabase.table("business_insights_monthly").upsert(payload, on_conflict="year,month").execute()
+
+
+def fetch_backup_insights(supabase, year: int, month: int) -> Dict:
+    res = supabase.table("business_insights_monthly").select("*").eq("year", year).eq("month", month).single().execute()
+    row = res.data or {}
+    return {
+        "best_selling_product_month": {
+            "name": row.get("best_product_name"),
+            "quantity": row.get("best_product_qty"),
+        } if row.get("best_product_name") else None,
+        "worst_selling_product_month": {
+            "name": row.get("worst_product_name"),
+            "quantity": row.get("worst_product_qty"),
+        } if row.get("worst_product_name") else None,
+        "total_sales_today": 0,
+        "orders_today": 0,
+        "snapshot_year": row.get("year"),
+        "snapshot_month": row.get("month"),
+        "snapshot_total_sales": row.get("total_sales") or 0,
+        "snapshot_orders": row.get("orders_count") or 0,
+    }
+
+
+def fetch_business_insights(supabase, year: int = None, month: int = None) -> Dict:
+    now = datetime.utcnow()
+    year = year or now.year
+    month = month or now.month
+    month_start, month_end = _start_end_month_utc(year, month)
     orders_month_res = (
         supabase.table("customer_order")
         .select("id")
@@ -77,9 +115,16 @@ def fetch_business_insights(supabase) -> Dict:
     orders_today = orders_today_res.data or []
     total_sales_today = sum(float(o.get("total") or 0) for o in orders_today)
 
+    try:
+        _save_snapshot(supabase, year, month, best_month, worst_month, total_sales_today, len(orders_today))
+    except Exception:
+        pass
+
     return {
         "best_selling_product_month": best_month,
         "worst_selling_product_month": worst_month,
         "total_sales_today": round(total_sales_today, 2),
         "orders_today": len(orders_today),
+        "month": month,
+        "year": year,
     }
