@@ -33,6 +33,11 @@ export const fetchAdminInsights = (params = {}) => {
   return request(`/admin/insights${qs ? `?${qs}` : ""}`);
 };
 
+export const fetchAdminInsightsHistory = (params = {}) => {
+  const qs = toQuery(params);
+  return request(`/admin/insights/history${qs ? `?${qs}` : ""}`);
+};
+
 export const listFaqs = () => request(`/admin/faqs`);
 export const createFaq = (body) => request(`/admin/faqs`, { method: "POST", body });
 export const updateFaq = (id, body) => request(`/admin/faqs/${id}`, { method: "PUT", body });

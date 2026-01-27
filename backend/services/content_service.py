@@ -30,10 +30,13 @@ def delete_faq(supabase, faq_id: str) -> Dict:
     return {"deleted": True, "id": faq_id} if res else {"deleted": False}
 
 
-def create_policy(supabase, title: str, content: str, sort_order: int = 0) -> Dict:
+def create_policy(supabase, title: str, content: str, sort_order: int = 0, slug: str = None) -> Dict:
+    payload = {"title": title, "content": content, "sort_order": sort_order}
+    if slug:
+        payload["slug"] = slug
     res = (
         supabase.table("policies")
-        .insert({"title": title, "content": content, "sort_order": sort_order})
+        .insert(payload)
         .execute()
     )
     return (res.data or [{}])[0]

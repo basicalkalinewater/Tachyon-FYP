@@ -1,29 +1,46 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { fetchFaqs } from "../api/content";
 
 const Faq = () => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetchFaqs();
+        const list = res.data || res || [];
+        if (mounted) setItems(list);
+      } catch (err) {
+        if (mounted) setError(err.message || "Failed to load FAQs");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="container py-5">
       <h2 className="mb-4">Frequently Asked Questions</h2>
-      <div className="mb-4">
-        <h5>When will my order ship?</h5>
-        <p className="text-muted">Most in-stock items ship within 1-2 business days. You’ll get a tracking email as soon as it leaves the warehouse.</p>
-      </div>
-      <div className="mb-4">
-        <h5>How do I track my order?</h5>
-        <p className="text-muted">Use the tracking link in your confirmation email, or visit “Track Your Order” with your order number and email address.</p>
-      </div>
-      <div className="mb-4">
-        <h5>What payment methods do you accept?</h5>
-        <p className="text-muted">We accept major credit/debit cards, PayPal, and select installment providers (where available).</p>
-      </div>
-      <div className="mb-4">
-        <h5>Do you ship internationally?</h5>
-        <p className="text-muted">Yes, we ship to many countries. Shipping options, rates, and delivery times are shown at checkout.</p>
-      </div>
-      <div className="mb-4">
-        <h5>How do I start a return?</h5>
-        <p className="text-muted">Visit “Shipping & Returns” for eligibility and steps. Most items can be returned within 30 days in original condition.</p>
-      </div>
+      {loading && <p className="text-muted">Loading FAQs...</p>}
+      {error && !loading && <p className="text-muted">{error}</p>}
+      {!loading && !error && items.length === 0 && (
+        <p className="text-muted">No FAQs yet.</p>
+      )}
+      {!loading &&
+        !error &&
+        items.map((item) => (
+          <div className="mb-4" key={item.id}>
+            <h5>{item.question}</h5>
+            <p className="text-muted">{item.answer}</p>
+          </div>
+        ))}
     </div>
   );
 };

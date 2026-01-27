@@ -1,29 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { fetchPolicies } from "../api/content";
 
 const ShippingReturns = () => {
+  const [policies, setPolicies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetchPolicies();
+        const list = res.data || res || [];
+        const matches = list.filter((item) => item.slug === "shipping-returns");
+        if (mounted) setPolicies(matches);
+      } catch (err) {
+        if (mounted) setError(err.message || "Failed to load policy");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="container py-5">
       <h2 className="mb-4">Shipping & Returns</h2>
-      <div className="mb-4">
-        <h5>Shipping</h5>
-        <p className="text-muted">Standard shipping: 3-5 business days. Expedited options are available at checkout. Tracking is provided for all shipments.</p>
-      </div>
-      <div className="mb-4">
-        <h5>Order Processing</h5>
-        <p className="text-muted">In-stock items usually ship within 1-2 business days. Orders placed after 2pm local time may process the next business day.</p>
-      </div>
-      <div className="mb-4">
-        <h5>Returns</h5>
-        <p className="text-muted">Most items can be returned within 30 days of delivery in new, unused condition with original packaging. Final sale items are not eligible for return.</p>
-      </div>
-      <div className="mb-4">
-        <h5>How to Start a Return</h5>
-        <p className="text-muted">Contact our support team with your order number to receive a return authorization and instructions. Return shipping fees may apply.</p>
-      </div>
-      <div className="mb-4">
-        <h5>Refunds</h5>
-        <p className="text-muted">Refunds are issued to the original payment method once the return is received and inspected. Please allow 3-5 business days for processing.</p>
-      </div>
+      {loading && <p className="text-muted">Loading policy...</p>}
+      {error && !loading && <p className="text-muted">{error}</p>}
+      {!loading && !error && policies.length === 0 && (
+        <p className="text-muted">No policy published yet.</p>
+      )}
+      {!loading &&
+        !error &&
+        policies.map((item) => (
+          <div className="mb-4" key={item.id}>
+            {item.title && <h5 className="mb-2">{item.title}</h5>}
+            <div className="text-muted" style={{ whiteSpace: "pre-line" }}>
+              {item.content}
+            </div>
+          </div>
+        ))}
     </div>
   );
 };

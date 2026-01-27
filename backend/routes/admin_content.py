@@ -70,8 +70,9 @@ def create_policy():
     body = request.get_json(force=True, silent=True) or {}
     title = (body.get("title") or "").strip()
     content = (body.get("content") or "").strip()
+    slug = (body.get("slug") or "").strip() or None
     sort_order = int(body.get("sort_order") or 0)
-    data = content_service.create_policy(supabase, title, content, sort_order)
+    data = content_service.create_policy(supabase, title, content, sort_order, slug)
     return _ok(data)
 
 
@@ -85,6 +86,8 @@ def update_policy(policy_id):
         updates["title"] = (body.get("title") or "").strip()
     if "content" in body:
         updates["content"] = (body.get("content") or "").strip()
+    if "slug" in body:
+        updates["slug"] = (body.get("slug") or "").strip() or None
     if "sort_order" in body:
         updates["sort_order"] = int(body.get("sort_order") or 0)
     data = content_service.update_policy(supabase, policy_id, updates)

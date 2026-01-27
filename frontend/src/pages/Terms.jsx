@@ -1,20 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { fetchPolicies } from "../api/content";
 
 const Terms = () => {
+  const [policies, setPolicies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetchPolicies();
+        const list = res.data || res || [];
+        const matches = list.filter((item) => item.slug === "terms");
+        if (mounted) setPolicies(matches);
+      } catch (err) {
+        if (mounted) setError(err.message || "Failed to load policy");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="container py-5">
       <h2 className="mb-4">Terms & Conditions</h2>
-      <p className="text-muted">
-        By using this site and placing orders, you agree to these terms. Please review them carefully.
-      </p>
-      <ul className="text-muted">
-        <li>Pricing and availability are subject to change without notice.</li>
-        <li>Orders may be canceled or refunded if items are unavailable or if we detect fraud.</li>
-        <li>Product descriptions and images are for reference; minor variations may occur.</li>
-        <li>Warranties, if any, follow the manufacturer’s policy. Returns follow our Shipping & Returns page.</li>
-        <li>We are not liable for delays outside our control (e.g., carriers, weather).</li>
-        <li>Your use of the site is subject to applicable laws and our Privacy Policy.</li>
-      </ul>
+      {loading && <p className="text-muted">Loading policy...</p>}
+      {error && !loading && <p className="text-muted">{error}</p>}
+      {!loading && !error && policies.length === 0 && (
+        <p className="text-muted">No policy published yet.</p>
+      )}
+      {!loading &&
+        !error &&
+        policies.map((item) => (
+          <div className="mb-4" key={item.id}>
+            {item.title && <h5 className="mb-2">{item.title}</h5>}
+            <div className="text-muted" style={{ whiteSpace: "pre-line" }}>
+              {item.content}
+            </div>
+          </div>
+        ))}
     </div>
   );
 };

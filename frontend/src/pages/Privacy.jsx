@@ -1,19 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { fetchPolicies } from "../api/content";
 
 const Privacy = () => {
+  const [policies, setPolicies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetchPolicies();
+        const list = res.data || res || [];
+        const matches = list.filter((item) => item.slug === "privacy");
+        if (mounted) setPolicies(matches);
+      } catch (err) {
+        if (mounted) setError(err.message || "Failed to load policy");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="container py-5">
       <h2 className="mb-4">Privacy Policy</h2>
-      <p className="text-muted">
-        We respect your privacy. This summary covers how we collect, use, and protect your information.
-      </p>
-      <ul className="text-muted">
-        <li>We collect data you provide (e.g., account info, orders) and technical data (e.g., device/browser).</li>
-        <li>We use your data to process orders, provide customer support, and improve our services.</li>
-        <li>We do not sell your personal information. We share with trusted service providers for payments, shipping, and analytics.</li>
-        <li>You can request access, correction, or deletion of your data by contacting support.</li>
-        <li>We use encryption, access controls, and best practices to protect your data.</li>
-      </ul>
+      {loading && <p className="text-muted">Loading policy...</p>}
+      {error && !loading && <p className="text-muted">{error}</p>}
+      {!loading && !error && policies.length === 0 && (
+        <p className="text-muted">No policy published yet.</p>
+      )}
+      {!loading &&
+        !error &&
+        policies.map((item) => (
+          <div className="mb-4" key={item.id}>
+            {item.title && <h5 className="mb-2">{item.title}</h5>}
+            <div className="text-muted" style={{ whiteSpace: "pre-line" }}>
+              {item.content}
+            </div>
+          </div>
+        ))}
     </div>
   );
 };
