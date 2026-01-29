@@ -160,13 +160,16 @@ const ProductsList = () => {
     return (
       <>
         <div className="buttons text-center py-5">
-          <button className="btn btn-outline-saas btn-sm m-2" onClick={() => filterProduct(null)}>
+          <button
+            className={`btn btn-sm m-2 ${selectedCategory ? "btn-outline-saas" : "btn-primary-saas"}`}
+            onClick={() => filterProduct(null)}
+          >
             All
           </button>
           {categories.map((cat) => (
             <button
               key={cat}
-              className="btn btn-outline-saas btn-sm m-2"
+              className={`btn btn-sm m-2 ${selectedCategory === cat ? "btn-primary-saas" : "btn-outline-saas"}`}
               onClick={() => filterProduct(cat)}
             >
               {cat === "ssd"
