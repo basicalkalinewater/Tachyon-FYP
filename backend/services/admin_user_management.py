@@ -80,12 +80,14 @@ def _ensure_profile(supabase, user_id: str, role: str, full_name: str, phone: st
         supabase.table("admin_profile").upsert({"user_id": user_id, "full_name": full_name, "phone": phone}).execute()
 
 
-def create_user(supabase, email: str, role: str, password: str, full_name: str, phone: str):
+def create_user(supabase, email: str, role: str, password: str, full_name: str, phone: str, status: str = "active"):
     if not email or not role or not password:
         raise ValueError("email, role, and password are required")
+    if status not in ("active", "disabled"):
+        raise ValueError("status must be 'active' or 'disabled'")
     res = (
         supabase.table("app_user")
-        .insert({"email": email, "role": role, "password_hash": _hash_password(password), "status": "active"})
+        .insert({"email": email, "role": role, "password_hash": _hash_password(password), "status": status})
         .execute()
     )
     user = res.data[0]

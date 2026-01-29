@@ -23,7 +23,7 @@ def _ensure_not_past(value: Optional[datetime], label: str):
 
 
 def _normalize_code(code: str) -> str:
-    return (code or "").strip().upper()
+    return (code or "").strip()
 
 
 def _parse_ts(value) -> Optional[datetime]:
@@ -190,6 +190,10 @@ def validate_code(supabase, code: str, cart_total: float) -> Tuple[Optional[Dict
     if starts_at and now < starts_at:
         return None, "This promo code is not active yet"
     if expires_at and now > expires_at:
+        try:
+            supabase.table("promo_codes").update({"active": False}).eq("id", promo.get("id")).execute()
+        except Exception:
+            pass
         return None, "This promo code has expired"
 
     max_uses = promo.get("max_uses")

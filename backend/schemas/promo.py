@@ -8,7 +8,7 @@ ALLOWED_TYPES = {"percent", "amount"}
 
 
 class PromoCreatePayload(BaseModel):
-    code: str = Field(..., min_length=3, max_length=40)
+    code: str = Field(..., min_length=3, max_length=40, pattern="^[A-Za-z0-9]+$")
     description: str = Field("", max_length=240)
     discountType: str = Field(..., pattern="^(percent|amount)$")
     discountValue: float = Field(..., ge=0)
@@ -20,7 +20,7 @@ class PromoCreatePayload(BaseModel):
     @field_validator("code")
     @classmethod
     def normalize_code(cls, v: str) -> str:
-        return (v or "").strip().upper()
+        return (v or "").strip()
 
     @field_validator("discountValue")
     @classmethod
@@ -32,7 +32,7 @@ class PromoCreatePayload(BaseModel):
 
 
 class PromoUpdatePayload(BaseModel):
-    code: Optional[str] = Field(None, min_length=3, max_length=40)
+    code: Optional[str] = Field(None, min_length=3, max_length=40, pattern="^[A-Za-z0-9]+$")
     description: Optional[str] = Field(None, max_length=240)
     discountType: Optional[str] = Field(None, pattern="^(percent|amount)$")
     discountValue: Optional[float] = Field(None, ge=0)
@@ -46,7 +46,7 @@ class PromoUpdatePayload(BaseModel):
     def normalize_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return v
-        return v.strip().upper()
+        return v.strip()
 
     @field_validator("discountValue")
     @classmethod
@@ -58,10 +58,10 @@ class PromoUpdatePayload(BaseModel):
 
 
 class PromoValidatePayload(BaseModel):
-    code: str = Field(..., min_length=3, max_length=40)
+    code: str = Field(..., min_length=3, max_length=40, pattern="^[A-Za-z0-9]+$")
     cartTotal: float = Field(0, ge=0)
 
     @field_validator("code")
     @classmethod
     def normalize_code(cls, v: str) -> str:
-        return (v or "").strip().upper()
+        return (v or "").strip()

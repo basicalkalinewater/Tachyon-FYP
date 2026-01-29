@@ -51,7 +51,8 @@ def create_user():
     password = body.password
     full_name = (body.full_name or "").strip() if hasattr(body, "full_name") else ""
     phone = (body.phone or "").strip() if hasattr(body, "phone") else ""
-    data = admin_user_management.create_user(supabase, email, role, password, full_name, phone)
+    status = (body.status or "active").strip() if hasattr(body, "status") else "active"
+    data = admin_user_management.create_user(supabase, email, role, password, full_name, phone, status)
     return _ok(data)
 
 

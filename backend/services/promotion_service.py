@@ -249,6 +249,10 @@ def delete_promotion(supabase, promotion_id: str) -> Dict:
 
 
 def list_active_promotions(supabase) -> List[Dict]:
+    try:
+        supabase.table("promotions").update({"active": False}).lt("expires_at", _now().isoformat()).eq("active", True).execute()
+    except Exception:
+        pass
     res = supabase.table("promotions").select("*").eq("active", True).execute()
     now = _now()
     active = []

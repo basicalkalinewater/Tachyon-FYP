@@ -116,6 +116,7 @@ const AdminDashboard = () => {
     full_name: "",
     phone: "",
     password: "",
+    status: "active",
   });
   const [editProductForm, setEditProductForm] = useState(null); 
   const [editProductSaving, setEditProductSaving] = useState(false);
@@ -168,6 +169,13 @@ const AdminDashboard = () => {
     currency: "USD",
     maximumFractionDigits: 2,
   });
+
+  const toLocalInputDateTime = (date = new Date()) => {
+    const pad = (n) => `${n}`.padStart(2, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
+
+  const nowInputMin = toLocalInputDateTime(new Date());
 
   const toInputDateTime = (value) => {
     if (!value) return "";
@@ -623,7 +631,7 @@ const handleStockSubmit = async (productId) => {
   const startCreateUser = () => {
     setEditUserForm(null);
     setShowCreateForm(true);
-    setUserForm({ id: null, email: "", role: "customer", full_name: "", phone: "", password: "" });
+    setUserForm({ id: null, email: "", role: "customer", full_name: "", phone: "", password: "", status: "active" });
   };
 
   const startEditUser = (u) => {
@@ -655,11 +663,12 @@ const handleStockSubmit = async (productId) => {
         password: userForm.password,
         full_name: userForm.full_name,
         phone: userForm.phone,
+        status: userForm.status,
       });
       toast.success("User created");
       await loadUsers();
       setShowCreateForm(false);
-      setUserForm({ id: null, email: "", role: "customer", full_name: "", phone: "", password: "" });
+      setUserForm({ id: null, email: "", role: "customer", full_name: "", phone: "", password: "", status: "active" });
     } catch (err) {
       toast.error(err.message || "Failed to save user");
     } finally {
@@ -737,6 +746,21 @@ const handleStockSubmit = async (productId) => {
       toast.error("Percent discounts cannot exceed 100%");
       return;
     }
+    const startsAt = promoForm.startsAt ? new Date(promoForm.startsAt) : null;
+    const expiresAt = promoForm.expiresAt ? new Date(promoForm.expiresAt) : null;
+    const now = new Date();
+    if (startsAt && startsAt < now) {
+      toast.error("Start date/time cannot be in the past");
+      return;
+    }
+    if (expiresAt && expiresAt < now) {
+      toast.error("End date/time cannot be in the past");
+      return;
+    }
+    if (startsAt && expiresAt && startsAt > expiresAt) {
+      toast.error("End date/time must be after start date/time");
+      return;
+    }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
     const payload = {
       code: trimmedCode,
@@ -778,6 +802,21 @@ const handleStockSubmit = async (productId) => {
     }
     if (editPromoForm.discountType === "percent" && numericValue > 100) {
       toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const startsAt = editPromoForm.startsAt ? new Date(editPromoForm.startsAt) : null;
+    const expiresAt = editPromoForm.expiresAt ? new Date(editPromoForm.expiresAt) : null;
+    const now = new Date();
+    if (startsAt && startsAt < now) {
+      toast.error("Start date/time cannot be in the past");
+      return;
+    }
+    if (expiresAt && expiresAt < now) {
+      toast.error("End date/time cannot be in the past");
+      return;
+    }
+    if (startsAt && expiresAt && startsAt > expiresAt) {
+      toast.error("End date/time must be after start date/time");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -844,6 +883,21 @@ const handleStockSubmit = async (productId) => {
       toast.error("Percent discounts cannot exceed 100%");
       return;
     }
+    const startsAt = promotionForm.startsAt ? new Date(promotionForm.startsAt) : null;
+    const expiresAt = promotionForm.expiresAt ? new Date(promotionForm.expiresAt) : null;
+    const now = new Date();
+    if (startsAt && startsAt < now) {
+      toast.error("Start date/time cannot be in the past");
+      return;
+    }
+    if (expiresAt && expiresAt < now) {
+      toast.error("End date/time cannot be in the past");
+      return;
+    }
+    if (startsAt && expiresAt && startsAt > expiresAt) {
+      toast.error("End date/time must be after start date/time");
+      return;
+    }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
     const payload = {
       name: (promotionForm.name || "").trim(),
@@ -886,6 +940,21 @@ const handleStockSubmit = async (productId) => {
     }
     if (editPromotionForm.discountType === "percent" && numericValue > 100) {
       toast.error("Percent discounts cannot exceed 100%");
+      return;
+    }
+    const startsAt = editPromotionForm.startsAt ? new Date(editPromotionForm.startsAt) : null;
+    const expiresAt = editPromotionForm.expiresAt ? new Date(editPromotionForm.expiresAt) : null;
+    const now = new Date();
+    if (startsAt && startsAt < now) {
+      toast.error("Start date/time cannot be in the past");
+      return;
+    }
+    if (expiresAt && expiresAt < now) {
+      toast.error("End date/time cannot be in the past");
+      return;
+    }
+    if (startsAt && expiresAt && startsAt > expiresAt) {
+      toast.error("End date/time must be after start date/time");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -1431,7 +1500,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promo codes</p>
-                <h4>Search & manage</h4>
+                <h4>Search & Manage</h4>
               </div>
             </div>
             {promoLoading ? (
@@ -1563,7 +1632,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promotions</p>
-                <h4>Search & manage</h4>
+                <h4>Search & Manage</h4>
               </div>
             </div>
             {promotionLoading ? (
@@ -1736,6 +1805,7 @@ const renderManagement = () => (
                 id="promo-starts"
                 type="datetime-local"
                 className="form-control"
+                min={nowInputMin}
                 value={promoForm.startsAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
@@ -1746,6 +1816,7 @@ const renderManagement = () => (
                 id="promo-expires"
                 type="datetime-local"
                 className="form-control"
+                min={promoForm.startsAt || nowInputMin}
                 value={promoForm.expiresAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
               />
@@ -1866,6 +1937,7 @@ const renderManagement = () => (
                 id="promo-starts-edit"
                 type="datetime-local"
                 className="form-control"
+                min={nowInputMin}
                 value={editPromoForm.startsAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
@@ -1876,6 +1948,7 @@ const renderManagement = () => (
                 id="promo-expires-edit"
                 type="datetime-local"
                 className="form-control"
+                min={editPromoForm.startsAt || nowInputMin}
                 value={editPromoForm.expiresAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
               />
@@ -2026,6 +2099,7 @@ const renderManagement = () => (
                 id="promotion-starts"
                 type="datetime-local"
                 className="form-control"
+                min={nowInputMin}
                 value={promotionForm.startsAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
@@ -2036,6 +2110,7 @@ const renderManagement = () => (
                 id="promotion-expires"
                 type="datetime-local"
                 className="form-control"
+                min={promotionForm.startsAt || nowInputMin}
                 value={promotionForm.expiresAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
               />
@@ -2055,9 +2130,14 @@ const renderManagement = () => (
               </div>
             </div>
           </div>
-          <button type="submit" className="btn btn-primary-saas mt-3">
-            Create promotion
-          </button>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">
+              Create promotion
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={resetPromotionForm}>
+              Clear
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -2177,6 +2257,7 @@ const renderManagement = () => (
                 id="promotion-starts-edit"
                 type="datetime-local"
                 className="form-control"
+                min={nowInputMin}
                 value={editPromotionForm.startsAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
@@ -2187,6 +2268,7 @@ const renderManagement = () => (
                 id="promotion-expires-edit"
                 type="datetime-local"
                 className="form-control"
+                min={editPromotionForm.startsAt || nowInputMin}
                 value={editPromotionForm.expiresAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
               />
@@ -2435,7 +2517,7 @@ const renderStocks = () => {
         <div className="card-header">
           <div>
             <p className="eyebrow">User management</p>
-            <h4>Search & manage users</h4>
+            <h4>User Accounts</h4>
           </div>
         </div>
         <div className="d-flex gap-3 flex-wrap mb-3 align-items-center">
@@ -2453,13 +2535,13 @@ const renderStocks = () => {
             value={userFilters.role}
             onChange={(e) => setUserFilters((p) => ({ ...p, role: e.target.value }))}
           >
-            <option value="">All roles</option>
+            <option value="">All Roles</option>
             <option value="customer">Customer</option>
             <option value="support">Support</option>
             <option value="admin">Admin</option>
           </select>
           <button className="btn btn-outline-saas" onClick={loadUsers} disabled={usersLoading}>
-            {usersLoading ? "Loading..." : "Apply"}
+            {usersLoading ? "Loading..." : "Refresh"}
           </button>
           <button
             className="btn btn-primary-saas"
@@ -2471,13 +2553,22 @@ const renderStocks = () => {
           </button>
         </div>
 
-        <div className="table-responsive">
+        <div className="admin-grid">
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Existing users</p>
+                <h4>Search & Manage</h4>
+              </div>
+            </div>
+            <div className="table-responsive management-scroll">
           <table className="dashboard-table">
             <thead>
               <tr>
                 <th>Email</th>
                 <th>Name</th>
                 <th>Role</th>
+                <th>Status</th>
                 <th>Phone</th>
                 <th></th>
               </tr>
@@ -2485,11 +2576,11 @@ const renderStocks = () => {
             <tbody>
               {usersLoading ? (
                 <tr>
-                  <td colSpan="5" className="text-muted">Loading users...</td>
+                  <td colSpan="6" className="text-muted">Loading users...</td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan="5" className="text-muted">No users found.</td>
+                  <td colSpan="6" className="text-muted">No users found.</td>
                 </tr>
               ) : (
                 users.map((u) => (
@@ -2497,6 +2588,11 @@ const renderStocks = () => {
                     <td>{u.email}</td>
                     <td>{u.full_name || "—"}</td>
                     <td className="text-capitalize">{u.role}</td>
+                    <td>
+                      <span className={`badge rounded-pill ${u.status === "active" ? "bg-success" : "bg-secondary"}`}>
+                        {u.status === "active" ? "Active" : "Inactive"}
+                      </span>
+                    </td>
                     <td>{u.phone || "—"}</td>
                     <td className="text-end">
                       <div className="d-flex gap-2 justify-content-end">
@@ -2527,6 +2623,8 @@ const renderStocks = () => {
               )}
             </tbody>
           </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -2619,6 +2717,23 @@ const renderStocks = () => {
                   required
                 />
               </div>
+              <div className="mb-3">
+                <label className="form-label d-block">Status</label>
+                <div className="form-check form-switch">
+                  <input
+                    id="um-status"
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={userForm.status === "active"}
+                    onChange={(e) =>
+                      setUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "disabled" }))
+                    }
+                  />
+                  <label className="form-check-label" htmlFor="um-status">
+                    {userForm.status === "active" ? "Active" : "Inactive"}
+                  </label>
+                </div>
+              </div>
               <div className="d-flex gap-3 mt-3">
                 <button type="submit" className="btn btn-primary-saas" disabled={userSaving}>
                   {userSaving ? "Saving..." : "Save user"}
@@ -2651,6 +2766,14 @@ const renderStocks = () => {
                 <p className="eyebrow">Edit user</p>
                 <h4>{editUserForm.email}</h4>
               </div>
+              <button
+                type="button"
+                className="btn btn-outline-saas btn-sm"
+                onClick={() => setEditUserForm(null)}
+                disabled={editUserSaving}
+              >
+                Close
+              </button>
             </div>
             <form className="profile-form" onSubmit={handleEditUserSave}>
               <div className="mb-3">
@@ -2714,17 +2837,26 @@ const renderStocks = () => {
                   placeholder="Leave blank to keep current"
                 />
               </div>
+              <div className="mb-3">
+                <label className="form-label d-block">Status</label>
+                <div className="form-check form-switch">
+                  <input
+                    id="um-edit-status"
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={editUserForm.status === "active"}
+                    onChange={(e) =>
+                      setEditUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "disabled" }))
+                    }
+                  />
+                  <label className="form-check-label" htmlFor="um-edit-status">
+                    {editUserForm.status === "active" ? "Active" : "Inactive"}
+                  </label>
+                </div>
+              </div>
               <div className="d-flex gap-3 mt-3">
                 <button type="submit" className="btn btn-primary-saas" disabled={editUserSaving}>
                   {editUserSaving ? "Saving..." : "Save changes"}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline-saas"
-                  onClick={() => setEditUserForm(null)}
-                  disabled={editUserSaving}
-                >
-                  Cancel
                 </button>
               </div>
             </form>
@@ -2771,7 +2903,7 @@ const renderProducts = () => (
             onClick={loadProducts} 
             disabled={productsLoading}
           >
-            {productsLoading ? "Loading..." : "Apply"}
+            {productsLoading ? "Loading..." : "Refresh"}
           </button>
 
           <button 
@@ -2930,7 +3062,15 @@ const renderProducts = () => (
       )}
 
       {/* --- PRODUCTS TABLE --- */}
-      <div className="table-responsive">
+      <div className="admin-grid">
+        <div className="admin-card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Existing products</p>
+              <h4>Search & Manage</h4>
+            </div>
+          </div>
+          <div className="table-responsive management-scroll">
         <table className="dashboard-table">
           <thead>
             <tr>
@@ -2984,6 +3124,8 @@ const renderProducts = () => (
             )}
           </tbody>
         </table>
+          </div>
+        </div>
       </div>
     </div>
     
