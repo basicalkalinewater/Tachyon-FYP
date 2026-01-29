@@ -2477,220 +2477,170 @@ const renderManagement = () => (
     </div>
   );
 
-const renderStocks = () => {
-  if (stocksLoading) return <div className="p-4 text-center">Loading inventory...</div>;
-
-  // 1. Single Omnisearch Logic
-  // This looks for your search term in BOTH the title and the category fields
-  const filteredStocks = stocks.filter((s) => {
-    const searchTerm = stockSearch.toLowerCase().trim();
-    if (!searchTerm) return true;
-
-    const matchesTitle = (s.title || "").toLowerCase().includes(searchTerm);
-    const matchesCategory = (s.category || "").toLowerCase().includes(searchTerm);
-    
-    return matchesTitle || matchesCategory;
-  });
-
-  return (
-    <div className="stock-container" style={{ padding: '20px' }}>
-      
-      {/* STANDALONE SEARCH FIELD */}
-      <div style={{ 
-        marginBottom: '30px', 
-        backgroundColor: '#fff', 
-        padding: '20px', 
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
-      }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#888', marginBottom: '8px', textTransform: 'uppercase' }}>
-            Inventory Search
-          </label>
-          <div style={{ position: 'relative' }}>
-            <input 
-              type="text" 
-              placeholder="Search by title or category (e.g., 'keyboard', 'ssd', 'monitor')..." 
-              className="admin-input"
-              value={stockSearch}
-              onChange={(e) => setStockSearch(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '12px 15px', 
-                borderRadius: '8px', 
-                border: '1px solid #ddd',
-                fontSize: '14px'
-              }}
-            />
-            {stockSearch && (
-              <button 
-                onClick={() => setStockSearch("")}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  border: 'none',
-                  background: 'none',
-                  color: '#999',
-                  cursor: 'pointer',
-                  fontSize: '18px'
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
+const renderStocks = () => (
+  <section className="admin-grid">
+    <div className="admin-card wide">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Stock</p>
+          <h4>Inventory Controls</h4>
         </div>
-        <div style={{ paddingTop: '20px' }}>
-          <span style={{ fontSize: '13px', color: '#666', fontWeight: '500', backgroundColor: '#f0f2f5', padding: '8px 12px', borderRadius: '6px' }}>
-            {filteredStocks.length} Results
-          </span>
-        </div>
+        <span className="badge">{filteredStocks.length} items</span>
+      </div>
+      <div className="stock-toolbar">
+        <input
+          type="search"
+          className="form-control"
+          placeholder="Search by title or category"
+          value={stockSearch}
+          onChange={(e) => setStockSearch(e.target.value)}
+        />
+        <select
+          className="form-select"
+          value={stockCategory}
+          onChange={(e) => setStockCategory(e.target.value)}
+        >
+          {stockCategories.map((cat) => (
+            <option key={cat} value={cat}>
+              {cat === "all" ? "All categories" : cat}
+            </option>
+          ))}
+        </select>
+        <button className="btn btn-outline-saas" onClick={loadStocks} disabled={stocksLoading}>
+          {stocksLoading ? "Loading..." : "Refresh"}
+        </button>
       </div>
 
-      {/* TABLE HEADERS */}
-      <div style={{ 
-        display: 'flex', 
-        padding: '0 25px 15px 25px', 
-        color: '#999', 
-        fontSize: '11px', 
-        fontWeight: 'bold', 
-        textTransform: 'uppercase', 
-        letterSpacing: '1px' 
-      }}>
-        <div style={{ flex: 2 }}>Product Information</div>
-        <div style={{ flex: 1, textAlign: 'center' }}>In Stock</div>
-        <div style={{ flex: 1, textAlign: 'center' }}>Status</div>
-        <div style={{ flex: 2, textAlign: 'right' }}>Actions</div>
-      </div>
-
-      {/* STOCK LIST */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {filteredStocks.map((s) => {
-          const qty = Number(s.quantity_available ?? 0);
-          const threshold = Number(s.low_stock_threshold ?? 15);
-
-          let statusText = "In Stock";
-          let statusColor = "#2c7a7b"; let statusBg = "#e6fffa";
-          if (qty <= 0) {
-            statusText = "Out of Stock";
-            statusColor = "#e53e3e"; statusBg = "#fff5f5";
-          } else if (qty <= threshold) {
-            statusText = "Low Stock";
-            statusColor = "#dd6b20"; statusBg = "#fffaf0";
-          }
-
-          return (
-            <div key={s.id} style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              padding: '18px 25px', 
-              backgroundColor: '#fff', 
-              borderRadius: '10px', 
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-            }}>
-              
-              <div style={{ flex: 2 }}>
-                <div style={{ fontWeight: '600', color: '#2d3748', fontSize: '15px' }}>{s.title}</div>
-                <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '4px' }}>
-                  <span style={{ 
-                    backgroundColor: '#ebf8ff', 
-                    color: '#2b6cb0', 
-                    padding: '2px 8px', 
-                    borderRadius: '4px', 
-                    marginRight: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '10px'
-                  }}>
-                    {s.category ? s.category.toUpperCase() : "GENERAL"}
-                  </span>
-                  ID: {s.id.toString().substring(0, 8)}
-                </div>
-              </div>
-
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <span style={{ fontSize: '18px', fontWeight: '700', color: qty <= threshold ? '#e53e3e' : '#2d3748' }}>
-                  {qty}
-                </span>
-              </div>
-
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <span style={{ 
-                  backgroundColor: statusBg, 
-                  color: statusColor, 
-                  padding: '6px 14px', 
-                  borderRadius: '25px', 
-                  fontSize: '11px', 
-                  fontWeight: '800', 
-                  border: `1px solid ${statusColor}22`,
-                  display: 'inline-block'
-                }}>
-                  {statusText.toUpperCase()}
-                </span>
-              </div>
-
-              <div style={{ flex: 2, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                {adjustingId === s.id ? (
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      className="admin-input-small" 
-                      style={{ width: '80px', textAlign: 'center' }}
-                      value={adjustmentForm.quantity}
-                      onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value) || 0 })}
-                      autoFocus
-                    />
-                    <button className="btn-save" onClick={() => handleStockSubmit(s.id)}>Save</button>
-                    <button className="btn-cancel" onClick={() => setAdjustingId(null)}>✕</button>
-                  </div>
-                ) : adjustingThresholdId === s.id ? (
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      className="admin-input-small" 
-                      style={{ width: '80px', textAlign: 'center', borderColor: '#3182ce' }}
-                      value={thresholdValue}
-                      onChange={(e) => setThresholdValue(parseInt(e.target.value) || 0)}
-                      autoFocus
-                    />
-                    <button className="btn-save" style={{ backgroundColor: '#3182ce' }} onClick={() => handleSaveThreshold(s.id)}>Save</button>
-                    <button className="btn-cancel" onClick={() => setAdjustingThresholdId(null)}>✕</button>
-                  </div>
-                ) : (
-                  <>
-                    <button className="admin-btn-secondary" onClick={() => {
-                      setAdjustingId(s.id);
-                      setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
-                    }}>
-                      Update Stock
-                    </button>
-                    <button className="admin-btn-outline" onClick={() => {
-                      setAdjustingThresholdId(s.id);
-                      setThresholdValue(threshold);
-                    }}>
-                      Set Threshold ({threshold})
-                    </button>
-                  </>
-                )}
-              </div>
+      <div className="admin-grid">
+        <div className="admin-card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Inventory list</p>
+              <h4>Search & Manage</h4>
             </div>
-          );
-        })}
-
-        {filteredStocks.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '60px', color: '#a0aec0' }}>
-            <p>No results found for "<strong>{stockSearch}</strong>".</p>
           </div>
-        )}
+          {stocksLoading ? (
+            <p className="muted mb-0">Loading inventory...</p>
+          ) : filteredStocks.length === 0 ? (
+            <p className="muted mb-0">No inventory matches your filters.</p>
+          ) : (
+            <div className="table-responsive management-scroll">
+              <table className="dashboard-table stock-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>In stock</th>
+                    <th>Status</th>
+                    <th>Threshold</th>
+                    <th className="text-end">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStocks.map((s) => {
+                    const qty = Number(s.quantity_available ?? 0);
+                    const threshold = Number(s.low_stock_threshold ?? 15);
+                    let statusLabel = "In Stock";
+                    let statusClass = "bg-success";
+                    if (qty <= 0) {
+                      statusLabel = "Out of Stock";
+                      statusClass = "bg-danger";
+                    } else if (qty <= threshold) {
+                      statusLabel = "Low Stock";
+                      statusClass = "bg-warning text-dark";
+                    }
+
+                    return (
+                      <tr key={s.id}>
+                        <td>
+                          <div className="fw-semibold">{s.title || "Untitled"}</div>
+                          <div className="small text-muted">ID: {s.id.toString().substring(0, 8)}</div>
+                        </td>
+                        <td>
+                          <span className="badge bg-light text-dark border">
+                            {s.category || "General"}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`fw-semibold ${qty <= threshold ? "text-danger" : ""}`}>{qty}</span>
+                        </td>
+                        <td>
+                          <span className={`badge rounded-pill ${statusClass}`}>{statusLabel}</span>
+                        </td>
+                        <td>{threshold}</td>
+                        <td className="text-end">
+                          {adjustingId === s.id ? (
+                            <div className="stock-actions">
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={adjustmentForm.quantity}
+                                onChange={(e) =>
+                                  setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value, 10) || 0 })
+                                }
+                                autoFocus
+                              />
+                              <button className="btn btn-primary-saas btn-sm" onClick={() => handleStockSubmit(s.id)}>
+                                Save
+                              </button>
+                              <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingId(null)}>
+                                Cancel
+                              </button>
+                            </div>
+                          ) : adjustingThresholdId === s.id ? (
+                            <div className="stock-actions">
+                              <input
+                                type="number"
+                                className="form-control form-control-sm"
+                                value={thresholdValue}
+                                onChange={(e) => setThresholdValue(parseInt(e.target.value, 10) || 0)}
+                                autoFocus
+                              />
+                              <button className="btn btn-primary-saas btn-sm" onClick={() => handleSaveThreshold(s.id)}>
+                                Save
+                              </button>
+                              <button
+                                className="btn btn-outline-saas btn-sm"
+                                onClick={() => setAdjustingThresholdId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="d-flex gap-2 justify-content-end flex-wrap">
+                              <button
+                                className="btn btn-outline-saas btn-sm stock-action-btn"
+                                onClick={() => {
+                                  setAdjustingId(s.id);
+                                  setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
+                                }}
+                              >
+                                Update stock
+                              </button>
+                              <button
+                                className="btn btn-outline-saas btn-sm stock-action-btn"
+                                onClick={() => {
+                                  setAdjustingThresholdId(s.id);
+                                  setThresholdValue(threshold);
+                                }}
+                              >
+                                Set threshold 
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </div>
-  );
-};
+  </section>
+);
 
   const renderUsers = () => (
     <section className="admin-grid">
