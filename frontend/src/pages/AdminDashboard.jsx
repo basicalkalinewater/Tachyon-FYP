@@ -9,6 +9,7 @@ import {
   updateAdminUser,
   disableAdminUser,
   fetchAdminInsights,
+  fetchAdminInsightsHistory,
   listFaqs,
   createFaq,
   updateFaq,
@@ -39,6 +40,7 @@ const ADMIN_SECTIONS = [
   { id: "stocks", label: "Stock", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "management", label: "Content", group: "Management" },
+  { id: "businessinsights", label: "Business Insights", group: "Management" },
   { id: "promotions", label: "Promotions", group: "Management" },
   { id: "promos", label: "Promo Codes", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
@@ -57,6 +59,18 @@ const GROUPED_ADMIN_SECTIONS = ADMIN_SECTIONS.reduce((groups, section) => {
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [insights, setInsights] = useState({ bestMonth: null, worstMonth: null, totalSalesToday: 0, ordersToday: 0 });
+  const [insightMonth, setInsightMonth] = useState(() => {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    return `${year}-${month}`;
+  });
+  const [insightsHistory, setInsightsHistory] = useState([]);
+  const [insightsHistoryLoading, setInsightsHistoryLoading] = useState(false);
+  const [insightsHistoryFilters, setInsightsHistoryFilters] = useState(() => ({
+    year: new Date().getUTCFullYear(),
+    month: "",
+  }));
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
@@ -169,6 +183,49 @@ const AdminDashboard = () => {
     currency: "USD",
     maximumFractionDigits: 2,
   });
+  const overviewMonthOptions = useMemo(() => {
+    const opts = [];
+    const now = new Date();
+    for (let i = 0; i < 5; i += 1) {
+      const date = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+      opts.push({
+        value: `${year}-${month}`,
+        label: date.toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" }),
+      });
+    }
+    return opts;
+  }, []);
+  const historyMonthOptions = useMemo(
+    () => [
+      { value: "", label: "All months" },
+      { value: "1", label: "Jan" },
+      { value: "2", label: "Feb" },
+      { value: "3", label: "Mar" },
+      { value: "4", label: "Apr" },
+      { value: "5", label: "May" },
+      { value: "6", label: "Jun" },
+      { value: "7", label: "Jul" },
+      { value: "8", label: "Aug" },
+      { value: "9", label: "Sep" },
+      { value: "10", label: "Oct" },
+      { value: "11", label: "Nov" },
+      { value: "12", label: "Dec" },
+    ],
+    []
+  );
+  const formatMonthYear = useCallback((year, month) => {
+    const safeYear = Number(year);
+    const safeMonth = Number(month);
+    if (!safeYear || !safeMonth) return "-";
+    const date = new Date(Date.UTC(safeYear, safeMonth - 1, 1));
+    return date.toLocaleString("en-US", {
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }, []);
 
   const toLocalInputDateTime = (date = new Date()) => {
     const pad = (n) => `${n}`.padStart(2, "0");
@@ -200,10 +257,16 @@ const AdminDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
+      const [yearStr, monthStr] = (insightMonth || "").split("-");
+      const year = Number(yearStr);
+      const month = Number(monthStr);
       const [summaryData, responses, insightsRes] = await Promise.all([
         fetchCsatSummary(120),
         fetchCsatResponses(20),
-        fetchAdminInsights(),
+        fetchAdminInsights({
+          year: Number.isFinite(year) ? year : undefined,
+          month: Number.isFinite(month) ? month : undefined,
+        }),
       ]);
       setCsat({
         summary: summaryData.summary || {},
@@ -222,7 +285,7 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [insightMonth]);
 
   const loadProfile = useCallback(async () => {
     try {
@@ -266,6 +329,28 @@ const AdminDashboard = () => {
       setPolicyLoading(false);
     }
   }, []);
+
+  const loadInsightsHistory = useCallback(async () => {
+    setInsightsHistoryLoading(true);
+    try {
+      const cleanedYear = Number(insightsHistoryFilters.year) || new Date().getUTCFullYear();
+      const cleanedMonth = insightsHistoryFilters.month
+        ? Number(insightsHistoryFilters.month)
+        : undefined;
+      const params = { year: cleanedYear };
+      if (cleanedMonth && cleanedMonth >= 1 && cleanedMonth <= 12) {
+        params.month = cleanedMonth;
+        params.months = 1;
+      }
+      const res = await fetchAdminInsightsHistory(params);
+      const data = res?.data || res || {};
+      setInsightsHistory(data.months || []);
+    } catch (err) {
+      toast.error(err.message || "Failed to load insights history");
+    } finally {
+      setInsightsHistoryLoading(false);
+    }
+  }, [insightsHistoryFilters]);
 
   const loadPromos = useCallback(async () => {
     setPromoLoading(true);
@@ -313,12 +398,14 @@ const AdminDashboard = () => {
       } else if (managementTab === "policies") {
         loadPolicies();
       }
+    } else if (viewMode === "businessinsights") {
+      loadInsightsHistory();
     } else if (viewMode === "promos") {
       loadPromos();
     } else if (viewMode === "promotions") {
       loadPromotions();
     }
-  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadPromos, loadPromotions]);
+  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadInsightsHistory, loadPromos, loadPromotions]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -1062,14 +1149,27 @@ const handleStockSubmit = async (productId) => {
         </div>
       </section>
 
-      <section className="admin-grid">
-        <div className="admin-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Business insights</p>
-              <h4>Sales performance</h4>
+        <section className="admin-grid">
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Business insights</p>
+                <h4>Sales performance</h4>
+              </div>
+              <div className="insight-controls">
+                <label className="muted tiny" htmlFor="insight-month">Month</label>
+                <select
+                  id="insight-month"
+                  className="form-select form-select-sm"
+                  value={insightMonth}
+                  onChange={(e) => setInsightMonth(e.target.value)}
+                >
+                  {overviewMonthOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-          </div>
           <ul className="insight-list">
             <li>
               <p className="muted tiny mb-1">Best-selling product (month)</p>
@@ -1455,9 +1555,114 @@ const renderManagement = () => (
             </div>
           </div>
         )}
+    </div>
+  </section>
+);
+
+const renderBusinessInsights = () => (
+  <section className="admin-grid">
+    <div className="admin-card wide">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Business insights</p>
+          <h4>Monthly best/worst history</h4>
+        </div>
       </div>
-    </section>
-  );
+      <div className="d-flex gap-2 flex-wrap mb-3 align-items-end">
+        <div>
+          <label className="form-label" htmlFor="insights-year">Year</label>
+          <input
+            id="insights-year"
+            type="number"
+            className="form-control"
+            style={{ width: 140 }}
+            value={insightsHistoryFilters.year}
+            onChange={(e) =>
+              setInsightsHistoryFilters((p) => ({ ...p, year: e.target.value }))
+            }
+            placeholder="e.g. 2026"
+          />
+        </div>
+        <div>
+          <label className="form-label" htmlFor="insights-month">Month</label>
+          <select
+            id="insights-month"
+            className="form-select"
+            style={{ width: 180 }}
+            value={insightsHistoryFilters.month}
+            onChange={(e) =>
+              setInsightsHistoryFilters((p) => ({ ...p, month: e.target.value }))
+            }
+          >
+            {historyMonthOptions.map((opt) => (
+              <option key={opt.value || "all"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary-saas"
+          onClick={loadInsightsHistory}
+          disabled={insightsHistoryLoading}
+        >
+          {insightsHistoryLoading ? "Loading..." : "Apply"}
+        </button>
+      </div>
+      <div className="table-responsive">
+        <table className="dashboard-table">
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Best product</th>
+              <th>Worst product</th>
+              <th className="text-end">Sales</th>
+              <th className="text-end">Orders</th>
+            </tr>
+          </thead>
+          <tbody>
+            {insightsHistoryLoading ? (
+              <tr>
+                <td colSpan="5" className="text-center py-4 text-muted">
+                  Loading insights...
+                </td>
+              </tr>
+            ) : insightsHistory.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="text-center py-4 text-muted">
+                  No insights found for this filter.
+                </td>
+              </tr>
+            ) : (
+              insightsHistory.map((row) => (
+                <tr key={`history-${row.year}-${row.month}`}>
+                  <td>{formatMonthYear(row.year, row.month)}</td>
+                  <td>
+                    {row.best_selling_product_month?.name || "N/A"}
+                    {row.best_selling_product_month?.quantity
+                      ? ` (${row.best_selling_product_month.quantity})`
+                      : ""}
+                  </td>
+                  <td>
+                    {row.worst_selling_product_month?.name || "N/A"}
+                    {row.worst_selling_product_month?.quantity
+                      ? ` (${row.worst_selling_product_month.quantity})`
+                      : ""}
+                  </td>
+                  <td className="text-end">
+                    {currencyFormatter.format(row.month_total_sales || 0)}
+                  </td>
+                  <td className="text-end">{row.month_orders || 0}</td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+);
 
   const renderPromos = () => (
     <section className="admin-grid">
@@ -3322,6 +3527,7 @@ const renderEditProduct = () => (
             {viewMode === "profile" && renderProfile()}
             {viewMode === "users" && renderUsers()}
             {viewMode === "management" && renderManagement()}
+            {viewMode === "businessinsights" && renderBusinessInsights()}
             {viewMode === "promos" && renderPromos()}
             {viewMode === "promotions" && renderPromotions()}
             {viewMode === "products" && renderProducts()}
