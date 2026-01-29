@@ -23,6 +23,7 @@ const Checkout = () => {
   const dispatch = useDispatch();
 
   const [promoInput, setPromoInput] = useState(appliedPromo?.code || "");
+  const [promoValidationError, setPromoValidationError] = useState("");
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -57,12 +58,19 @@ const Checkout = () => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
+  const isValidPromoCode = (value) => /^[A-Za-z0-9]+$/.test(value);
+
   const applyPromo = (e) => {
     e.preventDefault();
-    if (!promoInput.trim()) return;
-    const code = promoInput.trim().toUpperCase();
-    setPromoInput(code);
-    dispatch(applyPromoCode(code));
+    const trimmedCode = promoInput.trim();
+    if (!trimmedCode) return;
+    if (!isValidPromoCode(trimmedCode)) {
+      setPromoValidationError("Promo codes can only contain letters and numbers.");
+      return;
+    }
+    setPromoValidationError("");
+    dispatch(applyPromoCode(trimmedCode));
   };
 
   const clearPromoAndInput = () => {
@@ -296,7 +304,14 @@ const Checkout = () => {
                   autoComplete="off"
                   maxLength={40}
                   value={promoInput}
-                  onChange={(e) => setPromoInput(e.target.value)}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const sanitized = sanitizePromoCode(raw);
+                    setPromoInput(sanitized);
+                    setPromoValidationError(
+                      raw === sanitized ? "" : "Promo codes can only contain letters and numbers."
+                    );
+                  }}
                 />
                 <button
                   className="btn btn-primary-saas"
@@ -306,6 +321,7 @@ const Checkout = () => {
                   {promoStatus === "loading" ? "Applying..." : "Apply"}
                 </button>
               </form>
+              {promoValidationError && <p className="text-danger small mb-2">{promoValidationError}</p>}
               {promoError && <p className="text-danger small mb-2">{promoError}</p>}
               {appliedPromo && (
                 <div className="alert alert-success py-2 px-3 d-flex justify-content-between align-items-center">

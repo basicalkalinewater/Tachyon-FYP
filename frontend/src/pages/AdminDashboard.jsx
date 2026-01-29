@@ -714,11 +714,18 @@ const handleStockSubmit = async (productId) => {
   };
 
   const resetPromoForm = () => setPromoForm(emptyPromoForm);
+  const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
+  const isValidPromoCode = (value) => /^[A-Za-z0-9]+$/.test(value);
 
   const handlePromoSubmit = async (e) => {
     e.preventDefault();
-    if (!promoForm.code.trim()) {
+    const trimmedCode = promoForm.code.trim();
+    if (!trimmedCode) {
       toast.error("Promo code is required");
+      return;
+    }
+    if (!isValidPromoCode(trimmedCode)) {
+      toast.error("Promo code can only contain letters and numbers");
       return;
     }
     const numericValue = Number(promoForm.discountValue);
@@ -732,7 +739,7 @@ const handleStockSubmit = async (productId) => {
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
     const payload = {
-      code: promoForm.code.trim().toUpperCase(),
+      code: trimmedCode,
       description: (promoForm.description || "").trim(),
       discountType: promoForm.discountType,
       discountValue: numericValue,
@@ -755,8 +762,13 @@ const handleStockSubmit = async (productId) => {
   const handlePromoUpdate = async (e) => {
     e.preventDefault();
     if (!editPromoForm) return;
-    if (!editPromoForm.code.trim()) {
+    const trimmedCode = editPromoForm.code.trim();
+    if (!trimmedCode) {
       toast.error("Promo code is required");
+      return;
+    }
+    if (!isValidPromoCode(trimmedCode)) {
+      toast.error("Promo code can only contain letters and numbers");
       return;
     }
     const numericValue = Number(editPromoForm.discountValue);
@@ -770,7 +782,7 @@ const handleStockSubmit = async (productId) => {
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
     const payload = {
-      code: editPromoForm.code.trim().toUpperCase(),
+      code: trimmedCode,
       description: (editPromoForm.description || "").trim(),
       discountType: editPromoForm.discountType,
       discountValue: numericValue,
@@ -1664,7 +1676,9 @@ const renderManagement = () => (
                 type="text"
                 className="form-control"
                 value={promoForm.code}
-                onChange={(e) => setPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                onChange={(e) =>
+                  setPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
+                }
                 placeholder="SAVE10"
               />
             </div>
@@ -1716,7 +1730,7 @@ const renderManagement = () => (
                 placeholder="Blank = unlimited"
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promo-starts">Starts at</label>
               <input
                 id="promo-starts"
@@ -1726,7 +1740,7 @@ const renderManagement = () => (
                 onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promo-expires">Expires at</label>
               <input
                 id="promo-expires"
@@ -1792,7 +1806,9 @@ const renderManagement = () => (
                 type="text"
                 className="form-control"
                 value={editPromoForm.code}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, code: e.target.value.toUpperCase() }))}
+                onChange={(e) =>
+                  setEditPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
+                }
                 placeholder="SAVE10"
               />
             </div>
@@ -1844,7 +1860,7 @@ const renderManagement = () => (
                 placeholder="Blank = unlimited"
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
               <input
                 id="promo-starts-edit"
@@ -1854,7 +1870,7 @@ const renderManagement = () => (
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
               <input
                 id="promo-expires-edit"
@@ -2004,7 +2020,7 @@ const renderManagement = () => (
                 placeholder={promotionForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promotion-starts">Starts at</label>
               <input
                 id="promotion-starts"
@@ -2014,7 +2030,7 @@ const renderManagement = () => (
                 onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promotion-expires">Expires at</label>
               <input
                 id="promotion-expires"
@@ -2155,7 +2171,7 @@ const renderManagement = () => (
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promotion-starts-edit">Starts at</label>
               <input
                 id="promotion-starts-edit"
@@ -2165,7 +2181,7 @@ const renderManagement = () => (
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
               />
             </div>
-            <div className="col-md-4">
+            <div className="col-md-12">
               <label className="form-label" htmlFor="promotion-expires-edit">Expires at</label>
               <input
                 id="promotion-expires-edit"
