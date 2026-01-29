@@ -8,5 +8,5 @@ class CreateUserPayload(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
     full_name: Optional[str] = Field(None, max_length=120)
     phone: Optional[str] = Field(None, max_length=40)
-    status: Optional[str] = Field("active", pattern="^(active|disabled)$")
+    status: Optional[str] = Field("active", pattern="^(active|inactive)$")
 

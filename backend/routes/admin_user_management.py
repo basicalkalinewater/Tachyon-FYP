@@ -75,7 +75,26 @@ def update_user(user_id):
 
 @admin_users_bp.delete("/users/<user_id>")
 @require_session(allowed_roles=["admin"])
+def disable_user_legacy(user_id):
+    # Legacy disable endpoint (kept for compatibility)
+    supabase = current_app.config["SUPABASE"]
+    admin_user_management.disable_user(supabase, user_id)
+    return _ok({"inactive": True})
+
+
+@admin_users_bp.delete("/users/<user_id>/disable")
+@require_session(allowed_roles=["admin"])
+@maybe_limit("60 per minute")
 def disable_user(user_id):
     supabase = current_app.config["SUPABASE"]
     admin_user_management.disable_user(supabase, user_id)
-    return _ok({"disabled": True})
+    return _ok({"inactive": True})
+
+
+@admin_users_bp.delete("/users/<user_id>/delete")
+@require_session(allowed_roles=["admin"])
+@maybe_limit("30 per minute")
+def delete_user(user_id):
+    supabase = current_app.config["SUPABASE"]
+    admin_user_management.delete_user(supabase, user_id)
+    return _ok({"deleted": True})

@@ -69,7 +69,7 @@ def login():
         user = customer_service.sanitize_user(user_row)
 
         if user_row.get("status") and user_row.get("status") != "active":
-            return jsonify({"error": "Account is disabled"}), 403
+            return jsonify({"error": "Account is inactive"}), 403
 
         role = user.get("role")
 

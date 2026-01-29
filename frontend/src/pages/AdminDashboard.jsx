@@ -7,7 +7,7 @@ import {
   listAdminUsers,
   createAdminUser,
   updateAdminUser,
-  disableAdminUser,
+  deleteAdminUser,
   fetchAdminInsights,
   fetchAdminInsightsHistory,
   listFaqs,
@@ -785,15 +785,15 @@ const handleStockSubmit = async (productId) => {
     }
   };
 
-  const handleDisableUser = async (userId, email) => {
-    const confirm = window.confirm(`Disable user ${email}? This revokes all sessions and sets status to disabled.`);
+  const handleDeleteUser = async (userId, email) => {
+    const confirm = window.confirm(`Delete user ${email}? This removes all user data and cannot be undone.`);
     if (!confirm) return;
     try {
-      await disableAdminUser(userId);
-      toast.success("User disabled (sessions revoked)");
+      await deleteAdminUser(userId);
+      toast.success("User deleted");
       await loadUsers();
     } catch (err) {
-      toast.error(err.message || "Unable to disable user");
+      toast.error(err.message || "Unable to delete user");
     }
   };
 
@@ -1607,7 +1607,7 @@ const renderBusinessInsights = () => (
           onClick={loadInsightsHistory}
           disabled={insightsHistoryLoading}
         >
-          {insightsHistoryLoading ? "Loading..." : "Apply"}
+          {insightsHistoryLoading ? "Loading..." : "Refresh"}
         </button>
       </div>
       <div className="table-responsive">
@@ -1670,7 +1670,7 @@ const renderBusinessInsights = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promo codes</p>
-            <h4>Discount rules</h4>
+            <h4>Discount Rules</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -1792,7 +1792,7 @@ const renderBusinessInsights = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promotions</p>
-            <h4>Auto-applied discounts</h4>
+            <h4>Auto-applied Discounts</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -2804,7 +2804,7 @@ const renderStocks = () => {
                         <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
                           Edit
                         </button>
-                        {u.status === "disabled" ? (
+                        {u.status === "inactive" ? (
                           <button
                             className="btn btn-outline-secondary btn-sm"
                             onClick={() => handleEnableUser(u.id, u.email)}
@@ -2815,10 +2815,19 @@ const renderStocks = () => {
                         ) : (
                           <button
                             className="btn btn-outline-danger btn-sm"
-                            onClick={() => handleDisableUser(u.id, u.email)}
-                            title="Revoke sessions / disable"
+                            onClick={() => handleDeleteUser(u.id, u.email)}
+                            title="Delete user"
                           >
-                            Disable
+                            Delete
+                          </button>
+                        )}
+                        {u.status === "inactive" && (
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => handleDeleteUser(u.id, u.email)}
+                            title="Delete user"
+                          >
+                            Delete
                           </button>
                         )}
                       </div>
@@ -2931,7 +2940,7 @@ const renderStocks = () => {
                     type="checkbox"
                     checked={userForm.status === "active"}
                     onChange={(e) =>
-                      setUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "disabled" }))
+                      setUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "inactive" }))
                     }
                   />
                   <label className="form-check-label" htmlFor="um-status">
@@ -3051,7 +3060,7 @@ const renderStocks = () => {
                     type="checkbox"
                     checked={editUserForm.status === "active"}
                     onChange={(e) =>
-                      setEditUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "disabled" }))
+                      setEditUserForm((p) => ({ ...p, status: e.target.checked ? "active" : "inactive" }))
                     }
                   />
                   <label className="form-check-label" htmlFor="um-edit-status">

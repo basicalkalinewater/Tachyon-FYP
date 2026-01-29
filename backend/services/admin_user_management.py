@@ -83,8 +83,9 @@ def _ensure_profile(supabase, user_id: str, role: str, full_name: str, phone: st
 def create_user(supabase, email: str, role: str, password: str, full_name: str, phone: str, status: str = "active"):
     if not email or not role or not password:
         raise ValueError("email, role, and password are required")
-    if status not in ("active", "disabled"):
-        raise ValueError("status must be 'active' or 'disabled'")
+    status = (status or "").strip().lower() or "active"
+    if status not in ("active", "inactive"):
+        raise ValueError("status must be 'active' or 'inactive'")
     res = (
         supabase.table("app_user")
         .insert({"email": email, "role": role, "password_hash": _hash_password(password), "status": status})
@@ -100,8 +101,9 @@ def update_user(supabase, user_id: str, role: Optional[str], status: Optional[st
     if role:
         updates["role"] = role
     if status:
-        if status not in ("active", "disabled"):
-            raise ValueError("status must be 'active' or 'disabled'")
+        status = status.strip().lower()
+        if status not in ("active", "inactive"):
+            raise ValueError("status must be 'active' or 'inactive'")
         updates["status"] = status
     if password:
         updates["password_hash"] = _hash_password(password)
@@ -125,6 +127,17 @@ def update_user(supabase, user_id: str, role: Optional[str], status: Optional[st
 
 
 def disable_user(supabase, user_id: str):
-    # Mark disabled and revoke active sessions
-    supabase.table("app_user").update({"status": "disabled"}).eq("id", user_id).execute()
+    # Mark inactive and revoke active sessions
+    supabase.table("app_user").update({"status": "inactive"}).eq("id", user_id).execute()
     supabase.table("app_session").delete().eq("user_id", user_id).execute()
+
+
+def delete_user(supabase, user_id: str):
+    # Remove chat records referencing the user to satisfy foreign keys.
+    supabase.table("chat_flags").delete().eq("flagged_by_agent_id", user_id).execute()
+    supabase.table("chat_messages").delete().eq("sender_id", user_id).execute()
+    supabase.table("chat_sessions").delete().eq("customer_id", user_id).execute()
+    supabase.table("chat_sessions").delete().eq("agent_id", user_id).execute()
+
+    # Deleting app_user cascades to sessions, profiles, orders, RMAs, addresses, and payments.
+    supabase.table("app_user").delete().eq("id", user_id).execute()
