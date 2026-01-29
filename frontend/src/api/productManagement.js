@@ -1,4 +1,7 @@
 import { request } from "./client";
+import axios from "axios";
+
+const API_BASE_URL = "http://localhost:4000/api/products";
 
 const buildQuery = (params = {}) =>
   Object.entries(params)
@@ -9,16 +12,22 @@ const buildQuery = (params = {}) =>
 export const listProducts = () => request("/products/?include_promotions=false");
 export const getProduct = (id) => request(`/products/${id}?include_promotions=false`);
 
-export const createProduct = (body) =>
-  request("/products/", { method: "POST", body });
+export const createProduct = async (formData) => {
+  const response = await axios.post(API_BASE_URL, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
 
-export const updateProduct = (id, body) =>
-  request(`/products/${id}`, { method: "PUT", body });
+export const updateProduct = async (id, formData) => {
+  const response = await axios.put(`${API_BASE_URL}/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
 
 export const deleteProduct = (id) =>
   request(`/products/${id}`, { method: "DELETE" });
-
-// --- SEARCH & FILTER EXTENSIONS ---
 
 export const searchProductsByTitle = (title) => 
   request(`/products/title/${encodeURIComponent(title)}?include_promotions=false`);

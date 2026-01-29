@@ -5,7 +5,7 @@ def map_product(row):
         "brand": row.get("Brand"),  # Accesses the DB "Brand" column
         "description": row.get("description"),
         "price": float(row.get("price", 0)),
-        "image": row.get("image_url"),
+        "image": row.get("image_url"), # This is the path like /assets/products/filename.jpg
         "category": row.get("category"),
         "specs": row.get("specs") or {},
     }

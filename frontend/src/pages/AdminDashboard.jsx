@@ -9,7 +9,6 @@ import {
   updateAdminUser,
   disableAdminUser,
   fetchAdminInsights,
-  fetchAdminInsightsHistory,
   listFaqs,
   createFaq,
   updateFaq,
@@ -58,23 +57,16 @@ const GROUPED_ADMIN_SECTIONS = ADMIN_SECTIONS.reduce((groups, section) => {
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [insights, setInsights] = useState({ bestMonth: null, worstMonth: null, totalSalesToday: 0, ordersToday: 0 });
-  const [insightsHistory, setInsightsHistory] = useState([]);
-  const [insightsRolling, setInsightsRolling] = useState([]);
-  const [insightsHistoryLoading, setInsightsHistoryLoading] = useState(false);
-  const [insightsHistoryFilters, setInsightsHistoryFilters] = useState(() => ({
-    year: new Date().getUTCFullYear(),
-    month: "",
-  }));
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
   const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management | promos | promotions
-  const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies | insights
+  const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
   const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
-  const [policyForm, setPolicyForm] = useState({ id: null, title: "", slug: "", content: "" });
+  const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
   const emptyPromoForm = {
     id: null,
     code: "",
@@ -135,6 +127,7 @@ const AdminDashboard = () => {
   description: "",
   price: "",
   specs: {},
+  image_url: null
   });
   const [stocks, setStocks] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
@@ -175,35 +168,6 @@ const AdminDashboard = () => {
     currency: "USD",
     maximumFractionDigits: 2,
   });
-  const monthOptions = useMemo(
-    () => [
-      { value: "", label: "All months" },
-      { value: "1", label: "Jan" },
-      { value: "2", label: "Feb" },
-      { value: "3", label: "Mar" },
-      { value: "4", label: "Apr" },
-      { value: "5", label: "May" },
-      { value: "6", label: "Jun" },
-      { value: "7", label: "Jul" },
-      { value: "8", label: "Aug" },
-      { value: "9", label: "Sep" },
-      { value: "10", label: "Oct" },
-      { value: "11", label: "Nov" },
-      { value: "12", label: "Dec" },
-    ],
-    []
-  );
-  const formatMonthYear = useCallback((year, month) => {
-    const safeYear = Number(year);
-    const safeMonth = Number(month);
-    if (!safeYear || !safeMonth) return "-";
-    const date = new Date(Date.UTC(safeYear, safeMonth - 1, 1));
-    return date.toLocaleString("en-US", {
-      month: "short",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-  }, []);
 
   const toInputDateTime = (value) => {
     if (!value) return "";
@@ -211,24 +175,6 @@ const AdminDashboard = () => {
     if (Number.isNaN(d.getTime())) return "";
     const pad = (n) => `${n}`.padStart(2, "0");
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  };
-
-  const parseLocalDateTime = (value) => {
-    if (!value) return null;
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return null;
-    return d;
-  };
-
-  const validateDateWindow = (startsAt, expiresAt, isActive) => {
-    const now = new Date();
-    const start = parseLocalDateTime(startsAt);
-    const end = parseLocalDateTime(expiresAt);
-    if (start && start < now) return "Start date/time cannot be in the past";
-    if (end && end < now) return "End date/time cannot be in the past";
-    if (start && end && start > end) return "Start date/time must be before end date/time";
-    if (isActive && (!start || !end)) return "Active items require both start and end dates";
-    return null;
   };
 
   const describeWindow = (start, end) => {
@@ -246,11 +192,10 @@ const AdminDashboard = () => {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [summaryData, responses, insightsRes, historyRes] = await Promise.all([
+      const [summaryData, responses, insightsRes] = await Promise.all([
         fetchCsatSummary(120),
         fetchCsatResponses(20),
         fetchAdminInsights(),
-        fetchAdminInsightsHistory({ months: 13 }),
       ]);
       setCsat({
         summary: summaryData.summary || {},
@@ -264,8 +209,6 @@ const AdminDashboard = () => {
         totalSalesToday: insightsData.total_sales_today || 0,
         ordersToday: insightsData.orders_today || 0,
       });
-      const historyData = historyRes?.data || historyRes || {};
-      setInsightsRolling(historyData.months || []);
     } catch (err) {
       toast.error(err.message || "Failed to load admin metrics");
     } finally {
@@ -316,34 +259,6 @@ const AdminDashboard = () => {
     }
   }, []);
 
-  const loadInsightsHistory = useCallback(
-    async (overrideFilters = {}) => {
-      setInsightsHistoryLoading(true);
-      try {
-        const merged = { ...insightsHistoryFilters, ...overrideFilters };
-        const cleanedYear = Number(merged.year) || new Date().getUTCFullYear();
-        const cleanedMonth = merged.month ? Number(merged.month) : undefined;
-        const params = { year: cleanedYear };
-        if (cleanedMonth && cleanedMonth >= 1 && cleanedMonth <= 12) {
-          params.month = cleanedMonth;
-          params.months = 1;
-        }
-        const res = await fetchAdminInsightsHistory(params);
-        const data = res?.data || res || {};
-        setInsightsHistory(data.months || []);
-        setInsightsHistoryFilters({
-          year: cleanedYear,
-          month: cleanedMonth ? String(cleanedMonth) : "",
-        });
-      } catch (err) {
-        toast.error(err.message || "Failed to load insights history");
-      } finally {
-        setInsightsHistoryLoading(false);
-      }
-    },
-    [insightsHistoryFilters]
-  );
-
   const loadPromos = useCallback(async () => {
     setPromoLoading(true);
     try {
@@ -389,8 +304,6 @@ const AdminDashboard = () => {
         loadFaqs();
       } else if (managementTab === "policies") {
         loadPolicies();
-      } else if (managementTab === "insights") {
-        loadInsightsHistory();
       }
     } else if (viewMode === "promos") {
       loadPromos();
@@ -426,7 +339,8 @@ const AdminDashboard = () => {
   }, [viewMode, loadProducts]);
 
   const startEditProduct = (p) => {
-    setEditProductForm({ ...p });
+    // We include existing data and reset any 'newImageFile' from previous sessions
+    setEditProductForm({ ...p, newImageFile: null });
   };
 
   const handleEditProductSave = async (e) => {
@@ -434,13 +348,30 @@ const AdminDashboard = () => {
     if (!editProductForm) return;
 
     setEditProductSaving(true);
+    
+    // 1. Create FormData for the PUT request
+    const formData = new FormData();
+    formData.append("title", editProductForm.title);
+    formData.append("category", editProductForm.category);
+    formData.append("price", editProductForm.price);
+    
+    // Optional: Append brand/description if you have those fields in your edit form
+    if (editProductForm.Brand) formData.append("Brand", editProductForm.Brand);
+    if (editProductForm.description) formData.append("description", editProductForm.description);
+    
+    // We stringify the specs so the backend can parse them as JSON
+    formData.append("specs", JSON.stringify(editProductForm.specs || {}));
+
+    // 2. Append the new image file ONLY if the admin selected one
+    if (editProductForm.newImageFile) {
+      formData.append("image", editProductForm.newImageFile);
+    }
+
     try {
-      await updateProduct(editProductForm.id, {
-        title: editProductForm.title,
-        category: editProductForm.category,
-        price: editProductForm.price,
-    });
-      toast.success("Product updated");
+      // 3. Pass the formData to your API helper
+      await updateProduct(editProductForm.id, formData);
+      
+      toast.success("Product updated successfully");
       setEditProductForm(null);
       await loadProducts();
     } catch (err) {
@@ -453,7 +384,6 @@ const AdminDashboard = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    // Determine final category string
     const finalCategory = newProduct.category === "other" 
       ? customCategory 
       : newProduct.category;
@@ -462,21 +392,34 @@ const AdminDashboard = () => {
     Object.entries(newProduct.specs).forEach(([k, v]) => {
       if (k.trim() !== "") cleanedSpecs[k] = v;
     });
-
+    // Use FormData for file upload
+    const formData = new FormData();
+    formData.append("title", newProduct.title);
+    formData.append("Brand", newProduct.Brand);
+    formData.append("category", finalCategory);
+    formData.append("description", newProduct.description);
+    formData.append("price", parseFloat(newProduct.price));
+    formData.append("specs", JSON.stringify(cleanedSpecs));
+    // Append the file if it exists
+    if (newProduct.imageFile) {
+      formData.append("image", newProduct.imageFile); 
+    }
     try {
-      await createProduct({
-        ...newProduct,
-        category: finalCategory, // Use the finalized string
-        price: parseFloat(newProduct.price),
-        specs: cleanedSpecs
-      });
-    
+      // Note: ensure your createProduct API function can handle FormData
+      await createProduct(formData);
       toast.success(`Product added to ${finalCategory}!`);
       setShowCreateProductForm(false);
-    
-      // Reset everything
-      setNewProduct({ title: "", Brand: "", category: "", description: "", price: "", specs: {} });
-      setCustomCategory(""); 
+      // Reset state
+      setNewProduct({ 
+        title: "", 
+        Brand: "", 
+        category: "", 
+        description: "", 
+        price: "", 
+        specs: {},
+        imageFile: null 
+      });
+      setCustomCategory("");
       loadProducts();
     } catch (err) {
       toast.error(err.message);
@@ -779,17 +722,12 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(promoForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Discount value must be 0 or greater");
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
       return;
     }
-    if (promoForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
-      toast.error("Percent discounts must be between 0 and 100");
-      return;
-    }
-    const windowError = validateDateWindow(promoForm.startsAt, promoForm.expiresAt, promoForm.active);
-    if (windowError) {
-      toast.error(windowError);
+    if (promoForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -822,17 +760,12 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(editPromoForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Discount value must be 0 or greater");
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
       return;
     }
-    if (editPromoForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
-      toast.error("Percent discounts must be between 0 and 100");
-      return;
-    }
-    const windowError = validateDateWindow(editPromoForm.startsAt, editPromoForm.expiresAt, editPromoForm.active);
-    if (windowError) {
-      toast.error(windowError);
+    if (editPromoForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -891,28 +824,12 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(promotionForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Discount value must be 0 or greater");
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
       return;
     }
-    if (promotionForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
-      toast.error("Percent discounts must be between 0 and 100");
-      return;
-    }
-    if (scopeType === "product" && promotionForm.discountType === "amount") {
-      const price = promotionProductPriceMap.get(promotionForm.productId);
-      if (!Number.isFinite(price)) {
-        toast.error("Unable to validate product price for this promotion");
-        return;
-      }
-      if (numericValue > price) {
-        toast.error("Discount amount cannot exceed the product price");
-        return;
-      }
-    }
-    const windowError = validateDateWindow(promotionForm.startsAt, promotionForm.expiresAt, promotionForm.active);
-    if (windowError) {
-      toast.error(windowError);
+    if (promotionForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -951,28 +868,12 @@ const handleStockSubmit = async (productId) => {
       return;
     }
     const numericValue = Number(editPromotionForm.discountValue);
-    if (!Number.isFinite(numericValue) || numericValue < 0) {
-      toast.error("Discount value must be 0 or greater");
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      toast.error("Discount value must be greater than 0");
       return;
     }
-    if (editPromotionForm.discountType === "percent" && (numericValue < 0 || numericValue > 100)) {
-      toast.error("Percent discounts must be between 0 and 100");
-      return;
-    }
-    if (scopeType === "product" && editPromotionForm.discountType === "amount") {
-      const price = promotionProductPriceMap.get(editPromotionForm.productId);
-      if (!Number.isFinite(price)) {
-        toast.error("Unable to validate product price for this promotion");
-        return;
-      }
-      if (numericValue > price) {
-        toast.error("Discount amount cannot exceed the product price");
-        return;
-      }
-    }
-    const windowError = validateDateWindow(editPromotionForm.startsAt, editPromotionForm.expiresAt, editPromotionForm.active);
-    if (windowError) {
-      toast.error(windowError);
+    if (editPromotionForm.discountType === "percent" && numericValue > 100) {
+      toast.error("Percent discounts cannot exceed 100%");
       return;
     }
     const toIso = (val) => (val ? new Date(val).toISOString() : null);
@@ -1048,10 +949,6 @@ const handleStockSubmit = async (productId) => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
 
-  const promotionProductPriceMap = useMemo(() => {
-    return new Map((products || []).map((p) => [p.id, Number(p.price)]));
-  }, [products]);
-
   // Helper Render functions
   const renderDashboard = () => (
     <>
@@ -1085,17 +982,17 @@ const handleStockSubmit = async (productId) => {
       </section>
 
       <section className="admin-grid">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <p className="eyebrow">Business insights</p>
-                <h4>Sales performance</h4>
-              </div>
+        <div className="admin-card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Business insights</p>
+              <h4>Sales performance</h4>
             </div>
-            <ul className="insight-list">
-              <li>
-                <p className="muted tiny mb-1">Best-selling product (month)</p>
-                <div className="insight-value">
+          </div>
+          <ul className="insight-list">
+            <li>
+              <p className="muted tiny mb-1">Best-selling product (month)</p>
+              <div className="insight-value">
                 <strong>{insights.bestMonth?.name || "N/A"}</strong>
                 <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
               </div>
@@ -1115,44 +1012,6 @@ const handleStockSubmit = async (productId) => {
               </div>
             </li>
           </ul>
-          <div className="card-header mt-3 mb-2">
-            <div>
-              <p className="eyebrow">Last 13 months</p>
-              <h5 className="mb-0">Rolling monthly snapshot</h5>
-            </div>
-          </div>
-          <div className="table-responsive">
-            <table className="dashboard-table">
-              <thead>
-                <tr>
-                  <th>Month</th>
-                  <th>Best</th>
-                  <th>Worst</th>
-                  <th className="text-end">Sales</th>
-                </tr>
-              </thead>
-              <tbody>
-                {insightsRolling.length === 0 ? (
-                  <tr>
-                    <td colSpan="4" className="text-center text-muted py-3">
-                      No monthly data yet.
-                    </td>
-                  </tr>
-                ) : (
-                  insightsRolling.map((row) => (
-                    <tr key={`${row.year}-${row.month}`}>
-                      <td>{formatMonthYear(row.year, row.month)}</td>
-                      <td>{row.best_selling_product_month?.name || "N/A"}</td>
-                      <td>{row.worst_selling_product_month?.name || "N/A"}</td>
-                      <td className="text-end">
-                        {currencyFormatter.format(row.month_total_sales || 0)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
         </div>
 
         <div className="admin-card wide">
@@ -1271,13 +1130,6 @@ const renderManagement = () => (
             onClick={() => setManagementTab("policies")}
           >
             Policies
-          </button>
-          <button
-            type="button"
-            className={`btn ${managementTab === "insights" ? "btn-primary-saas" : "btn-outline-saas"}`}
-            onClick={() => setManagementTab("insights")}
-          >
-            Insights
           </button>
         </div>
         {managementTab === "faqs" && (
@@ -1419,19 +1271,17 @@ const renderManagement = () => (
                     if (policyForm.id) {
                       await updatePolicy(policyForm.id, {
                         title: policyForm.title.trim(),
-                        slug: policyForm.slug.trim() || null,
                         content: policyForm.content.trim(),
                       });
                       toast.success("Policy updated");
                     } else {
                       await createPolicy({
                         title: policyForm.title.trim(),
-                        slug: policyForm.slug.trim() || null,
                         content: policyForm.content.trim(),
                       });
                       toast.success("Policy created");
                     }
-                    setPolicyForm({ id: null, title: "", slug: "", content: "" });
+                    setPolicyForm({ id: null, title: "", content: "" });
                     await loadPolicies();
                   } catch (err) {
                     toast.error(err.message || "Failed to save policy");
@@ -1448,20 +1298,6 @@ const renderManagement = () => (
                     onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
                     placeholder="Policy title"
                   />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="policy-slug">Slug</label>
-                  <input
-                    id="policy-slug"
-                    type="text"
-                    className="form-control"
-                    value={policyForm.slug}
-                    onChange={(e) => setPolicyForm((p) => ({ ...p, slug: e.target.value }))}
-                    placeholder="privacy | terms | shipping-returns"
-                  />
-                  <div className="muted tiny mt-1">
-                    Used for public pages. Example: privacy, terms, shipping-returns.
-                  </div>
                 </div>
                 <div className="mb-3">
                   <label className="form-label" htmlFor="policy-content">Content</label>
@@ -1481,7 +1317,7 @@ const renderManagement = () => (
                   <button
                     type="button"
                     className="btn btn-outline-saas"
-                    onClick={() => setPolicyForm({ id: null, title: "", slug: "", content: "" })}
+                    onClick={() => setPolicyForm({ id: null, title: "", content: "" })}
                   >
                     Clear
                   </button>
@@ -1538,110 +1374,6 @@ const renderManagement = () => (
             </div>
           </div>
         )}
-        {managementTab === "insights" && (
-          <div className="admin-grid">
-            <div className="admin-card wide">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Business insights</p>
-                  <h4>Monthly best/worst history</h4>
-                </div>
-              </div>
-              <div className="d-flex gap-2 flex-wrap mb-3 align-items-end">
-                <div>
-                  <label className="form-label" htmlFor="insights-year">Year</label>
-                  <input
-                    id="insights-year"
-                    type="number"
-                    className="form-control"
-                    style={{ width: 140 }}
-                    value={insightsHistoryFilters.year}
-                    onChange={(e) =>
-                      setInsightsHistoryFilters((p) => ({ ...p, year: e.target.value }))
-                    }
-                    placeholder="e.g. 2026"
-                  />
-                </div>
-                <div>
-                  <label className="form-label" htmlFor="insights-month">Month</label>
-                  <select
-                    id="insights-month"
-                    className="form-select"
-                    style={{ width: 180 }}
-                    value={insightsHistoryFilters.month}
-                    onChange={(e) =>
-                      setInsightsHistoryFilters((p) => ({ ...p, month: e.target.value }))
-                    }
-                  >
-                    {monthOptions.map((opt) => (
-                      <option key={opt.value || "all"} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-primary-saas"
-                  onClick={() => loadInsightsHistory()}
-                  disabled={insightsHistoryLoading}
-                >
-                  {insightsHistoryLoading ? "Loading..." : "Apply"}
-                </button>
-              </div>
-              <div className="table-responsive">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Month</th>
-                      <th>Best product</th>
-                      <th>Worst product</th>
-                      <th className="text-end">Sales</th>
-                      <th className="text-end">Orders</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {insightsHistoryLoading ? (
-                      <tr>
-                        <td colSpan="5" className="text-center py-4 text-muted">
-                          Loading insights...
-                        </td>
-                      </tr>
-                    ) : insightsHistory.length === 0 ? (
-                      <tr>
-                        <td colSpan="5" className="text-center py-4 text-muted">
-                          No insights found for this filter.
-                        </td>
-                      </tr>
-                    ) : (
-                      insightsHistory.map((row) => (
-                        <tr key={`history-${row.year}-${row.month}`}>
-                          <td>{formatMonthYear(row.year, row.month)}</td>
-                          <td>
-                            {row.best_selling_product_month?.name || "N/A"}
-                            {row.best_selling_product_month?.quantity
-                              ? ` (${row.best_selling_product_month.quantity})`
-                              : ""}
-                          </td>
-                          <td>
-                            {row.worst_selling_product_month?.name || "N/A"}
-                            {row.worst_selling_product_month?.quantity
-                              ? ` (${row.worst_selling_product_month.quantity})`
-                              : ""}
-                          </td>
-                          <td className="text-end">
-                            {currencyFormatter.format(row.month_total_sales || 0)}
-                          </td>
-                          <td className="text-end">{row.month_orders || 0}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </section>
   );
@@ -1652,7 +1384,7 @@ const renderManagement = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promo codes</p>
-            <h4>Discount Rules</h4>
+            <h4>Discount rules</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -1687,7 +1419,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promo codes</p>
-                <h4>Search & Manage</h4>
+                <h4>Search & manage</h4>
               </div>
             </div>
             {promoLoading ? (
@@ -1774,7 +1506,7 @@ const renderManagement = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promotions</p>
-            <h4>Auto-applied Discounts</h4>
+            <h4>Auto-applied discounts</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -1819,7 +1551,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promotions</p>
-                <h4>Search & Manage</h4>
+                <h4>Search & manage</h4>
               </div>
             </div>
             {promotionLoading ? (
@@ -1955,7 +1687,6 @@ const renderManagement = () => (
                 type="number"
                 min="0"
                 step="0.01"
-                max={promoForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={promoForm.discountValue}
                 onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -1990,7 +1721,6 @@ const renderManagement = () => (
               <input
                 id="promo-starts"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promoForm.startsAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -2001,7 +1731,6 @@ const renderManagement = () => (
               <input
                 id="promo-expires"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promoForm.expiresAt}
                 onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -2086,7 +1815,6 @@ const renderManagement = () => (
                 type="number"
                 min="0"
                 step="0.01"
-                max={editPromoForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={editPromoForm.discountValue}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -2121,7 +1849,6 @@ const renderManagement = () => (
               <input
                 id="promo-starts-edit"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromoForm.startsAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -2132,7 +1859,6 @@ const renderManagement = () => (
               <input
                 id="promo-expires-edit"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromoForm.expiresAt}
                 onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -2238,17 +1964,19 @@ const renderManagement = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category">Category</label>
-                  <select
+                  <input
                     id="promotion-category"
-                    className="form-select"
+                    list="promotion-category-list"
+                    className="form-control"
                     value={promotionForm.category}
                     onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  >
-                    <option value="">Select category</option>
+                    placeholder="keyboard"
+                  />
+                  <datalist id="promotion-category-list">
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat} value={cat} />
                     ))}
-                  </select>
+                  </datalist>
                 </>
               )}
             </div>
@@ -2270,8 +1998,6 @@ const renderManagement = () => (
                 id="promotion-value"
                 type="number"
                 step="0.01"
-                min="0"
-                max={promotionForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={promotionForm.discountValue}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -2283,7 +2009,6 @@ const renderManagement = () => (
               <input
                 id="promotion-starts"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promotionForm.startsAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -2294,7 +2019,6 @@ const renderManagement = () => (
               <input
                 id="promotion-expires"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={promotionForm.expiresAt}
                 onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -2393,17 +2117,18 @@ const renderManagement = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category-edit">Category</label>
-                  <select
+                  <input
                     id="promotion-category-edit"
-                    className="form-select"
+                    list="promotion-category-list-edit"
+                    className="form-control"
                     value={editPromotionForm.category}
                     onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  >
-                    <option value="">Select category</option>
+                  />
+                  <datalist id="promotion-category-list-edit">
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
+                      <option key={cat} value={cat} />
                     ))}
-                  </select>
+                  </datalist>
                 </>
               )}
             </div>
@@ -2425,8 +2150,6 @@ const renderManagement = () => (
                 id="promotion-value-edit"
                 type="number"
                 step="0.01"
-                min="0"
-                max={editPromotionForm.discountType === "percent" ? 100 : undefined}
                 className="form-control"
                 value={editPromotionForm.discountValue}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
@@ -2437,7 +2160,6 @@ const renderManagement = () => (
               <input
                 id="promotion-starts-edit"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromotionForm.startsAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
@@ -2448,7 +2170,6 @@ const renderManagement = () => (
               <input
                 id="promotion-expires-edit"
                 type="datetime-local"
-                min={toInputDateTime(new Date())}
                 className="form-control"
                 value={editPromotionForm.expiresAt}
                 onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
@@ -2477,178 +2198,228 @@ const renderManagement = () => (
     </div>
   );
 
-const renderStocks = () => (
-  <section className="admin-grid">
-    <div className="admin-card wide">
-      <div className="card-header">
-        <div>
-          <p className="eyebrow">Stock</p>
-          <h4>Inventory Controls</h4>
-        </div>
-        <span className="badge">{filteredStocks.length} items</span>
-      </div>
-      <div className="stock-toolbar">
-        <input
-          type="search"
-          className="form-control"
-          placeholder="Search by title or category"
-          value={stockSearch}
-          onChange={(e) => setStockSearch(e.target.value)}
-        />
-        <select
-          className="form-select"
-          value={stockCategory}
-          onChange={(e) => setStockCategory(e.target.value)}
-        >
-          {stockCategories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat === "all" ? "All categories" : cat}
-            </option>
-          ))}
-        </select>
-        <button className="btn btn-outline-saas" onClick={loadStocks} disabled={stocksLoading}>
-          {stocksLoading ? "Loading..." : "Refresh"}
-        </button>
-      </div>
+const renderStocks = () => {
+  if (stocksLoading) return <div className="p-4 text-center">Loading inventory...</div>;
 
-      <div className="admin-grid">
-        <div className="admin-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Inventory list</p>
-              <h4>Search & Manage</h4>
-            </div>
+  // 1. Single Omnisearch Logic
+  // This looks for your search term in BOTH the title and the category fields
+  const filteredStocks = stocks.filter((s) => {
+    const searchTerm = stockSearch.toLowerCase().trim();
+    if (!searchTerm) return true;
+
+    const matchesTitle = (s.title || "").toLowerCase().includes(searchTerm);
+    const matchesCategory = (s.category || "").toLowerCase().includes(searchTerm);
+    
+    return matchesTitle || matchesCategory;
+  });
+
+  return (
+    <div className="stock-container" style={{ padding: '20px' }}>
+      
+      {/* STANDALONE SEARCH FIELD */}
+      <div style={{ 
+        marginBottom: '30px', 
+        backgroundColor: '#fff', 
+        padding: '20px', 
+        borderRadius: '12px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '15px'
+      }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#888', marginBottom: '8px', textTransform: 'uppercase' }}>
+            Inventory Search
+          </label>
+          <div style={{ position: 'relative' }}>
+            <input 
+              type="text" 
+              placeholder="Search by title or category (e.g., 'keyboard', 'ssd', 'monitor')..." 
+              className="admin-input"
+              value={stockSearch}
+              onChange={(e) => setStockSearch(e.target.value)}
+              style={{ 
+                width: '100%', 
+                padding: '12px 15px', 
+                borderRadius: '8px', 
+                border: '1px solid #ddd',
+                fontSize: '14px'
+              }}
+            />
+            {stockSearch && (
+              <button 
+                onClick={() => setStockSearch("")}
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  border: 'none',
+                  background: 'none',
+                  color: '#999',
+                  cursor: 'pointer',
+                  fontSize: '18px'
+                }}
+              >
+                ✕
+              </button>
+            )}
           </div>
-          {stocksLoading ? (
-            <p className="muted mb-0">Loading inventory...</p>
-          ) : filteredStocks.length === 0 ? (
-            <p className="muted mb-0">No inventory matches your filters.</p>
-          ) : (
-            <div className="table-responsive management-scroll">
-              <table className="dashboard-table stock-table">
-                <thead>
-                  <tr>
-                    <th>Product</th>
-                    <th>Category</th>
-                    <th>In stock</th>
-                    <th>Status</th>
-                    <th>Threshold</th>
-                    <th className="text-end">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredStocks.map((s) => {
-                    const qty = Number(s.quantity_available ?? 0);
-                    const threshold = Number(s.low_stock_threshold ?? 15);
-                    let statusLabel = "In Stock";
-                    let statusClass = "bg-success";
-                    if (qty <= 0) {
-                      statusLabel = "Out of Stock";
-                      statusClass = "bg-danger";
-                    } else if (qty <= threshold) {
-                      statusLabel = "Low Stock";
-                      statusClass = "bg-warning text-dark";
-                    }
-
-                    return (
-                      <tr key={s.id}>
-                        <td>
-                          <div className="fw-semibold">{s.title || "Untitled"}</div>
-                          <div className="small text-muted">ID: {s.id.toString().substring(0, 8)}</div>
-                        </td>
-                        <td>
-                          <span className="badge bg-light text-dark border">
-                            {s.category || "General"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={`fw-semibold ${qty <= threshold ? "text-danger" : ""}`}>{qty}</span>
-                        </td>
-                        <td>
-                          <span className={`badge rounded-pill ${statusClass}`}>{statusLabel}</span>
-                        </td>
-                        <td>{threshold}</td>
-                        <td className="text-end">
-                          {adjustingId === s.id ? (
-                            <div className="stock-actions">
-                              <input
-                                type="number"
-                                className="form-control form-control-sm"
-                                value={adjustmentForm.quantity}
-                                onChange={(e) =>
-                                  setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value, 10) || 0 })
-                                }
-                                autoFocus
-                              />
-                              <button className="btn btn-primary-saas btn-sm" onClick={() => handleStockSubmit(s.id)}>
-                                Save
-                              </button>
-                              <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingId(null)}>
-                                Cancel
-                              </button>
-                            </div>
-                          ) : adjustingThresholdId === s.id ? (
-                            <div className="stock-actions">
-                              <input
-                                type="number"
-                                className="form-control form-control-sm"
-                                value={thresholdValue}
-                                onChange={(e) => setThresholdValue(parseInt(e.target.value, 10) || 0)}
-                                autoFocus
-                              />
-                              <button className="btn btn-primary-saas btn-sm" onClick={() => handleSaveThreshold(s.id)}>
-                                Save
-                              </button>
-                              <button
-                                className="btn btn-outline-saas btn-sm"
-                                onClick={() => setAdjustingThresholdId(null)}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="d-flex gap-2 justify-content-end flex-wrap">
-                              <button
-                                className="btn btn-outline-saas btn-sm stock-action-btn"
-                                onClick={() => {
-                                  setAdjustingId(s.id);
-                                  setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
-                                }}
-                              >
-                                Update stock
-                              </button>
-                              <button
-                                className="btn btn-outline-saas btn-sm stock-action-btn"
-                                onClick={() => {
-                                  setAdjustingThresholdId(s.id);
-                                  setThresholdValue(threshold);
-                                }}
-                              >
-                                Set threshold 
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
+        <div style={{ paddingTop: '20px' }}>
+          <span style={{ fontSize: '13px', color: '#666', fontWeight: '500', backgroundColor: '#f0f2f5', padding: '8px 12px', borderRadius: '6px' }}>
+            {filteredStocks.length} Results
+          </span>
+        </div>
+      </div>
+
+      {/* TABLE HEADERS */}
+      <div style={{ 
+        display: 'flex', 
+        padding: '0 25px 15px 25px', 
+        color: '#999', 
+        fontSize: '11px', 
+        fontWeight: 'bold', 
+        textTransform: 'uppercase', 
+        letterSpacing: '1px' 
+      }}>
+        <div style={{ flex: 2 }}>Product Information</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>In Stock</div>
+        <div style={{ flex: 1, textAlign: 'center' }}>Status</div>
+        <div style={{ flex: 2, textAlign: 'right' }}>Actions</div>
+      </div>
+
+      {/* STOCK LIST */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {filteredStocks.map((s) => {
+          const qty = Number(s.quantity_available ?? 0);
+          const threshold = Number(s.low_stock_threshold ?? 15);
+
+          let statusText = "In Stock";
+          let statusColor = "#2c7a7b"; let statusBg = "#e6fffa";
+          if (qty <= 0) {
+            statusText = "Out of Stock";
+            statusColor = "#e53e3e"; statusBg = "#fff5f5";
+          } else if (qty <= threshold) {
+            statusText = "Low Stock";
+            statusColor = "#dd6b20"; statusBg = "#fffaf0";
+          }
+
+          return (
+            <div key={s.id} style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              padding: '18px 25px', 
+              backgroundColor: '#fff', 
+              borderRadius: '10px', 
+              border: '1px solid #edf2f7',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+            }}>
+              
+              <div style={{ flex: 2 }}>
+                <div style={{ fontWeight: '600', color: '#2d3748', fontSize: '15px' }}>{s.title}</div>
+                <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '4px' }}>
+                  <span style={{ 
+                    backgroundColor: '#ebf8ff', 
+                    color: '#2b6cb0', 
+                    padding: '2px 8px', 
+                    borderRadius: '4px', 
+                    marginRight: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '10px'
+                  }}>
+                    {s.category ? s.category.toUpperCase() : "GENERAL"}
+                  </span>
+                  ID: {s.id.toString().substring(0, 8)}
+                </div>
+              </div>
+
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <span style={{ fontSize: '18px', fontWeight: '700', color: qty <= threshold ? '#e53e3e' : '#2d3748' }}>
+                  {qty}
+                </span>
+              </div>
+
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <span style={{ 
+                  backgroundColor: statusBg, 
+                  color: statusColor, 
+                  padding: '6px 14px', 
+                  borderRadius: '25px', 
+                  fontSize: '11px', 
+                  fontWeight: '800', 
+                  border: `1px solid ${statusColor}22`,
+                  display: 'inline-block'
+                }}>
+                  {statusText.toUpperCase()}
+                </span>
+              </div>
+
+              <div style={{ flex: 2, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                {adjustingId === s.id ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      className="admin-input-small" 
+                      style={{ width: '80px', textAlign: 'center' }}
+                      value={adjustmentForm.quantity}
+                      onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value) || 0 })}
+                      autoFocus
+                    />
+                    <button className="btn-save" onClick={() => handleStockSubmit(s.id)}>Save</button>
+                    <button className="btn-cancel" onClick={() => setAdjustingId(null)}>✕</button>
+                  </div>
+                ) : adjustingThresholdId === s.id ? (
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <input 
+                      type="number" 
+                      className="admin-input-small" 
+                      style={{ width: '80px', textAlign: 'center', borderColor: '#3182ce' }}
+                      value={thresholdValue}
+                      onChange={(e) => setThresholdValue(parseInt(e.target.value) || 0)}
+                      autoFocus
+                    />
+                    <button className="btn-save" style={{ backgroundColor: '#3182ce' }} onClick={() => handleSaveThreshold(s.id)}>Save</button>
+                    <button className="btn-cancel" onClick={() => setAdjustingThresholdId(null)}>✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <button className="admin-btn-secondary" onClick={() => {
+                      setAdjustingId(s.id);
+                      setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
+                    }}>
+                      Update Stock
+                    </button>
+                    <button className="admin-btn-outline" onClick={() => {
+                      setAdjustingThresholdId(s.id);
+                      setThresholdValue(threshold);
+                    }}>
+                      Set Threshold ({threshold})
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredStocks.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '60px', color: '#a0aec0' }}>
+            <p>No results found for "<strong>{stockSearch}</strong>".</p>
+          </div>
+        )}
       </div>
     </div>
-  </section>
-);
+  );
+};
 
   const renderUsers = () => (
-    <section className="admin-grid">
+    <section className="admin-grid users-grid">
       <div className="admin-card wide">
         <div className="card-header">
           <div>
             <p className="eyebrow">User management</p>
-            <h4>All Users</h4>
+            <h4>Search & manage users</h4>
           </div>
         </div>
         <div className="d-flex gap-3 flex-wrap mb-3 align-items-center">
@@ -2672,7 +2443,7 @@ const renderStocks = () => (
             <option value="admin">Admin</option>
           </select>
           <button className="btn btn-outline-saas" onClick={loadUsers} disabled={usersLoading}>
-            {usersLoading ? "Loading..." : "Refresh"}
+            {usersLoading ? "Loading..." : "Apply"}
           </button>
           <button
             className="btn btn-primary-saas"
@@ -2684,68 +2455,62 @@ const renderStocks = () => (
           </button>
         </div>
 
-        <div className="admin-grid">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <p className="eyebrow">Existing users</p>
-                <h4>Search & Manage</h4>
-              </div>
-            </div>
-            {usersLoading ? (
-              <p className="muted mb-0">Loading users...</p>
-            ) : users.length === 0 ? (
-              <p className="muted mb-0">No users found.</p>
-            ) : (
-              <div className="table-responsive management-scroll">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Email</th>
-                      <th>Name</th>
-                      <th>Role</th>
-                      <th>Phone</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((u) => (
-                      <tr key={u.id}>
-                        <td>{u.email}</td>
-                        <td>{u.full_name || "?"}</td>
-                        <td className="text-capitalize">{u.role}</td>
-                        <td>{u.phone || "?"}</td>
-                        <td className="text-end">
-                          <div className="d-flex gap-2 justify-content-end">
-                            <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
-                              Edit
-                            </button>
-                            {u.status === "disabled" ? (
-                              <button
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={() => handleEnableUser(u.id, u.email)}
-                                title="Enable user"
-                              >
-                                Enable
-                              </button>
-                            ) : (
-                              <button
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={() => handleDisableUser(u.id, u.email)}
-                                title="Revoke sessions / disable"
-                              >
-                                Disable
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+        <div className="table-responsive">
+          <table className="dashboard-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Name</th>
+                <th>Role</th>
+                <th>Phone</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {usersLoading ? (
+                <tr>
+                  <td colSpan="5" className="text-muted">Loading users...</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-muted">No users found.</td>
+                </tr>
+              ) : (
+                users.map((u) => (
+                  <tr key={u.id}>
+                    <td>{u.email}</td>
+                    <td>{u.full_name || "—"}</td>
+                    <td className="text-capitalize">{u.role}</td>
+                    <td>{u.phone || "—"}</td>
+                    <td className="text-end">
+                      <div className="d-flex gap-2 justify-content-end">
+                        <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
+                          Edit
+                        </button>
+                        {u.status === "disabled" ? (
+                          <button
+                            className="btn btn-outline-secondary btn-sm"
+                            onClick={() => handleEnableUser(u.id, u.email)}
+                            title="Enable user"
+                          >
+                            Enable
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={() => handleDisableUser(u.id, u.email)}
+                            title="Revoke sessions / disable"
+                          >
+                            Disable
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -2990,7 +2755,7 @@ const renderProducts = () => (
             onClick={loadProducts} 
             disabled={productsLoading}
           >
-            {productsLoading ? "Loading..." : "Refresh"}
+            {productsLoading ? "Loading..." : "Apply"}
           </button>
 
           <button 
@@ -3006,142 +2771,154 @@ const renderProducts = () => (
       </div>
 
       {/* --- CREATE PRODUCT FORM --- */}
-{showCreateProductForm && (
-  <div className="admin-card mb-4 bg-light border shadow-sm">
-    <div className="d-flex justify-content-between align-items-center mb-3">
-      <h5>Create New Product</h5>
-      <button className="btn-close" onClick={() => setShowCreateProductForm(false)}></button>
-    </div>
-
-    <form onSubmit={handleCreateProduct}>
-      <div className="row g-3">
-        {/* --- ROW 1: BASIC INFO --- */}
-        <div className="col-md-3">
-          <label className="small fw-bold">Product Title</label>
-          <input type="text" className="form-control" value={newProduct.title} onChange={e => setNewProduct({...newProduct, title: e.target.value})} required />
-        </div>
-        
-        <div className="col-md-3">
-          <label className="small fw-bold">Brand</label>
-          <input type="text" className="form-control" value={newProduct.Brand} onChange={e => setNewProduct({...newProduct, Brand: e.target.value})} required />
-        </div>
-
-        <div className="col-md-3">
-          <label className="small fw-bold">Category</label>
-          <select 
-            className="form-select" 
-            value={newProduct.category} 
-            onChange={e => handleCategoryChange(e.target.value)} 
-            required
-          >
-            <option value="">Select...</option>
-            <option value="keyboard">Keyboard</option>
-            <option value="mouse">Mouse</option>
-            <option value="ssd">SSD</option>
-            <option value="monitor">Monitor</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-        {/* CONDITIONAL INPUT FOR "OTHER" */}
-        {newProduct.category === "other" && (
-          <div className="col-md-3">
-            <label className="small fw-bold text-primary">Custom Category Name</label>
-            <input 
-              type="text" 
-              className="form-control border-primary" 
-              placeholder="e.g. Headphones"
-              value={customCategory}
-              onChange={(e) => setCustomCategory(e.target.value)}
-              required
-            />
+      {showCreateProductForm && (
+        <div className="admin-card mb-4 bg-light border shadow-sm">
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h5>Create New Product</h5>
+            <button className="btn-close" onClick={() => setShowCreateProductForm(false)}></button>
           </div>
-        )}
 
-        {/* PRICE IS BACK HERE */}
-        <div className="col-md-3">
-          <label className="small fw-bold">Price ($)</label>
-          <input 
-            type="number" 
-            step="0.01" 
-            className="form-control" 
-            placeholder="0.00"
-            value={newProduct.price} 
-            onChange={e => setNewProduct({...newProduct, price: e.target.value})} 
-            required 
-          />
-        </div>
+          <form onSubmit={handleCreateProduct}>
+            <div className="row g-3">
+              {/* --- ROW 1: BASIC INFO --- */}
+              <div className="col-md-3">
+                <label className="small fw-bold">Product Title</label>
+                <input type="text" className="form-control" value={newProduct.title} onChange={e => setNewProduct({...newProduct, title: e.target.value})} required />
+              </div>
+              
+              <div className="col-md-3">
+                <label className="small fw-bold">Brand</label>
+                <input type="text" className="form-control" value={newProduct.Brand} onChange={e => setNewProduct({...newProduct, Brand: e.target.value})} required />
+              </div>
 
-        {/* --- ROW 2: DESCRIPTION --- */}
-        <div className="col-md-12">
-          <label className="small fw-bold">Description</label>
-          <textarea 
-            className="form-control" 
-            rows="2" 
-            placeholder="Enter product details..."
-            value={newProduct.description} 
-            onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
-          />
-        </div>
+              <div className="col-md-3">
+                <label className="small fw-bold">Category</label>
+                <select 
+                  className="form-select" 
+                  value={newProduct.category} 
+                  onChange={e => handleCategoryChange(e.target.value)} 
+                  required
+                >
+                  <option value="">Select...</option>
+                  <option value="keyboard">Keyboard</option>
+                  <option value="mouse">Mouse</option>
+                  <option value="ssd">SSD</option>
+                  <option value="monitor">Monitor</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
 
-        {/* --- ROW 3: DYNAMIC SPECS --- */}
-        <div className="col-md-12 mt-4">
-          <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
-            <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
-            <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
-              + Add Field
-            </button>
-          </div>
-          
-          <div className="p-3 border rounded-bottom bg-white">
-            {Object.entries(newProduct.specs).map(([key, value], index) => (
-              <div className="row g-2 mb-2 align-items-center" key={index}>
-                <div className="col-md-5">
+              {newProduct.category === "other" && (
+                <div className="col-md-3">
+                  <label className="small fw-bold text-primary">Custom Category Name</label>
                   <input 
                     type="text" 
-                    className="form-control form-control-sm" 
-                    placeholder="Spec Title"
-                    value={key} 
-                    onChange={(e) => handleSpecKeyChange(key, e.target.value)} 
+                    className="form-control border-primary" 
+                    placeholder="e.g. Headphones"
+                    value={customCategory}
+                    onChange={(e) => setCustomCategory(e.target.value)}
+                    required
                   />
                 </div>
-                <div className="col-md-6">
-                  <input 
-                    type="text" 
-                    className="form-control form-control-sm" 
-                    placeholder="Content"
-                    value={value} 
-                    onChange={(e) => handleSpecValueChange(key, e.target.value)} 
-                  />
-                </div>
-                <div className="col-md-1 text-center">
-                  <button 
-                    type="button" 
-                    className="btn btn-link btn-sm text-danger p-0"
-                    onClick={() => removeSpecField(key)}
-                  >
-                    Remove
+              )}
+
+              <div className="col-md-3">
+                <label className="small fw-bold">Price ($)</label>
+                <input 
+                  type="number" 
+                  step="0.01" 
+                  className="form-control" 
+                  placeholder="0.00"
+                  value={newProduct.price} 
+                  onChange={e => setNewProduct({...newProduct, price: e.target.value})} 
+                  required 
+                />
+              </div>
+
+              {/* --- NEW: IMAGE UPLOAD FIELD --- */}
+              <div className="col-md-6">
+                <label className="small fw-bold text-success">Product Image (Upload)</label>
+                <input 
+                  type="file" 
+                  className="form-control" 
+                  accept="image/*"
+                  onChange={e => setNewProduct({...newProduct, imageFile: e.target.files[0]})}
+                  required 
+                />
+              </div>
+
+              {/* --- ROW 2: DESCRIPTION --- */}
+              <div className="col-md-12">
+                <label className="small fw-bold">Description</label>
+                <textarea 
+                  className="form-control" 
+                  rows="2" 
+                  placeholder="Enter product details..."
+                  value={newProduct.description} 
+                  onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
+                />
+              </div>
+
+              {/* --- ROW 3: DYNAMIC SPECS --- */}
+              <div className="col-md-12 mt-4">
+                <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
+                  <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
+                  <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
+                    + Add Field
                   </button>
                 </div>
+                
+                <div className="p-3 border rounded-bottom bg-white">
+                  {Object.entries(newProduct.specs).map(([key, value], index) => (
+                    <div className="row g-2 mb-2 align-items-center" key={index}>
+                      <div className="col-md-5">
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          placeholder="Spec Title"
+                          value={key} 
+                          onChange={(e) => handleSpecKeyChange(key, e.target.value)} 
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <input 
+                          type="text" 
+                          className="form-control form-control-sm" 
+                          placeholder="Content"
+                          value={value} 
+                          onChange={(e) => handleSpecValueChange(key, e.target.value)} 
+                        />
+                      </div>
+                      <div className="col-md-1 text-center">
+                        <button 
+                          type="button" 
+                          className="btn btn-link btn-sm text-danger p-0"
+                          onClick={() => removeSpecField(key)}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="col-md-12 mt-4 text-end">
-          <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
-            Save Product to Catalog
-          </button>
+              <div className="col-md-12 mt-4 text-end">
+                <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
+                  Save Product & Upload Image
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
-      </div>
-    </form>
-  </div>
-)}
+      )}
 
       {/* --- PRODUCTS TABLE --- */}
       <div className="table-responsive">
         <table className="dashboard-table">
           <thead>
             <tr>
+              <th>Image</th>
               <th>ID</th>
               <th>Title</th>
               <th>Category</th>
@@ -3151,10 +2928,18 @@ const renderProducts = () => (
           </thead>
           <tbody>
             {productsLoading ? (
-               <tr><td colSpan="5" className="text-center py-4">Loading inventory...</td></tr>
+               <tr><td colSpan="6" className="text-center py-4">Loading inventory...</td></tr>
             ) : products.length > 0 ? (
               products.map((p) => (
                 <tr key={p.id}>
+                  <td>
+                    <img 
+                      src={p.image_url} 
+                      alt="" 
+                      style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #eee' }} 
+                      onError={(e) => e.target.src = '/assets/placeholder.jpg'}
+                    />
+                  </td>
                   <td><code className="small">#{p.id.toString().slice(0,8)}</code></td>
                   <td><strong>{p.title}</strong></td>
                   <td><span className="badge bg-light text-dark border">{p.category}</span></td>
@@ -3179,7 +2964,7 @@ const renderProducts = () => (
                 </tr>
               ))
             ) : (
-              <tr><td colSpan="5" className="text-center py-4 text-muted">No products found.</td></tr>
+              <tr><td colSpan="6" className="text-center py-4 text-muted">No products found.</td></tr>
             )}
           </tbody>
         </table>
@@ -3192,23 +2977,31 @@ const renderProducts = () => (
 
 const renderEditProduct = () => (
   <div className="admin-card mt-4">
-    <div className="card-header">
+    <div className="card-header d-flex justify-content-between align-items-center">
       <div>
         <p className="eyebrow">Product Management</p>
         <h4>Edit Product: {editProductForm.title}</h4>
       </div>
+      <button 
+        type="button" 
+        className="btn-close" 
+        onClick={() => setEditProductForm(null)}
+      ></button>
     </div>
+
     <form className="profile-form" onSubmit={handleEditProductSave}>
       <div className="mb-3">
-        <label className="form-label">Title</label>
+        <label className="form-label">Product Title</label>
         <input
           type="text"
           className="form-control"
           value={editProductForm.title}
           onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
           required
+          placeholder="e.g. Mechanical Keyboard G-Pro"
         />
       </div>
+
       <div className="row">
         <div className="col-md-6 mb-3">
           <label className="form-label">Category</label>
@@ -3232,64 +3025,70 @@ const renderEditProduct = () => (
           />
         </div>
       </div>
-      <div className="d-flex gap-3">
-        <button type="submit" className="btn btn-primary-saas" disabled={editProductSaving}>
-          {editProductSaving ? "Saving..." : "Save Changes"}
+
+      {/* --- IMAGE EDITING SECTION --- */}
+      <div className="mb-4">
+        <label className="form-label">Product Image</label>
+        <div className="card p-3 bg-light border-dashed">
+          <div className="d-flex align-items-center gap-4">
+            <div className="text-center">
+              <p className="small text-muted mb-1">Current Image</p>
+              <img 
+                // Adding a timestamp prevents the browser from showing a cached old image
+                src={`${editProductForm.image_url}?t=${new Date().getTime()}`} 
+                alt="Current" 
+                className="rounded border"
+                style={{ width: '100px', height: '100px', objectFit: 'cover', backgroundColor: '#fff' }}
+                onError={(e) => { e.target.src = "/assets/placeholder.jpg"; }}
+              />
+            </div>
+            
+            <div className="flex-grow-1">
+              <label className="form-label small fw-bold">Upload New Image to Replace</label>
+              <input
+                type="file"
+                className="form-control"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setEditProductForm({ 
+                      ...editProductForm, 
+                      newImageFile: e.target.files[0] 
+                    });
+                  }
+                }}
+              />
+              <div className="form-text">
+                Accepted formats: PNG, JPG, WEBP. Leave empty to keep the current image.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* ------------------------------ */}
+
+      <div className="d-flex gap-3 pt-2 border-top">
+        <button 
+          type="submit" 
+          className="btn btn-primary-saas px-4" 
+          disabled={editProductSaving}
+        >
+          {editProductSaving ? (
+            <>
+              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              Saving...
+            </>
+          ) : "Save Changes"}
         </button>
         <button 
           type="button" 
-          className="btn btn-outline-saas" 
+          className="btn btn-outline-saas px-4" 
           onClick={() => setEditProductForm(null)}
+          disabled={editProductSaving}
         >
           Cancel
         </button>
       </div>
-    </form>
-  </div>
-);
-
-const renderCreateProductForm = () => (
-  <div className="admin-card mt-4 border-primary">
-    <div className="card-header">
-      <h4>Add New Product</h4>
-    </div>
-    <form className="profile-form" onSubmit={handleCreateProduct}>
-      <div className="mb-3">
-        <label className="form-label">Title</label>
-        <input
-          type="text"
-          className="form-control"
-          placeholder="e.g. Quantum CPU"
-          value={newProduct.title}
-          onChange={(e) => setNewProduct({...newProduct, title: e.target.value})}
-          required
-        />
-      </div>
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <label className="form-label">Category</label>
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Electronics"
-            value={newProduct.category}
-            onChange={(e) => setNewProduct({...newProduct, category: e.target.value})}
-            required
-          />
-        </div>
-        <div className="col-md-6 mb-3">
-          <label className="form-label">Price</label>
-          <input
-            type="number"
-            step="0.01"
-            className="form-control"
-            value={newProduct.price}
-            onChange={(e) => setNewProduct({...newProduct, price: e.target.value})}
-            required
-          />
-        </div>
-      </div>
-      <button type="submit" className="btn btn-primary-saas">Save Product</button>
     </form>
   </div>
 );

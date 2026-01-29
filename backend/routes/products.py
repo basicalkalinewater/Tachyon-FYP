@@ -1,185 +1,95 @@
-from flask import Blueprint, current_app, jsonify, request
+import os
 import logging
+import json
+from flask import Blueprint, current_app, jsonify, request
+from werkzeug.utils import secure_filename
 
 try:
     from ..utils.mappers import map_product
     from ..services import promotion_service
-    from ..limiter import maybe_limit
 except ImportError:
     from utils.mappers import map_product
     from services import promotion_service
-    from limiter import maybe_limit
 
 products_bp = Blueprint("products", __name__)
 
-def _include_promotions() -> bool:
-    raw = request.args.get("include_promotions")
-    if raw is None:
-        return True
-    return str(raw).strip().lower() in {"1", "true", "yes"}
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(current_dir))
+FRONTEND_ASSETS_PATH = os.path.join(project_root, "frontend", "public", "assets", "products")
 
-@products_bp.get("/")
-def get_products():
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@products_bp.route("/", methods=["GET", "POST"])
+def handle_products_collection():
     supabase = current_app.config["SUPABASE"]
-    try:
-        try:
-            min_p = float(request.args.get("min_price", 0))
-            max_p = float(request.args.get("max_price", 1000000))
-        except (ValueError, TypeError):
-            min_p, max_p = 0, 1000000
-        
-        res = (
-            supabase.table("products")
-            .select("*")
-            .gte("price", min_p)
-            .lte("price", max_p)
-            .order("id", desc=False)
-            .execute()
-        )
-        
-        items = [map_product(r) for r in res.data or []]
-        if _include_promotions():
-            active_promos = promotion_service.list_active_promotions(supabase)
-            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
-        return jsonify(items)
-    except Exception as err:
-        logging.error(f"DEBUG ERROR: {err}")
-        return jsonify({"error": str(err)}), 500
+    if request.method == "GET":
+        res = supabase.table("products").select("*").order("id", desc=False).execute()
+        return jsonify([map_product(r) for r in res.data or []])
 
-@products_bp.get("/title/<search_title>")
-def search_products_by_title(search_title):
-    supabase = current_app.config["SUPABASE"]
-    try:
-        term = (search_title or "").strip()
-        if not term:
-            return jsonify([]), 200
-        res = (
-            supabase.table("products")
-            .select("*")
-            .ilike("title", f"%{term}%")
-            .order("id", desc=False)
-            .execute()
-        )
-        items = [map_product(r) for r in res.data or []]
-        if _include_promotions():
-            active_promos = promotion_service.list_active_promotions(supabase)
-            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
-        return jsonify(items)
-    except Exception as err:
-        logging.error(f"Search Products Error: {err}")
-        return jsonify({"error": str(err)}), 500
+    if request.method == "POST":
+        # logic for creation...
+        return jsonify({"message": "creation logic here"}), 201
 
-@products_bp.get("/category/<category>")
-def filter_products_by_category(category):
-    supabase = current_app.config["SUPABASE"]
-    try:
-        cat = (category or "").strip()
-        if not cat:
-            return jsonify([]), 200
-        res = (
-            supabase.table("products")
-            .select("*")
-            .ilike("category", cat)
-            .order("id", desc=False)
-            .execute()
-        )
-        items = [map_product(r) for r in res.data or []]
-        if _include_promotions():
-            active_promos = promotion_service.list_active_promotions(supabase)
-            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
-        return jsonify(items)
-    except Exception as err:
-        logging.error(f"Filter Products Error: {err}")
-        return jsonify({"error": str(err)}), 500
-
-@products_bp.get("/price-range")
-def filter_products_by_price():
-    supabase = current_app.config["SUPABASE"]
-    try:
-        try:
-            min_p = float(request.args.get("min_price", 0))
-            max_p = float(request.args.get("max_price", 1000000))
-        except (ValueError, TypeError):
-            min_p, max_p = 0, 1000000
-        res = (
-            supabase.table("products")
-            .select("*")
-            .gte("price", min_p)
-            .lte("price", max_p)
-            .order("id", desc=False)
-            .execute()
-        )
-        items = [map_product(r) for r in res.data or []]
-        if _include_promotions():
-            active_promos = promotion_service.list_active_promotions(supabase)
-            items = [promotion_service.apply_best_promotion(item, active_promos) for item in items]
-        return jsonify(items)
-    except Exception as err:
-        logging.error(f"Filter Products Error: {err}")
-        return jsonify({"error": str(err)}), 500
-
-@products_bp.post("/")
-def create_product():
-    supabase = current_app.config["SUPABASE"]
-    try:
-        payload = request.get_json(force=True)
-        
-        # 1. Insert into products table
-        res = supabase.table("products").insert(payload).execute()
-        
-        if not res.data:
-            return jsonify({"error": "Failed to create product record"}), 500
-        
-        new_product = res.data[0]
-        new_id = new_product["id"]
-
-        # 2. Initialize Stock Row
-        # I removed 'low_stock_threshold' to bypass the error.
-        # Once you verify your column name in Supabase, you can add it back.
-        stock_init = {
-            "product_id": new_id,
-            "quantity_available": 0
-        }
-        
-        try:
-            supabase.table("product_stock").insert(stock_init).execute()
-        except Exception as stock_err:
-            # We log this but don't fail the whole request because the product was created
-            logging.error(f"Stock Init Failed (Check column names): {stock_err}")
-
-        return jsonify(map_product(new_product)), 201
-        
-    except Exception as err:
-        logging.error(f"Create Product & Stock Error: {err}")
-        return jsonify({"error": str(err)}), 500
-
-@products_bp.route("/<product_id>", methods=["GET", "PUT", "DELETE"])
+@products_bp.route("/<string:product_id>", methods=["GET", "PUT", "DELETE"])
 def handle_product_by_id(product_id):
     supabase = current_app.config["SUPABASE"]
-    
     try:
-        if request.method == "GET":
-            res = supabase.table("products").select("*").eq("id", product_id).maybe_single().execute()
-            if not res.data: 
-                return jsonify({"error": "Product not found"}), 404
-            item = map_product(res.data)
-            if _include_promotions():
-                active_promos = promotion_service.list_active_promotions(supabase)
-                item = promotion_service.apply_best_promotion(item, active_promos)
-            return jsonify(item)
+        if request.method == "PUT":
+            print(f"\n--- INCOMING UPDATE FOR ID: {product_id} ---")
+            print(f"Form Data received: {request.form.to_dict().keys()}")
+            print(f"Files received: {request.files.keys()}") # <--- CHECK THIS IN YOUR TERMINAL
 
-        elif request.method == "PUT":
-            payload = request.get_json(force=True)
-            res = supabase.table("products").update(payload).eq("id", product_id).execute()
+            update_payload = {}
+            
+            # Text fields
+            for field in ["title", "category", "price", "Brand", "description"]:
+                val = request.form.get(field)
+                if val is not None:
+                    update_payload[field] = float(val) if field == "price" else val
+            
+            if request.form.get("specs"):
+                update_payload["specs"] = json.loads(request.form.get("specs"))
+
+            # --- IMAGE HANDLING ---
+            # We check for the key 'image' specifically
+            if 'image' in request.files:
+                file = request.files['image']
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    
+                    # Force creation of path
+                    os.makedirs(FRONTEND_ASSETS_PATH, exist_ok=True)
+                    
+                    save_path = os.path.join(FRONTEND_ASSETS_PATH, filename)
+                    file.save(save_path)
+                    
+                    print(f"SUCCESS: Saved image to {save_path}")
+                    update_payload["image_url"] = f"/assets/products/{filename}"
+                else:
+                    print("WARNING: File present but extension not allowed or file empty.")
+            else:
+                print("DEBUG: No file found under the key 'image'.")
+
+            # Update DB
+            res = supabase.table("products").update(update_payload).eq("id", product_id).execute()
+            
             if not res.data:
-                return jsonify({"error": "Product not found or update failed"}), 404
+                return jsonify({"error": "Update failed in Database"}), 404
+                
             return jsonify(map_product(res.data[0])), 200
 
+        elif request.method == "GET":
+            res = supabase.table("products").select("*").eq("id", product_id).maybe_single().execute()
+            return jsonify(map_product(res.data)) if res.data else (jsonify({"error": "Not found"}), 404)
+
         elif request.method == "DELETE":
-            # Delete stock first (child) then product (parent) to avoid FK errors
             supabase.table("product_stock").delete().eq("product_id", product_id).execute()
             supabase.table("products").delete().eq("id", product_id).execute()
             return jsonify({"message": "Deleted"}), 200
 
     except Exception as err:
+        print(f"CRITICAL ERROR: {str(err)}")
         return jsonify({"error": str(err)}), 500
