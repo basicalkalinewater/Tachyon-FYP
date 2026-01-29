@@ -23,11 +23,6 @@ export const updateAdminUser = (userId, body) =>
     body,
   });
 
-export const disableAdminUser = (userId) =>
-  request(`/admin/users/${userId}/disable`, {
-    method: "DELETE",
-  });
-
 export const deleteAdminUser = (userId) =>
   request(`/admin/users/${userId}/delete`, {
     method: "DELETE",
