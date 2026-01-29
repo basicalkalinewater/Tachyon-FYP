@@ -1652,7 +1652,7 @@ const renderManagement = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promo codes</p>
-            <h4>Discount rules</h4>
+            <h4>Discount Rules</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -1687,7 +1687,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promo codes</p>
-                <h4>Search & manage</h4>
+                <h4>Search & Manage</h4>
               </div>
             </div>
             {promoLoading ? (
@@ -1774,7 +1774,7 @@ const renderManagement = () => (
         <div className="card-header">
           <div>
             <p className="eyebrow">Promotions</p>
-            <h4>Auto-applied discounts</h4>
+            <h4>Auto-applied Discounts</h4>
           </div>
         </div>
         <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
@@ -1819,7 +1819,7 @@ const renderManagement = () => (
             <div className="card-header">
               <div>
                 <p className="eyebrow">Existing promotions</p>
-                <h4>Search & manage</h4>
+                <h4>Search & Manage</h4>
               </div>
             </div>
             {promotionLoading ? (
@@ -2693,12 +2693,12 @@ const renderStocks = () => {
 };
 
   const renderUsers = () => (
-    <section className="admin-grid users-grid">
+    <section className="admin-grid">
       <div className="admin-card wide">
         <div className="card-header">
           <div>
             <p className="eyebrow">User management</p>
-            <h4>Search & manage users</h4>
+            <h4>All Users</h4>
           </div>
         </div>
         <div className="d-flex gap-3 flex-wrap mb-3 align-items-center">
@@ -2734,62 +2734,68 @@ const renderStocks = () => {
           </button>
         </div>
 
-        <div className="table-responsive">
-          <table className="dashboard-table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Name</th>
-                <th>Role</th>
-                <th>Phone</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {usersLoading ? (
-                <tr>
-                  <td colSpan="5" className="text-muted">Loading users...</td>
-                </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan="5" className="text-muted">No users found.</td>
-                </tr>
-              ) : (
-                users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.email}</td>
-                    <td>{u.full_name || "—"}</td>
-                    <td className="text-capitalize">{u.role}</td>
-                    <td>{u.phone || "—"}</td>
-                    <td className="text-end">
-                      <div className="d-flex gap-2 justify-content-end">
-                        <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
-                          Edit
-                        </button>
-                        {u.status === "disabled" ? (
-                          <button
-                            className="btn btn-outline-secondary btn-sm"
-                            onClick={() => handleEnableUser(u.id, u.email)}
-                            title="Enable user"
-                          >
-                            Enable
-                          </button>
-                        ) : (
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => handleDisableUser(u.id, u.email)}
-                            title="Revoke sessions / disable"
-                          >
-                            Disable
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="admin-grid">
+          <div className="admin-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Existing users</p>
+                <h4>Search & Manage</h4>
+              </div>
+            </div>
+            {usersLoading ? (
+              <p className="muted mb-0">Loading users...</p>
+            ) : users.length === 0 ? (
+              <p className="muted mb-0">No users found.</p>
+            ) : (
+              <div className="table-responsive management-scroll">
+                <table className="dashboard-table">
+                  <thead>
+                    <tr>
+                      <th>Email</th>
+                      <th>Name</th>
+                      <th>Role</th>
+                      <th>Phone</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id}>
+                        <td>{u.email}</td>
+                        <td>{u.full_name || "?"}</td>
+                        <td className="text-capitalize">{u.role}</td>
+                        <td>{u.phone || "?"}</td>
+                        <td className="text-end">
+                          <div className="d-flex gap-2 justify-content-end">
+                            <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
+                              Edit
+                            </button>
+                            {u.status === "disabled" ? (
+                              <button
+                                className="btn btn-outline-secondary btn-sm"
+                                onClick={() => handleEnableUser(u.id, u.email)}
+                                title="Enable user"
+                              >
+                                Enable
+                              </button>
+                            ) : (
+                              <button
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={() => handleDisableUser(u.id, u.email)}
+                                title="Revoke sessions / disable"
+                              >
+                                Disable
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
