@@ -153,6 +153,7 @@ const AdminDashboard = () => {
   const [adjustingThresholdId, setAdjustingThresholdId] = useState(null);
   const [thresholdValue, setThresholdValue] = useState(15);
   const [customFieldName, setCustomFieldName] = useState("");
+  const [showCustomSpecInput, setShowCustomSpecInput] = useState(false);
   const [isDeleting, setIsDeleting] = useState(null);
   const CATEGORY_TEMPLATES = {
   keyboard: { size: "", connection: "", switch_type: "" },
@@ -548,6 +549,8 @@ const AdminDashboard = () => {
       category: cat,
       specs: { ...template }
     });
+    setShowCustomSpecInput(false);
+    setCustomFieldName("");
   };
 
   const updateSpec = (key, value) => {
@@ -561,6 +564,7 @@ const AdminDashboard = () => {
     if (!customFieldName) return;
     updateSpec(customFieldName, "");
     setCustomFieldName("");
+    setShowCustomSpecInput(false);
   };
 
   const addSpecField = () => {
@@ -1104,6 +1108,9 @@ const handleStockSubmit = async (productId) => {
   const promotionProductMap = useMemo(() => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
+
+  const newProductTemplate = CATEGORY_TEMPLATES[(newProduct.category || "").toLowerCase()] || null;
+  const newProductTemplateKeys = newProductTemplate ? Object.keys(newProductTemplate) : [];
 
   const editImageSrc = editProductForm?.image || "/assets/placeholder.jpg";
   const isAnyModalOpen = !!(
@@ -1982,22 +1989,70 @@ const renderBusinessInsights = () => (
             <div className="col-md-12 mt-2">
               <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
                 <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
-                <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
-                  + Add Field
-                </button>
+                {newProduct.category === "other" ? (
+                  <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
+                    + Add Field
+                  </button>
+                ) : newProduct.category ? (
+                  <button type="button" className="btn btn-sm btn-light" onClick={() => setShowCustomSpecInput(true)}>
+                    New Field
+                  </button>
+                ) : null}
               </div>
 
               <div className="p-3 border rounded-bottom bg-white">
-                {Object.entries(newProduct.specs).map(([key, value], index) => (
-                  <div className="row g-2 mb-2 align-items-center" key={index}>
+                {newProduct.category && newProduct.category !== "other" && showCustomSpecInput && (
+                  <div className="row g-2 mb-3 align-items-center">
                     <div className="col-md-5">
                       <input
                         type="text"
                         className="form-control form-control-sm"
-                        placeholder="Spec Title"
-                        value={key}
-                        onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                        placeholder="Custom spec name"
+                        value={customFieldName}
+                        onChange={(e) => setCustomFieldName(e.target.value)}
                       />
+                    </div>
+                    <div className="col-md-3">
+                      <button
+                        type="button"
+                        className="btn btn-outline-saas btn-sm w-100"
+                        onClick={addCustomField}
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <div className="col-md-4">
+                      <span className="text-muted small">Adds a custom spec field.</span>
+                    </div>
+                  </div>
+                )}
+                {Object.entries(newProduct.specs).map(([key, value], index) => (
+                  <div className="row g-2 mb-2 align-items-center" key={index}>
+                    <div className="col-md-5">
+                      {newProductTemplate ? (
+                        <select
+                          className="form-select form-select-sm"
+                          value={key}
+                          onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                        >
+                          {!newProductTemplateKeys.includes(key) && (
+                            <option value={key}>{key}</option>
+                          )}
+                          {newProductTemplateKeys.map((templateKey) => (
+                            <option key={templateKey} value={templateKey}>
+                              {templateKey.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="Spec Title"
+                          value={key}
+                          onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                        />
+                      )}
                     </div>
                     <div className="col-md-6">
                       <input
