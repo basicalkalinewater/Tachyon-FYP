@@ -1112,6 +1112,35 @@ const handleStockSubmit = async (productId) => {
   }, [products]);
 
   const editImageSrc = editProductForm?.image_url || "/assets/placeholder.jpg";
+  const isAnyModalOpen = !!(
+    showCreateProductForm ||
+    editProductForm ||
+    showCreatePromoForm ||
+    editPromoForm ||
+    showCreatePromotionForm ||
+    editPromotionForm ||
+    showCreateForm ||
+    editUserForm
+  );
+
+  useEffect(() => {
+    const body = document.body;
+    if (!body) return;
+    if (isAnyModalOpen) {
+      const scrollBarWidth = window.innerWidth - document.documentElement.clientWidth;
+      body.style.overflow = "hidden";
+      if (scrollBarWidth > 0) {
+        body.style.paddingRight = `${scrollBarWidth}px`;
+      }
+    } else {
+      body.style.overflow = "";
+      body.style.paddingRight = "";
+    }
+    return () => {
+      body.style.overflow = "";
+      body.style.paddingRight = "";
+    };
+  }, [isAnyModalOpen]);
 
   const filteredProducts = useMemo(() => {
     const title = (productFilters.title || "").trim().toLowerCase();
@@ -3268,7 +3297,7 @@ const renderInventory = () => (
                 <div className="inventory-card-top">
                   <div className="inventory-media">
                     <img
-                      src={product.image_url}
+                      src={product.image}
                       alt=""
                       className="inventory-thumb"
                       onError={(e) => {
