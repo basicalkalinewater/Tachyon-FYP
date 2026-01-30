@@ -505,20 +505,24 @@ const AdminDashboard = () => {
       toast.success(`Product added to ${finalCategory}!`);
       setShowCreateProductForm(false);
       // Reset state
-      setNewProduct({ 
-        title: "", 
-        Brand: "", 
-        category: "", 
-        description: "", 
-        price: "", 
-        specs: {},
-        imageFile: null 
-      });
-      setCustomCategory("");
+      resetNewProductForm();
       loadProducts();
     } catch (err) {
       toast.error(err.message);
     }
+  };
+
+  const resetNewProductForm = () => {
+    setNewProduct({
+      title: "",
+      Brand: "",
+      category: "",
+      description: "",
+      price: "",
+      specs: {},
+      imageFile: null,
+    });
+    setCustomCategory("");
   };
 
   const handleDeleteProduct = async (id, title) => {
@@ -1111,7 +1115,7 @@ const handleStockSubmit = async (productId) => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
 
-  const editImageSrc = editProductForm?.image_url || "/assets/placeholder.jpg";
+  const editImageSrc = editProductForm?.image || "/assets/placeholder.jpg";
   const isAnyModalOpen = !!(
     showCreateProductForm ||
     editProductForm ||
@@ -1743,7 +1747,7 @@ const renderBusinessInsights = () => (
               {promoLoading ? "Loading..." : "Refresh"}
             </button>
             <button type="button" className="btn btn-primary-saas" onClick={startCreatePromo}>
-              New promo
+              New Promo
             </button>
           </div>
 
@@ -1875,7 +1879,7 @@ const renderBusinessInsights = () => (
             {promotionLoading ? "Loading..." : "Refresh"}
           </button>
           <button type="button" className="btn btn-primary-saas" onClick={startCreatePromotion}>
-            New promotion
+            New Promotion
           </button>
         </div>
 
@@ -2121,9 +2125,12 @@ const renderBusinessInsights = () => (
               </div>
             </div>
 
-            <div className="col-md-12 mt-3 text-end">
+            <div className="col-md-12 mt-3 d-flex gap-3">
               <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
-                Save Product & Upload Image
+                Create Product
+              </button>
+              <button type="button" className="btn btn-outline-saas px-5" onClick={resetNewProductForm}>
+                Clear
               </button>
             </div>
           </div>
@@ -2245,14 +2252,6 @@ const renderBusinessInsights = () => (
                 "Save Changes"
               )}
             </button>
-            <button
-              type="button"
-              className="btn btn-outline-saas px-4"
-              onClick={() => setEditProductForm(null)}
-              disabled={editProductSaving}
-            >
-              Cancel
-            </button>
           </div>
         </form>
       </div>
@@ -2270,8 +2269,8 @@ const renderBusinessInsights = () => (
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
           <div>
-            <p className="eyebrow">Create promo</p>
-            <h4>New promo code</h4>
+            <p className="eyebrow">Create Promo</p>
+            <h4>New Promo Code</h4>
           </div>
           <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromoForm(false)}>
             Close
@@ -2380,7 +2379,7 @@ const renderBusinessInsights = () => (
           </div>
           <div className="d-flex gap-3 mt-3">
             <button type="submit" className="btn btn-primary-saas">
-              Create promo
+              Create Promo
             </button>
             <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
               Clear
@@ -2534,7 +2533,7 @@ const renderBusinessInsights = () => (
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
           <div>
-            <p className="eyebrow">Create promotion</p>
+            <p className="eyebrow">Create Promotion</p>
             <h4>New auto-applied discount</h4>
           </div>
           <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromotionForm(false)}>
@@ -2673,7 +2672,7 @@ const renderBusinessInsights = () => (
           </div>
           <div className="d-flex gap-3 mt-3">
             <button type="submit" className="btn btn-primary-saas">
-              Create promotion
+              Create Promotion
             </button>
             <button type="button" className="btn btn-outline-saas" onClick={resetPromotionForm}>
               Clear
