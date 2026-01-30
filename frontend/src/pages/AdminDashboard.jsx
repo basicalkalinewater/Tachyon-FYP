@@ -30,14 +30,13 @@ import {
   adjustStock,
   updateStock
 } from "../api/admin";
-import { listProducts, searchProductsByTitle, filterProductsByCategory, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
+import { listProducts, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
 import { toast } from "react-hot-toast";
 import "../styles/admin-dashboard.css";
 
 const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
-  { id: "products", label: "Products", group: "Management" },
-  { id: "stocks", label: "Stock", group: "Management" },
+  { id: "inventory", label: "Inventory", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "management", label: "Content", group: "Management" },
   { id: "businessinsights", label: "Business Insights", group: "Command Center" },
@@ -74,7 +73,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | profile | users | management | promos | promotions
+  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | inventory | profile | users | management | promos | promotions
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
@@ -135,6 +134,7 @@ const AdminDashboard = () => {
   const [editProductForm, setEditProductForm] = useState(null); 
   const [editProductSaving, setEditProductSaving] = useState(false);
   const [showCreateProductForm, setShowCreateProductForm] = useState(false);
+  const [editImagePreview, setEditImagePreview] = useState("");
   const [newProduct, setNewProduct] = useState({
   title: "",
   Brand: "",
@@ -146,8 +146,6 @@ const AdminDashboard = () => {
   });
   const [stocks, setStocks] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
-  const [stockSearch, setStockSearch] = useState("");
-  const [stockCategory, setStockCategory] = useState("all");
   const [adjustingId, setAdjustingId] = useState(null);
   const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 0, reason: "" });
   const [adjustingThresholdId, setAdjustingThresholdId] = useState(null);
@@ -304,6 +302,14 @@ const AdminDashboard = () => {
     loadProfile();
   }, [load, loadProfile]);
 
+  useEffect(() => {
+    return () => {
+      if (editImagePreview) {
+        URL.revokeObjectURL(editImagePreview);
+      }
+    };
+  }, [editImagePreview]);
+
   const loadFaqs = useCallback(async () => {
     setFaqLoading(true);
     try {
@@ -410,15 +416,7 @@ const AdminDashboard = () => {
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
     try {
-      let data;
-      if (productFilters.title) {
-        data = await searchProductsByTitle(productFilters.title);
-      } else if (productFilters.category) {
-        data = await filterProductsByCategory(productFilters.category);
-      } else {
-        data = await listProducts();
-      }
-
+      const data = await listProducts();
       const list = data.data || data || [];
       setProducts(list);
     } catch (err) {
@@ -426,9 +424,9 @@ const AdminDashboard = () => {
     } finally {
       setProductsLoading(false);
     }
-  }, [productFilters]);
+  }, []);
   useEffect(() => {
-    if (viewMode === "products" || viewMode === "promotions") {
+    if (viewMode === "inventory" || viewMode === "promotions") {
       loadProducts();
     }
   }, [viewMode, loadProducts]);
@@ -436,6 +434,7 @@ const AdminDashboard = () => {
   const startEditProduct = (p) => {
     // We include existing data and reset any 'newImageFile' from previous sessions
     setEditProductForm({ ...p, newImageFile: null });
+    setEditImagePreview("");
   };
 
   const handleEditProductSave = async (e) => {
@@ -467,6 +466,7 @@ const AdminDashboard = () => {
       await updateProduct(editProductForm.id, formData);
       
       toast.success("Product updated successfully");
+      setEditImagePreview("");
       setEditProductForm(null);
       await loadProducts();
     } catch (err) {
@@ -609,10 +609,10 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-  if (viewMode === "stocks") {
-    loadStocks();
-  }
-}, [viewMode, loadStocks]);
+    if (viewMode === "inventory") {
+      loadStocks();
+    }
+  }, [viewMode, loadStocks]);
   
 const handleStockSubmit = async (productId) => {
   // Prevent empty submissions
@@ -661,19 +661,6 @@ const handleStockSubmit = async (productId) => {
       toast.error(err.message || "Failed to update threshold");
     }
   };
-
-  const filteredStocks = useMemo(() => {
-    return stocks.filter((s) => {
-      const matchesTitle = (s.title || "").toLowerCase().includes(stockSearch.toLowerCase());
-      const matchesCategory = stockCategory === "all" || s.category === stockCategory;
-      return matchesTitle && matchesCategory;
-    });
-  }, [stocks, stockSearch, stockCategory]);
-
-  const stockCategories = useMemo(() => {
-    const cats = stocks.map(s => s.category).filter(Boolean);
-    return ["all", ...new Set(cats)];
-  }, [stocks]);
 
   const handleProfileSave = async (e) => {
     e.preventDefault();
@@ -1113,9 +1100,41 @@ const handleStockSubmit = async (productId) => {
     return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b));
   }, [products]);
 
+  const inventoryCategories = useMemo(() => {
+    const cats = (products || [])
+      .map((p) => p.category)
+      .filter((c) => !!c);
+    return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
   const promotionProductMap = useMemo(() => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
+
+  const editImageSrc = editProductForm?.image_url || "/assets/placeholder.jpg";
+
+  const filteredProducts = useMemo(() => {
+    const title = (productFilters.title || "").trim().toLowerCase();
+    const category = (productFilters.category || "").trim();
+    return (products || []).filter((product) => {
+      const matchesTitle = title
+        ? (product.title || "").toLowerCase().includes(title)
+        : true;
+      const matchesCategory = category ? product.category === category : true;
+      return matchesTitle && matchesCategory;
+    });
+  }, [products, productFilters]);
+
+  const stockByProductId = useMemo(() => {
+    return new Map((stocks || []).map((s) => [s.id, s]));
+  }, [stocks]);
+
+  const inventoryItems = useMemo(() => {
+    return filteredProducts.map((product) => ({
+      product,
+      stock: stockByProductId.get(product.id),
+    }));
+  }, [filteredProducts, stockByProductId]);
 
   // Helper Render functions
   const renderDashboard = () => (
@@ -1922,6 +1941,295 @@ const renderBusinessInsights = () => (
     </section>
   );
 
+  const productCreateModal = showCreateProductForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Create product"
+      onClick={() => setShowCreateProductForm(false)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Product Management</p>
+            <h4>Create New Product</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreateProductForm(false)}>
+            Close
+          </button>
+        </div>
+        <form onSubmit={handleCreateProduct}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="small fw-bold">Product Title</label>
+              <input
+                type="text"
+                className="form-control"
+                value={newProduct.title}
+                onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="col-md-4">
+              <label className="small fw-bold">Brand</label>
+              <input
+                type="text"
+                className="form-control"
+                value={newProduct.Brand}
+                onChange={(e) => setNewProduct({ ...newProduct, Brand: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="col-md-4">
+              <label className="small fw-bold">Category</label>
+              <select
+                className="form-select"
+                value={newProduct.category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                required
+              >
+                <option value="">Select...</option>
+                <option value="keyboard">Keyboard</option>
+                <option value="mouse">Mouse</option>
+                <option value="ssd">SSD</option>
+                <option value="monitor">Monitor</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+
+            {newProduct.category === "other" && (
+              <div className="col-md-6">
+                <label className="small fw-bold text-primary">Custom Category Name</label>
+                <input
+                  type="text"
+                  className="form-control border-primary"
+                  placeholder="e.g. Headphones"
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+
+            <div className="col-md-4">
+              <label className="small fw-bold">Price ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                placeholder="0.00"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="col-md-8">
+              <label className="small fw-bold text-success">Product Image (Upload)</label>
+              <input
+                type="file"
+                className="form-control"
+                accept="image/*"
+                onChange={(e) => setNewProduct({ ...newProduct, imageFile: e.target.files[0] })}
+                required
+              />
+            </div>
+
+            <div className="col-md-12">
+              <label className="small fw-bold">Description</label>
+              <textarea
+                className="form-control"
+                rows="2"
+                placeholder="Enter product details..."
+                value={newProduct.description}
+                onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+              />
+            </div>
+
+            <div className="col-md-12 mt-2">
+              <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
+                <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
+                <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
+                  + Add Field
+                </button>
+              </div>
+
+              <div className="p-3 border rounded-bottom bg-white">
+                {Object.entries(newProduct.specs).map(([key, value], index) => (
+                  <div className="row g-2 mb-2 align-items-center" key={index}>
+                    <div className="col-md-5">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="Spec Title"
+                        value={key}
+                        onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <input
+                        type="text"
+                        className="form-control form-control-sm"
+                        placeholder="Content"
+                        value={value}
+                        onChange={(e) => handleSpecValueChange(key, e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-1 text-center">
+                      <button
+                        type="button"
+                        className="btn btn-link btn-sm text-danger p-0"
+                        onClick={() => removeSpecField(key)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="col-md-12 mt-3 text-end">
+              <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
+                Save Product & Upload Image
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const productEditModal = editProductForm && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit product"
+      onClick={() => setEditProductForm(null)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Product Management</p>
+            <h4>Edit Product: {editProductForm.title}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditProductForm(null)}>
+            Close
+          </button>
+        </div>
+
+        <form className="profile-form" onSubmit={handleEditProductSave}>
+          <div className="mb-3">
+            <label className="form-label">Product Title</label>
+            <input
+              type="text"
+              className="form-control"
+              value={editProductForm.title}
+              onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
+              required
+              placeholder="e.g. Mechanical Keyboard G-Pro"
+            />
+          </div>
+
+          <div className="row">
+            <div className="col-md-6 mb-3">
+              <label className="form-label">Category</label>
+              <input
+                type="text"
+                className="form-control"
+                value={editProductForm.category}
+                onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-6 mb-3">
+              <label className="form-label">Price (USD)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={editProductForm.price}
+                onChange={(e) => setEditProductForm({ ...editProductForm, price: e.target.value })}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="form-label">Product Image</label>
+            <div className="card p-3 bg-light border-dashed">
+              <div className="d-flex align-items-center gap-4 flex-wrap">
+                <div className="text-center">
+                  <p className="small text-muted mb-1">Current Image</p>
+                  <img
+                    src={editImagePreview || editImageSrc}
+                    alt="Current"
+                    className="rounded border"
+                    style={{ width: "100px", height: "100px", objectFit: "cover", backgroundColor: "#fff" }}
+                    onError={(e) => {
+                      e.target.src = "/assets/placeholder.jpg";
+                    }}
+                  />
+                </div>
+
+                <div className="flex-grow-1">
+                  <label className="form-label small fw-bold">Upload New Image to Replace</label>
+                  <input
+                    type="file"
+                    className="form-control"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        const file = e.target.files[0];
+                        setEditProductForm({
+                          ...editProductForm,
+                          newImageFile: file,
+                        });
+                        const previewUrl = URL.createObjectURL(file);
+                        setEditImagePreview((prev) => {
+                          if (prev) URL.revokeObjectURL(prev);
+                          return previewUrl;
+                        });
+                      }
+                    }}
+                  />
+                  <div className="form-text">
+                    Accepted formats: PNG, JPG, WEBP. Leave empty to keep the current image.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex gap-3 pt-2 border-top">
+            <button type="submit" className="btn btn-primary-saas px-4" disabled={editProductSaving}>
+              {editProductSaving ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-saas px-4"
+              onClick={() => setEditProductForm(null)}
+              disabled={editProductSaving}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   const promoCreateModal = showCreatePromoForm && (
     <div
       className="admin-modal"
@@ -2500,221 +2808,6 @@ const renderBusinessInsights = () => (
     </div>
   );
 
-const renderStocks = () => {
-  if (stocksLoading) return <div className="p-4 text-center">Loading inventory...</div>;
-
-  // 1. Single Omnisearch Logic
-  // This looks for your search term in BOTH the title and the category fields
-  const filteredStocks = stocks.filter((s) => {
-    const searchTerm = stockSearch.toLowerCase().trim();
-    if (!searchTerm) return true;
-
-    const matchesTitle = (s.title || "").toLowerCase().includes(searchTerm);
-    const matchesCategory = (s.category || "").toLowerCase().includes(searchTerm);
-    
-    return matchesTitle || matchesCategory;
-  });
-
-  return (
-    <div className="stock-container" style={{ padding: '20px' }}>
-      
-      {/* STANDALONE SEARCH FIELD */}
-      <div style={{ 
-        marginBottom: '30px', 
-        backgroundColor: '#fff', 
-        padding: '20px', 
-        borderRadius: '12px',
-        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '15px'
-      }}>
-        <div style={{ flex: 1 }}>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#888', marginBottom: '8px', textTransform: 'uppercase' }}>
-            Inventory Search
-          </label>
-          <div style={{ position: 'relative' }}>
-            <input 
-              type="text" 
-              placeholder="Search by title or category (e.g., 'keyboard', 'ssd', 'monitor')..." 
-              className="admin-input"
-              value={stockSearch}
-              onChange={(e) => setStockSearch(e.target.value)}
-              style={{ 
-                width: '100%', 
-                padding: '12px 15px', 
-                borderRadius: '8px', 
-                border: '1px solid #ddd',
-                fontSize: '14px'
-              }}
-            />
-            {stockSearch && (
-              <button 
-                onClick={() => setStockSearch("")}
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  border: 'none',
-                  background: 'none',
-                  color: '#999',
-                  cursor: 'pointer',
-                  fontSize: '18px'
-                }}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-        <div style={{ paddingTop: '20px' }}>
-          <span style={{ fontSize: '13px', color: '#666', fontWeight: '500', backgroundColor: '#f0f2f5', padding: '8px 12px', borderRadius: '6px' }}>
-            {filteredStocks.length} Results
-          </span>
-        </div>
-      </div>
-
-      {/* TABLE HEADERS */}
-      <div style={{ 
-        display: 'flex', 
-        padding: '0 25px 15px 25px', 
-        color: '#999', 
-        fontSize: '11px', 
-        fontWeight: 'bold', 
-        textTransform: 'uppercase', 
-        letterSpacing: '1px' 
-      }}>
-        <div style={{ flex: 2 }}>Product Information</div>
-        <div style={{ flex: 1, textAlign: 'center' }}>In Stock</div>
-        <div style={{ flex: 1, textAlign: 'center' }}>Status</div>
-        <div style={{ flex: 2, textAlign: 'right' }}>Actions</div>
-      </div>
-
-      {/* STOCK LIST */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {filteredStocks.map((s) => {
-          const qty = Number(s.quantity_available ?? 0);
-          const threshold = Number(s.low_stock_threshold ?? 15);
-
-          let statusText = "In Stock";
-          let statusColor = "#2c7a7b"; let statusBg = "#e6fffa";
-          if (qty <= 0) {
-            statusText = "Out of Stock";
-            statusColor = "#e53e3e"; statusBg = "#fff5f5";
-          } else if (qty <= threshold) {
-            statusText = "Low Stock";
-            statusColor = "#dd6b20"; statusBg = "#fffaf0";
-          }
-
-          return (
-            <div key={s.id} style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              padding: '18px 25px', 
-              backgroundColor: '#fff', 
-              borderRadius: '10px', 
-              border: '1px solid #edf2f7',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
-            }}>
-              
-              <div style={{ flex: 2 }}>
-                <div style={{ fontWeight: '600', color: '#2d3748', fontSize: '15px' }}>{s.title}</div>
-                <div style={{ fontSize: '11px', color: '#a0aec0', marginTop: '4px' }}>
-                  <span style={{ 
-                    backgroundColor: '#ebf8ff', 
-                    color: '#2b6cb0', 
-                    padding: '2px 8px', 
-                    borderRadius: '4px', 
-                    marginRight: '8px',
-                    fontWeight: 'bold',
-                    fontSize: '10px'
-                  }}>
-                    {s.category ? s.category.toUpperCase() : "GENERAL"}
-                  </span>
-                  ID: {s.id.toString().substring(0, 8)}
-                </div>
-              </div>
-
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <span style={{ fontSize: '18px', fontWeight: '700', color: qty <= threshold ? '#e53e3e' : '#2d3748' }}>
-                  {qty}
-                </span>
-              </div>
-
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <span style={{ 
-                  backgroundColor: statusBg, 
-                  color: statusColor, 
-                  padding: '6px 14px', 
-                  borderRadius: '25px', 
-                  fontSize: '11px', 
-                  fontWeight: '800', 
-                  border: `1px solid ${statusColor}22`,
-                  display: 'inline-block'
-                }}>
-                  {statusText.toUpperCase()}
-                </span>
-              </div>
-
-              <div style={{ flex: 2, textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                {adjustingId === s.id ? (
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      className="admin-input-small" 
-                      style={{ width: '80px', textAlign: 'center' }}
-                      value={adjustmentForm.quantity}
-                      onChange={(e) => setAdjustmentForm({ ...adjustmentForm, quantity: parseInt(e.target.value) || 0 })}
-                      autoFocus
-                    />
-                    <button className="btn-save" onClick={() => handleStockSubmit(s.id)}>Save</button>
-                    <button className="btn-cancel" onClick={() => setAdjustingId(null)}>✕</button>
-                  </div>
-                ) : adjustingThresholdId === s.id ? (
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input 
-                      type="number" 
-                      className="admin-input-small" 
-                      style={{ width: '80px', textAlign: 'center', borderColor: '#3182ce' }}
-                      value={thresholdValue}
-                      onChange={(e) => setThresholdValue(parseInt(e.target.value) || 0)}
-                      autoFocus
-                    />
-                    <button className="btn-save" style={{ backgroundColor: '#3182ce' }} onClick={() => handleSaveThreshold(s.id)}>Save</button>
-                    <button className="btn-cancel" onClick={() => setAdjustingThresholdId(null)}>✕</button>
-                  </div>
-                ) : (
-                  <>
-                    <button className="admin-btn-secondary" onClick={() => {
-                      setAdjustingId(s.id);
-                      setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
-                    }}>
-                      Update Stock
-                    </button>
-                    <button className="admin-btn-outline" onClick={() => {
-                      setAdjustingThresholdId(s.id);
-                      setThresholdValue(threshold);
-                    }}>
-                      Set Threshold ({threshold})
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {filteredStocks.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '60px', color: '#a0aec0' }}>
-            <p>No results found for "<strong>{stockSearch}</strong>".</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
   const renderUsers = () => (
     <section className="admin-grid users-grid">
       <div className="admin-card wide">
@@ -3079,17 +3172,16 @@ const renderStocks = () => {
     </section>
   );
 
-const renderProducts = () => (
+const renderInventory = () => (
   <section className="admin-grid products-grid">
     <div className="admin-card wide">
       <div className="card-header">
         <div>
           <p className="eyebrow">Inventory</p>
-          <h4>Catalog Management</h4>
+          <h4>Products & Stock</h4>
         </div>
       </div>
 
-      {/* --- FILTER & ACTION BAR --- */}
       <div className="d-flex gap-3 flex-wrap mb-4 align-items-center">
         <div className="d-flex gap-2">
           <input
@@ -3100,368 +3192,217 @@ const renderProducts = () => (
             value={productFilters.title}
             onChange={(e) => setProductFilters({ title: e.target.value, category: "" })}
           />
-          <input
-            type="search"
-            className="form-control"
-            style={{ maxWidth: 180 }}
-            placeholder="Category..."
+          <select
+            className="form-select"
+            style={{ maxWidth: 200 }}
             value={productFilters.category}
             onChange={(e) => setProductFilters({ title: "", category: e.target.value })}
-          />
-        </div>
-        
-        <div className="d-flex gap-2">
-          <button 
-            className="btn btn-outline-saas" 
-            onClick={loadProducts} 
-            disabled={productsLoading}
           >
-            {productsLoading ? "Loading..." : "Refresh"}
+            <option value="">All categories</option>
+            {inventoryCategories.map((cat) => (
+              <option key={cat} value={cat}>
+                {cat}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="d-flex gap-2">
+          <button
+            className="btn btn-outline-saas"
+            onClick={() => {
+              loadProducts();
+              loadStocks();
+            }}
+            disabled={productsLoading || stocksLoading}
+          >
+            {productsLoading || stocksLoading ? "Loading..." : "Refresh"}
           </button>
 
-          <button 
-            className="btn btn-primary-saas" 
+          <button
+            className="btn btn-primary-saas"
             onClick={() => {
-              setShowCreateProductForm(!showCreateProductForm);
-              setEditProductForm(null); 
+              setShowCreateProductForm(true);
+              setEditProductForm(null);
             }}
           >
-            {showCreateProductForm ? "Cancel" : "New Product"}
+            New Product
           </button>
         </div>
       </div>
 
-      {/* --- CREATE PRODUCT FORM --- */}
-      {showCreateProductForm && (
-        <div className="admin-card mb-4 bg-light border shadow-sm">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h5>Create New Product</h5>
-            <button className="btn-close" onClick={() => setShowCreateProductForm(false)}></button>
-          </div>
-
-          <form onSubmit={handleCreateProduct}>
-            <div className="row g-3">
-              {/* --- ROW 1: BASIC INFO --- */}
-              <div className="col-md-3">
-                <label className="small fw-bold">Product Title</label>
-                <input type="text" className="form-control" value={newProduct.title} onChange={e => setNewProduct({...newProduct, title: e.target.value})} required />
-              </div>
-              
-              <div className="col-md-3">
-                <label className="small fw-bold">Brand</label>
-                <input type="text" className="form-control" value={newProduct.Brand} onChange={e => setNewProduct({...newProduct, Brand: e.target.value})} required />
-              </div>
-
-              <div className="col-md-3">
-                <label className="small fw-bold">Category</label>
-                <select 
-                  className="form-select" 
-                  value={newProduct.category} 
-                  onChange={e => handleCategoryChange(e.target.value)} 
-                  required
-                >
-                  <option value="">Select...</option>
-                  <option value="keyboard">Keyboard</option>
-                  <option value="mouse">Mouse</option>
-                  <option value="ssd">SSD</option>
-                  <option value="monitor">Monitor</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              {newProduct.category === "other" && (
-                <div className="col-md-3">
-                  <label className="small fw-bold text-primary">Custom Category Name</label>
-                  <input 
-                    type="text" 
-                    className="form-control border-primary" 
-                    placeholder="e.g. Headphones"
-                    value={customCategory}
-                    onChange={(e) => setCustomCategory(e.target.value)}
-                    required
-                  />
-                </div>
-              )}
-
-              <div className="col-md-3">
-                <label className="small fw-bold">Price ($)</label>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  className="form-control" 
-                  placeholder="0.00"
-                  value={newProduct.price} 
-                  onChange={e => setNewProduct({...newProduct, price: e.target.value})} 
-                  required 
-                />
-              </div>
-
-              {/* --- NEW: IMAGE UPLOAD FIELD --- */}
-              <div className="col-md-6">
-                <label className="small fw-bold text-success">Product Image (Upload)</label>
-                <input 
-                  type="file" 
-                  className="form-control" 
-                  accept="image/*"
-                  onChange={e => setNewProduct({...newProduct, imageFile: e.target.files[0]})}
-                  required 
-                />
-              </div>
-
-              {/* --- ROW 2: DESCRIPTION --- */}
-              <div className="col-md-12">
-                <label className="small fw-bold">Description</label>
-                <textarea 
-                  className="form-control" 
-                  rows="2" 
-                  placeholder="Enter product details..."
-                  value={newProduct.description} 
-                  onChange={e => setNewProduct({...newProduct, description: e.target.value})} 
-                />
-              </div>
-
-              {/* --- ROW 3: DYNAMIC SPECS --- */}
-              <div className="col-md-12 mt-4">
-                <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
-                  <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
-                  <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
-                    + Add Field
-                  </button>
-                </div>
-                
-                <div className="p-3 border rounded-bottom bg-white">
-                  {Object.entries(newProduct.specs).map(([key, value], index) => (
-                    <div className="row g-2 mb-2 align-items-center" key={index}>
-                      <div className="col-md-5">
-                        <input 
-                          type="text" 
-                          className="form-control form-control-sm" 
-                          placeholder="Spec Title"
-                          value={key} 
-                          onChange={(e) => handleSpecKeyChange(key, e.target.value)} 
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <input 
-                          type="text" 
-                          className="form-control form-control-sm" 
-                          placeholder="Content"
-                          value={value} 
-                          onChange={(e) => handleSpecValueChange(key, e.target.value)} 
-                        />
-                      </div>
-                      <div className="col-md-1 text-center">
-                        <button 
-                          type="button" 
-                          className="btn btn-link btn-sm text-danger p-0"
-                          onClick={() => removeSpecField(key)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="col-md-12 mt-4 text-end">
-                <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
-                  Save Product & Upload Image
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* --- PRODUCTS TABLE --- */}
       <div className="admin-grid">
-        <div className="admin-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Existing products</p>
-              <h4>Search & Manage</h4>
-            </div>
+        {productsLoading || stocksLoading ? (
+          <div className="admin-card">
+            <p className="muted mb-0">Loading inventory...</p>
           </div>
-          <div className="table-responsive management-scroll">
-        <table className="dashboard-table">
-          <thead>
-            <tr>
-              <th>Image</th>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Price</th>
-              <th className="text-end">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {productsLoading ? (
-               <tr><td colSpan="6" className="text-center py-4">Loading inventory...</td></tr>
-            ) : products.length > 0 ? (
-              products.map((p) => (
-                <tr key={p.id}>
-                  <td>
-                    <img 
-                      src={p.image_url} 
-                      alt="" 
-                      style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #eee' }} 
-                      onError={(e) => e.target.src = '/assets/placeholder.jpg'}
+        ) : inventoryItems.length === 0 ? (
+          <div className="admin-card">
+            <p className="muted mb-0">No products found.</p>
+          </div>
+        ) : (
+          inventoryItems.map(({ product, stock }) => {
+            const qty = Number(stock?.quantity_available ?? 0);
+            const threshold = Number(stock?.low_stock_threshold ?? 15);
+            const hasStock = !!stock;
+
+            let statusText = "In Stock";
+            let statusColor = "#2c7a7b";
+            let statusBg = "#e6fffa";
+            if (!hasStock) {
+              statusText = "No Stock Record";
+              statusColor = "#718096";
+              statusBg = "#edf2f7";
+            } else if (qty <= 0) {
+              statusText = "Out of Stock";
+              statusColor = "#e53e3e";
+              statusBg = "#fff5f5";
+            } else if (qty <= threshold) {
+              statusText = "Low Stock";
+              statusColor = "#dd6b20";
+              statusBg = "#fffaf0";
+            }
+
+            return (
+              <div key={product.id} className="admin-card">
+                <div className="inventory-card-top">
+                  <div className="inventory-media">
+                    <img
+                      src={product.image_url}
+                      alt=""
+                      className="inventory-thumb"
+                      onError={(e) => {
+                        e.target.src = "/assets/placeholder.jpg";
+                      }}
                     />
-                  </td>
-                  <td><code className="small">#{p.id.toString().slice(0,8)}</code></td>
-                  <td><strong>{p.title}</strong></td>
-                  <td><span className="badge bg-light text-dark border">{p.category}</span></td>
-                  <td>{currencyFormatter.format(p.price)}</td>
-                  <td className="text-end">
-                    <div className="d-flex gap-2 justify-content-end">
-                      <button 
+                    <h5 className="inventory-title">{product.title}</h5>
+                    <span className="badge bg-light text-dark border">{product.category}</span>
+                  </div>
+                  <div className="inventory-info">
+                    <div className="muted tiny inventory-meta">
+                      <code className="small">#{product.id.toString().slice(0, 8)}</code>{" "}
+                      • {currencyFormatter.format(product.price)}
+                    </div>
+                    <div className="inventory-actions">
+                      <button
                         className="btn btn-outline-saas btn-sm"
-                        onClick={() => { startEditProduct(p); setShowCreateProductForm(false); }}
+                        onClick={() => {
+                          startEditProduct(product);
+                          setShowCreateProductForm(false);
+                        }}
                       >
                         Edit
                       </button>
-                      <button 
+                      <button
                         className="btn btn-outline-danger btn-sm"
-                        onClick={() => handleDeleteProduct(p.id, p.title)}
-                        disabled={isDeleting === p.id}
+                        onClick={() => handleDeleteProduct(product.id, product.title)}
+                        disabled={isDeleting === product.id}
                       >
-                        {isDeleting === p.id ? "..." : "Delete"}
+                        {isDeleting === product.id ? "..." : "Delete"}
                       </button>
                     </div>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr><td colSpan="6" className="text-center py-4 text-muted">No products found.</td></tr>
-            )}
-          </tbody>
-        </table>
-          </div>
-        </div>
-      </div>
-    </div>
-    
-    {editProductForm && renderEditProduct()}
-  </section>
-);
+                  </div>
+                </div>
 
-const renderEditProduct = () => (
-  <div className="admin-card mt-4">
-    <div className="card-header d-flex justify-content-between align-items-center">
-      <div>
-        <p className="eyebrow">Product Management</p>
-        <h4>Edit Product: {editProductForm.title}</h4>
-      </div>
-      <button 
-        type="button" 
-        className="btn-close" 
-        onClick={() => setEditProductForm(null)}
-      ></button>
-    </div>
+                <div className="inventory-stock-panel mt-3 p-3 rounded bg-light">
+                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                    <div>
+                      <p className="muted tiny mb-1">Stock</p>
+                      <div className="d-flex align-items-center gap-2">
+                        <strong style={{ color: !hasStock ? "inherit" : qty <= threshold ? "#e53e3e" : "inherit" }}>
+                          {hasStock ? qty : "-"}
+                        </strong>
+                        <span
+                          style={{
+                            backgroundColor: statusBg,
+                            color: statusColor,
+                            padding: "4px 10px",
+                            borderRadius: "20px",
+                            fontSize: "11px",
+                            fontWeight: "700",
+                            border: `1px solid ${statusColor}22`,
+                          }}
+                        >
+                          {statusText.toUpperCase()}
+                        </span>
+                      </div>
+                      {hasStock && (
+                        <p className="muted tiny mb-0">Threshold: {threshold}</p>
+                      )}
+                    </div>
 
-    <form className="profile-form" onSubmit={handleEditProductSave}>
-      <div className="mb-3">
-        <label className="form-label">Product Title</label>
-        <input
-          type="text"
-          className="form-control"
-          value={editProductForm.title}
-          onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
-          required
-          placeholder="e.g. Mechanical Keyboard G-Pro"
-        />
-      </div>
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-outline-saas btn-sm"
+                        onClick={() => {
+                          setAdjustingId(product.id);
+                          setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
+                        }}
+                      >
+                        Update Stock
+                      </button>
+                      <button
+                        className="btn btn-outline-saas btn-sm"
+                        onClick={() => {
+                          setAdjustingThresholdId(product.id);
+                          setThresholdValue(threshold);
+                        }}
+                      >
+                        Set Threshold
+                      </button>
+                    </div>
+                  </div>
 
-      <div className="row">
-        <div className="col-md-6 mb-3">
-          <label className="form-label">Category</label>
-          <input
-            type="text"
-            className="form-control"
-            value={editProductForm.category}
-            onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
-            required
-          />
-        </div>
-        <div className="col-md-6 mb-3">
-          <label className="form-label">Price (USD)</label>
-          <input
-            type="number"
-            step="0.01"
-            className="form-control"
-            value={editProductForm.price}
-            onChange={(e) => setEditProductForm({ ...editProductForm, price: e.target.value })}
-            required
-          />
-        </div>
-      </div>
+                  {adjustingId === product.id && (
+                    <div className="d-flex gap-2 align-items-center mt-3 flex-wrap">
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        style={{ maxWidth: 140 }}
+                        value={adjustmentForm.quantity}
+                        onChange={(e) =>
+                          setAdjustmentForm({
+                            ...adjustmentForm,
+                            quantity: parseInt(e.target.value, 10) || 0,
+                          })
+                        }
+                        autoFocus
+                      />
+                      <button className="btn btn-primary-saas btn-sm" onClick={() => handleStockSubmit(product.id)}>
+                        Save
+                      </button>
+                      <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingId(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
 
-      {/* --- IMAGE EDITING SECTION --- */}
-      <div className="mb-4">
-        <label className="form-label">Product Image</label>
-        <div className="card p-3 bg-light border-dashed">
-          <div className="d-flex align-items-center gap-4">
-            <div className="text-center">
-              <p className="small text-muted mb-1">Current Image</p>
-              <img 
-                // Adding a timestamp prevents the browser from showing a cached old image
-                src={`${editProductForm.image_url}?t=${new Date().getTime()}`} 
-                alt="Current" 
-                className="rounded border"
-                style={{ width: '100px', height: '100px', objectFit: 'cover', backgroundColor: '#fff' }}
-                onError={(e) => { e.target.src = "/assets/placeholder.jpg"; }}
-              />
-            </div>
-            
-            <div className="flex-grow-1">
-              <label className="form-label small fw-bold">Upload New Image to Replace</label>
-              <input
-                type="file"
-                className="form-control"
-                accept="image/*"
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setEditProductForm({ 
-                      ...editProductForm, 
-                      newImageFile: e.target.files[0] 
-                    });
-                  }
-                }}
-              />
-              <div className="form-text">
-                Accepted formats: PNG, JPG, WEBP. Leave empty to keep the current image.
+                  {adjustingThresholdId === product.id && (
+                    <div className="d-flex gap-2 align-items-center mt-3 flex-wrap">
+                      <input
+                        type="number"
+                        className="form-control form-control-sm"
+                        style={{ maxWidth: 140 }}
+                        value={thresholdValue}
+                        onChange={(e) => setThresholdValue(parseInt(e.target.value, 10) || 0)}
+                        autoFocus
+                      />
+                      <button className="btn btn-primary-saas btn-sm" onClick={() => handleSaveThreshold(product.id)}>
+                        Save
+                      </button>
+                      <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingThresholdId(null)}>
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        </div>
+            );
+          })
+        )}
       </div>
-      {/* ------------------------------ */}
-
-      <div className="d-flex gap-3 pt-2 border-top">
-        <button 
-          type="submit" 
-          className="btn btn-primary-saas px-4" 
-          disabled={editProductSaving}
-        >
-          {editProductSaving ? (
-            <>
-              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-              Saving...
-            </>
-          ) : "Save Changes"}
-        </button>
-        <button 
-          type="button" 
-          className="btn btn-outline-saas px-4" 
-          onClick={() => setEditProductForm(null)}
-          disabled={editProductSaving}
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  </div>
+    </div>
+  </section>
 );
 
   // MAIN RETURN
@@ -3538,11 +3479,12 @@ const renderEditProduct = () => (
             {viewMode === "businessinsights" && renderBusinessInsights()}
             {viewMode === "promos" && renderPromos()}
             {viewMode === "promotions" && renderPromotions()}
-            {viewMode === "products" && renderProducts()}
-            {viewMode === "stocks" && renderStocks()}
+            {viewMode === "inventory" && renderInventory()}
           </main>
         </div>
       </div>
+      {productCreateModal}
+      {productEditModal}
       {promoCreateModal}
       {promoEditModal}
       {promotionCreateModal}
