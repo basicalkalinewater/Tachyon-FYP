@@ -80,6 +80,8 @@ const AdminDashboard = () => {
   const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
   const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
+  const [showFaqModal, setShowFaqModal] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const emptyPromoForm = {
     id: null,
     code: "",
@@ -788,18 +790,6 @@ const handleStockSubmit = async (productId) => {
     }
   };
 
-  const handleEnableUser = async (userId, email) => {
-    const confirm = window.confirm(`Re-enable ${email}?`);
-    if (!confirm) return;
-    try {
-      await updateAdminUser(userId, { status: "active" });
-      toast.success("User enabled");
-      await loadUsers();
-    } catch (err) {
-      toast.error(err.message || "Unable to enable user");
-    }
-  };
-
   const resetPromoForm = () => setPromoForm(emptyPromoForm);
   const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
   const isValidPromoCode = (value) => /^[A-Za-z0-9]+$/.test(value);
@@ -1124,6 +1114,8 @@ const handleStockSubmit = async (productId) => {
     showCreatePromotionForm ||
     editPromotionForm ||
     showCreateForm ||
+    showFaqModal ||
+    showPolicyModal ||
     editUserForm
   );
 
@@ -1304,7 +1296,7 @@ const renderManagement = () => (
             <h4>Tools & settings</h4>
           </div>
         </div>
-        <div className="d-flex gap-2 mb-3 flex-wrap">
+        <div className="d-flex gap-2 mb-3 flex-wrap align-items-center">
           <button
             type="button"
             className={`btn ${managementTab === "faqs" ? "btn-primary-saas" : "btn-outline-saas"}`}
@@ -1319,79 +1311,25 @@ const renderManagement = () => (
           >
             Policies
           </button>
+          <button
+            type="button"
+            className="btn btn-primary-saas"
+            onClick={() => {
+              if (managementTab === "faqs") {
+                setFaqForm({ id: null, question: "", answer: "" });
+                setShowFaqModal(true);
+              } else {
+                setPolicyForm({ id: null, title: "", content: "" });
+                setShowPolicyModal(true);
+              }
+            }}
+          >
+            {managementTab === "faqs" ? "Create FAQ" : "Create Policy"}
+          </button>
         </div>
         {managementTab === "faqs" && (
           <div className="admin-grid">
-            <div className="admin-card">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">FAQs</p>
-                  <h4>{faqForm.id ? "Edit FAQ" : "Create FAQ"}</h4>
-                </div>
-              </div>
-              <form
-                className="profile-form"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
-                  try {
-                    if (faqForm.id) {
-                      await updateFaq(faqForm.id, {
-                        question: faqForm.question.trim(),
-                        answer: faqForm.answer.trim(),
-                      });
-                      toast.success("FAQ updated");
-                    } else {
-                      await createFaq({
-                        question: faqForm.question.trim(),
-                        answer: faqForm.answer.trim(),
-                      });
-                      toast.success("FAQ created");
-                    }
-                    setFaqForm({ id: null, question: "", answer: "" });
-                    await loadFaqs();
-                  } catch (err) {
-                    toast.error(err.message || "Failed to save FAQ");
-                  }
-                }}
-              >
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="faq-question">Question</label>
-                  <input
-                    id="faq-question"
-                    type="text"
-                    className="form-control"
-                    value={faqForm.question}
-                    onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
-                    placeholder="Enter FAQ question"
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="faq-answer">Answer</label>
-                  <textarea
-                    id="faq-answer"
-                    className="form-control"
-                    rows="4"
-                    value={faqForm.answer}
-                    onChange={(e) => setFaqForm((p) => ({ ...p, answer: e.target.value }))}
-                    placeholder="Enter answer"
-                  />
-                </div>
-                <div className="d-flex gap-3">
-                  <button type="submit" className="btn btn-primary-saas">
-                    {faqForm.id ? "Update" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-saas"
-                    onClick={() => setFaqForm({ id: null, question: "", answer: "" })}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </form>
-            </div>
-            <div className="admin-card">
+            <div className="admin-card wide">
               <div className="card-header">
                 <div>
                   <p className="eyebrow">Existing FAQs</p>
@@ -1403,39 +1341,53 @@ const renderManagement = () => (
               ) : faqItems.length === 0 ? (
                 <p className="muted mb-0">No FAQs yet.</p>
               ) : (
-                <div className="management-scroll">
-                  <ul className="list-unstyled mb-0">
-                    {faqItems.map((item) => (
-                      <li key={item.id} className="mb-3">
-                        <strong>{item.question}</strong>
-                        <p className="muted small mb-2">{item.answer}</p>
-                        <div className="d-flex gap-2">
-                          <button
-                            type="button"
-                            className="btn btn-outline-saas btn-sm"
-                            onClick={() => setFaqForm(item)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={async () => {
-                              try {
-                                await deleteFaq(item.id);
-                                toast.success("FAQ removed");
-                                await loadFaqs();
-                              } catch (err) {
-                                toast.error(err.message || "Failed to remove FAQ");
-                              }
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="table-responsive management-scroll">
+                  <table className="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>Question</th>
+                        <th>Answer</th>
+                        <th className="text-end" style={{ width: 160 }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {faqItems.map((item) => (
+                        <tr key={item.id}>
+                          <td className="fw-semibold">{item.question}</td>
+                          <td style={{ whiteSpace: "pre-wrap" }}>{item.answer}</td>
+                          <td className="text-end">
+                            <div className="d-flex gap-2 justify-content-end">
+                              <button
+                                type="button"
+                                className="btn btn-outline-saas btn-sm"
+                                onClick={() => {
+                                  setFaqForm(item);
+                                  setShowFaqModal(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={async () => {
+                                  try {
+                                    await deleteFaq(item.id);
+                                    toast.success("FAQ removed");
+                                    await loadFaqs();
+                                  } catch (err) {
+                                    toast.error(err.message || "Failed to remove FAQ");
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -1443,76 +1395,7 @@ const renderManagement = () => (
         )}
         {managementTab === "policies" && (
           <div className="admin-grid">
-            <div className="admin-card">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Policies</p>
-                  <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
-                </div>
-              </div>
-              <form
-                className="profile-form"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!policyForm.title.trim() || !policyForm.content.trim()) return;
-                  try {
-                    if (policyForm.id) {
-                      await updatePolicy(policyForm.id, {
-                        title: policyForm.title.trim(),
-                        content: policyForm.content.trim(),
-                      });
-                      toast.success("Policy updated");
-                    } else {
-                      await createPolicy({
-                        title: policyForm.title.trim(),
-                        content: policyForm.content.trim(),
-                      });
-                      toast.success("Policy created");
-                    }
-                    setPolicyForm({ id: null, title: "", content: "" });
-                    await loadPolicies();
-                  } catch (err) {
-                    toast.error(err.message || "Failed to save policy");
-                  }
-                }}
-              >
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="policy-title">Title</label>
-                  <input
-                    id="policy-title"
-                    type="text"
-                    className="form-control"
-                    value={policyForm.title}
-                    onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
-                    placeholder="Policy title"
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="policy-content">Content</label>
-                  <textarea
-                    id="policy-content"
-                    className="form-control"
-                    rows="6"
-                    value={policyForm.content}
-                    onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
-                    placeholder="Policy content"
-                  />
-                </div>
-                <div className="d-flex gap-3">
-                  <button type="submit" className="btn btn-primary-saas">
-                    {policyForm.id ? "Update" : "Create"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-saas"
-                    onClick={() => setPolicyForm({ id: null, title: "", content: "" })}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </form>
-            </div>
-            <div className="admin-card">
+            <div className="admin-card wide">
               <div className="card-header">
                 <div>
                   <p className="eyebrow">Existing policies</p>
@@ -1524,39 +1407,53 @@ const renderManagement = () => (
               ) : policyItems.length === 0 ? (
                 <p className="muted mb-0">No policies yet.</p>
               ) : (
-                <div className="management-scroll">
-                  <ul className="list-unstyled mb-0">
-                    {policyItems.map((item) => (
-                      <li key={item.id} className="mb-3">
-                        <strong>{item.title}</strong>
-                        <p className="muted small mb-2">{item.content}</p>
-                        <div className="d-flex gap-2">
-                          <button
-                            type="button"
-                            className="btn btn-outline-saas btn-sm"
-                            onClick={() => setPolicyForm(item)}
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={async () => {
-                              try {
-                                await deletePolicy(item.id);
-                                toast.success("Policy removed");
-                                await loadPolicies();
-                              } catch (err) {
-                                toast.error(err.message || "Failed to remove policy");
-                              }
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="table-responsive management-scroll">
+                  <table className="dashboard-table">
+                    <thead>
+                      <tr>
+                        <th>Title</th>
+                        <th>Content</th>
+                        <th className="text-end" style={{ width: 160 }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {policyItems.map((item) => (
+                        <tr key={item.id}>
+                          <td className="fw-semibold">{item.title}</td>
+                          <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
+                          <td className="text-end">
+                            <div className="d-flex gap-2 justify-content-end">
+                              <button
+                                type="button"
+                                className="btn btn-outline-saas btn-sm"
+                                onClick={() => {
+                                  setPolicyForm(item);
+                                  setShowPolicyModal(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={async () => {
+                                  try {
+                                    await deletePolicy(item.id);
+                                    toast.success("Policy removed");
+                                    await loadPolicies();
+                                  } catch (err) {
+                                    toast.error(err.message || "Failed to remove policy");
+                                  }
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -2836,6 +2733,186 @@ const renderBusinessInsights = () => (
     </div>
   );
 
+  const faqModal = showFaqModal && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={faqForm.id ? "Edit FAQ" : "Create FAQ"}
+      onClick={() => setShowFaqModal(false)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">FAQs</p>
+            <h4>{faqForm.id ? "Edit FAQ" : "Create FAQ"}</h4>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline-saas btn-sm"
+            onClick={() => setShowFaqModal(false)}
+          >
+            Close
+          </button>
+        </div>
+        <form
+          className="profile-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
+            try {
+              if (faqForm.id) {
+                await updateFaq(faqForm.id, {
+                  question: faqForm.question.trim(),
+                  answer: faqForm.answer.trim(),
+                });
+                toast.success("FAQ updated");
+              } else {
+                await createFaq({
+                  question: faqForm.question.trim(),
+                  answer: faqForm.answer.trim(),
+                });
+                toast.success("FAQ created");
+              }
+              setFaqForm({ id: null, question: "", answer: "" });
+              setShowFaqModal(false);
+              await loadFaqs();
+            } catch (err) {
+              toast.error(err.message || "Failed to save FAQ");
+            }
+          }}
+        >
+          <div className="mb-3">
+            <label className="form-label" htmlFor="faq-question">Question</label>
+            <input
+              id="faq-question"
+              type="text"
+              className="form-control"
+              value={faqForm.question}
+              onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
+              placeholder="Enter FAQ question"
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="faq-answer">Answer</label>
+            <textarea
+              id="faq-answer"
+              className="form-control"
+              rows="4"
+              value={faqForm.answer}
+              onChange={(e) => setFaqForm((p) => ({ ...p, answer: e.target.value }))}
+              placeholder="Enter answer"
+            />
+          </div>
+          <div className="d-flex gap-3">
+            <button type="submit" className="btn btn-primary-saas">
+              {faqForm.id ? "Update FAQ" : "Create FAQ"}
+            </button>
+            {!faqForm.id && (
+              <button
+                type="button"
+                className="btn btn-outline-saas"
+                onClick={() => setFaqForm({ id: null, question: "", answer: "" })}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const policyModal = showPolicyModal && (
+    <div
+      className="admin-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-label={policyForm.id ? "Edit policy" : "Create policy"}
+      onClick={() => setShowPolicyModal(false)}
+    >
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Policies</p>
+            <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline-saas btn-sm"
+            onClick={() => setShowPolicyModal(false)}
+          >
+            Close
+          </button>
+        </div>
+        <form
+          className="profile-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!policyForm.title.trim() || !policyForm.content.trim()) return;
+            try {
+              if (policyForm.id) {
+                await updatePolicy(policyForm.id, {
+                  title: policyForm.title.trim(),
+                  content: policyForm.content.trim(),
+                });
+                toast.success("Policy updated");
+              } else {
+                await createPolicy({
+                  title: policyForm.title.trim(),
+                  content: policyForm.content.trim(),
+                });
+                toast.success("Policy created");
+              }
+              setPolicyForm({ id: null, title: "", content: "" });
+              setShowPolicyModal(false);
+              await loadPolicies();
+            } catch (err) {
+              toast.error(err.message || "Failed to save policy");
+            }
+          }}
+        >
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-title">Title</label>
+            <input
+              id="policy-title"
+              type="text"
+              className="form-control"
+              value={policyForm.title}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
+              placeholder="Policy title"
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-content">Content</label>
+            <textarea
+              id="policy-content"
+              className="form-control"
+              rows="6"
+              value={policyForm.content}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
+              placeholder="Policy content"
+            />
+          </div>
+          <div className="d-flex gap-3">
+            <button type="submit" className="btn btn-primary-saas">
+              {policyForm.id ? "Update policy" : "Create policy"}
+            </button>
+            {!policyForm.id && (
+              <button
+                type="button"
+                className="btn btn-outline-saas"
+                onClick={() => setPolicyForm({ id: null, title: "", content: "" })}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
   const renderUsers = () => (
     <section className="admin-grid users-grid">
       <div className="admin-card wide">
@@ -2924,32 +3001,13 @@ const renderBusinessInsights = () => (
                         <button className="btn btn-outline-saas btn-sm" onClick={() => startEditUser(u)}>
                           Edit
                         </button>
-                        {u.status === "inactive" ? (
-                          <button
-                            className="btn btn-outline-secondary btn-sm"
-                            onClick={() => handleEnableUser(u.id, u.email)}
-                            title="Enable user"
-                          >
-                            Enable
-                          </button>
-                        ) : (
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => handleDeleteUser(u.id, u.email)}
-                            title="Delete user"
-                          >
-                            Delete
-                          </button>
-                        )}
-                        {u.status === "inactive" && (
-                          <button
-                            className="btn btn-outline-danger btn-sm"
-                            onClick={() => handleDeleteUser(u.id, u.email)}
-                            title="Delete user"
-                          >
-                            Delete
-                          </button>
-                        )}
+                        <button
+                          className="btn btn-outline-danger btn-sm"
+                          onClick={() => handleDeleteUser(u.id, u.email)}
+                          title="Delete user"
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -3361,17 +3419,23 @@ const renderInventory = () => (
 
                     <div className="d-flex gap-2">
                       <button
-                        className="btn btn-outline-saas btn-sm"
+                        className={`btn btn-sm ${
+                          adjustingId === product.id ? "btn-primary-saas" : "btn-outline-saas"
+                        }`}
                         onClick={() => {
+                          setAdjustingThresholdId(null);
                           setAdjustingId(product.id);
-                          setAdjustmentForm({ quantity: 0, reason: "Manual Adjustment" });
+                          setAdjustmentForm({ quantity: qty, reason: "Manual Adjustment" });
                         }}
                       >
                         Update Stock
                       </button>
                       <button
-                        className="btn btn-outline-saas btn-sm"
+                        className={`btn btn-sm ${
+                          adjustingThresholdId === product.id ? "btn-primary-saas" : "btn-outline-saas"
+                        }`}
                         onClick={() => {
+                          setAdjustingId(null);
                           setAdjustingThresholdId(product.id);
                           setThresholdValue(threshold);
                         }}
@@ -3399,7 +3463,12 @@ const renderInventory = () => (
                       <button className="btn btn-primary-saas btn-sm" onClick={() => handleStockSubmit(product.id)}>
                         Save
                       </button>
-                      <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingId(null)}>
+                      <button
+                        className="btn btn-outline-saas btn-sm"
+                        onClick={() => {
+                          setAdjustingId(null);
+                        }}
+                      >
                         Cancel
                       </button>
                     </div>
@@ -3418,7 +3487,12 @@ const renderInventory = () => (
                       <button className="btn btn-primary-saas btn-sm" onClick={() => handleSaveThreshold(product.id)}>
                         Save
                       </button>
-                      <button className="btn btn-outline-saas btn-sm" onClick={() => setAdjustingThresholdId(null)}>
+                      <button
+                        className="btn btn-outline-saas btn-sm"
+                        onClick={() => {
+                          setAdjustingThresholdId(null);
+                        }}
+                      >
                         Cancel
                       </button>
                     </div>
@@ -3513,6 +3587,8 @@ const renderInventory = () => (
       </div>
       {productCreateModal}
       {productEditModal}
+      {faqModal}
+      {policyModal}
       {promoCreateModal}
       {promoEditModal}
       {promotionCreateModal}
