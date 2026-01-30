@@ -40,7 +40,7 @@ const ADMIN_SECTIONS = [
   { id: "stocks", label: "Stock", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
   { id: "management", label: "Content", group: "Management" },
-  { id: "businessinsights", label: "Business Insights", group: "Management" },
+  { id: "businessinsights", label: "Business Insights", group: "Command Center" },
   { id: "promotions", label: "Promotions", group: "Management" },
   { id: "promos", label: "Promo Codes", group: "Management" },
   { id: "profile", label: "My Profile", group: "Account" },
@@ -1150,51 +1150,6 @@ const handleStockSubmit = async (productId) => {
       </section>
 
         <section className="admin-grid">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <p className="eyebrow">Business insights</p>
-                <h4>Sales performance</h4>
-              </div>
-              <div className="insight-controls">
-                <label className="muted tiny" htmlFor="insight-month">Month</label>
-                <select
-                  id="insight-month"
-                  className="form-select form-select-sm"
-                  value={insightMonth}
-                  onChange={(e) => setInsightMonth(e.target.value)}
-                >
-                  {overviewMonthOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          <ul className="insight-list">
-            <li>
-              <p className="muted tiny mb-1">Best-selling product (month)</p>
-              <div className="insight-value">
-                <strong>{insights.bestMonth?.name || "N/A"}</strong>
-                <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
-              </div>
-            </li>
-            <li>
-              <p className="muted tiny mb-1">Worst-selling product (month)</p>
-              <div className="insight-value">
-                <strong>{insights.worstMonth?.name || "N/A"}</strong>
-                <span className="muted tiny">{insights.worstMonth ? `${insights.worstMonth.quantity} sold` : "No sales yet"}</span>
-              </div>
-            </li>
-            <li>
-              <p className="muted tiny mb-1">Total sales today</p>
-              <div className="insight-value">
-                <strong>{currencyFormatter.format(insights.totalSalesToday || 0)}</strong>
-                <span className="muted tiny">{insights.ordersToday} orders today</span>
-              </div>
-            </li>
-          </ul>
-        </div>
-
         <div className="admin-card wide">
           <div className="card-header">
             <div>
@@ -1561,6 +1516,50 @@ const renderManagement = () => (
 
 const renderBusinessInsights = () => (
   <section className="admin-grid">
+    <div className="admin-card">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Business insights</p>
+          <h4>Sales performance</h4>
+        </div>
+        <div className="insight-controls">
+          <label className="muted tiny" htmlFor="insight-month">Month</label>
+          <select
+            id="insight-month"
+            className="form-select form-select-sm"
+            value={insightMonth}
+            onChange={(e) => setInsightMonth(e.target.value)}
+          >
+            {overviewMonthOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <ul className="insight-list">
+        <li>
+          <p className="muted tiny mb-1">Best-selling product (month)</p>
+          <div className="insight-value">
+            <strong>{insights.bestMonth?.name || "N/A"}</strong>
+            <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
+          </div>
+        </li>
+        <li>
+          <p className="muted tiny mb-1">Worst-selling product (month)</p>
+          <div className="insight-value">
+            <strong>{insights.worstMonth?.name || "N/A"}</strong>
+            <span className="muted tiny">{insights.worstMonth ? `${insights.worstMonth.quantity} sold` : "No sales yet"}</span>
+          </div>
+        </li>
+        <li>
+          <p className="muted tiny mb-1">Total sales today</p>
+          <div className="insight-value">
+            <strong>{currencyFormatter.format(insights.totalSalesToday || 0)}</strong>
+            <span className="muted tiny">{insights.ordersToday} orders today</span>
+          </div>
+        </li>
+      </ul>
+    </div>
     <div className="admin-card wide">
       <div className="card-header">
         <div>
