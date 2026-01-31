@@ -153,8 +153,9 @@ const AdminDashboard = () => {
   const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 0, reason: "" });
   const [adjustingThresholdId, setAdjustingThresholdId] = useState(null);
   const [thresholdValue, setThresholdValue] = useState(15);
-  const [customFieldName, setCustomFieldName] = useState("");
-  const [showCustomSpecInput, setShowCustomSpecInput] = useState(false);
+  const [customSpecOptions, setCustomSpecOptions] = useState({});
+  const [customSpecDrafts, setCustomSpecDrafts] = useState({});
+  const [customSpecValueDrafts, setCustomSpecValueDrafts] = useState({});
   const [isDeleting, setIsDeleting] = useState(null);
   const CATEGORY_TEMPLATES = {
   keyboard: { size: "", connection: "", switch_type: "" },
@@ -527,6 +528,8 @@ const AdminDashboard = () => {
       imageFile: null,
     });
     setCustomCategory("");
+    setCustomSpecDrafts({});
+    setCustomSpecValueDrafts({});
   };
 
   const handleDeleteProduct = async (id, title) => {
@@ -550,22 +553,8 @@ const AdminDashboard = () => {
       category: cat,
       specs: { ...template }
     });
-    setShowCustomSpecInput(false);
-    setCustomFieldName("");
-  };
-
-  const updateSpec = (key, value) => {
-    setNewProduct((prev) => ({
-      ...prev,
-      specs: { ...prev.specs, [key]: value }
-    }));
-  };
-
-  const addCustomField = () => {
-    if (!customFieldName) return;
-    updateSpec(customFieldName, "");
-    setCustomFieldName("");
-    setShowCustomSpecInput(false);
+    setCustomSpecDrafts({});
+    setCustomSpecValueDrafts({});
   };
 
   const addSpecField = () => {
@@ -573,6 +562,47 @@ const AdminDashboard = () => {
       ...prev,
       specs: { ...prev.specs, "": "" } // Adds an empty key-value pair
     }));
+  };
+
+  const handleSpecKeySelect = (oldKey, selectedKey, rowIndex) => {
+    if (selectedKey === "__custom__") {
+      setCustomSpecDrafts((prev) => ({ ...prev, [rowIndex]: "" }));
+      return;
+    }
+    if (!selectedKey) return;
+    setCustomSpecDrafts((prev) => {
+      const next = { ...prev };
+      delete next[rowIndex];
+      return next;
+    });
+    handleSpecKeyChange(oldKey, selectedKey);
+  };
+
+  const applyCustomSpecKey = (oldKey, rawKey, rowIndex) => {
+    const cleanedKey = String(rawKey || "").trim().replace(/\s+/g, "_");
+    if (!cleanedKey) {
+      toast.error("Please enter a spec name.");
+      return;
+    }
+    const existingKeys = Object.keys(newProduct.specs).filter((k) => k !== oldKey);
+    if (existingKeys.includes(cleanedKey)) {
+      toast.error("That spec already exists. Choose another.");
+      return;
+    }
+    const categoryKey = (newProduct.category || "").toLowerCase();
+    if (categoryKey) {
+      setCustomSpecOptions((prev) => {
+        const current = prev[categoryKey] || [];
+        if (current.includes(cleanedKey)) return prev;
+        return { ...prev, [categoryKey]: [...current, cleanedKey] };
+      });
+    }
+    setCustomSpecDrafts((prev) => {
+      const next = { ...prev };
+      delete next[rowIndex];
+      return next;
+    });
+    handleSpecKeyChange(oldKey, cleanedKey);
   };
 
   const handleSpecKeyChange = (oldKey, newKey) => {
@@ -588,6 +618,33 @@ const AdminDashboard = () => {
       ...prev,
       specs: { ...prev.specs, [key]: value }
     }));
+  };
+
+  const handleSpecValueSelect = (key, selectedValue, rowIndex) => {
+    if (selectedValue === "__custom__") {
+      setCustomSpecValueDrafts((prev) => ({ ...prev, [rowIndex]: "" }));
+      return;
+    }
+    setCustomSpecValueDrafts((prev) => {
+      const next = { ...prev };
+      delete next[rowIndex];
+      return next;
+    });
+    handleSpecValueChange(key, selectedValue);
+  };
+
+  const applyCustomSpecValue = (key, rawValue, rowIndex) => {
+    const cleanedValue = String(rawValue || "").trim();
+    if (!cleanedValue) {
+      toast.error("Please enter a spec value.");
+      return;
+    }
+    setCustomSpecValueDrafts((prev) => {
+      const next = { ...prev };
+      delete next[rowIndex];
+      return next;
+    });
+    handleSpecValueChange(key, cleanedValue);
   };
 
   const removeSpecField = (key) => {
@@ -1110,8 +1167,35 @@ const handleStockSubmit = async (productId) => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
 
-  const newProductTemplate = CATEGORY_TEMPLATES[(newProduct.category || "").toLowerCase()] || null;
+  const newProductCategoryKey = (newProduct.category || "").toLowerCase();
+  const newProductTemplate = CATEGORY_TEMPLATES[newProductCategoryKey] || null;
   const newProductTemplateKeys = newProductTemplate ? Object.keys(newProductTemplate) : [];
+  const newProductCustomKeys = customSpecOptions[newProductCategoryKey] || [];
+  const newProductAvailableKeys = Array.from(new Set([...newProductTemplateKeys, ...newProductCustomKeys]));
+
+  const newProductValueOptions = useMemo(() => {
+    if (!newProductCategoryKey) return {};
+    const map = {};
+    (products || [])
+      .filter((p) => String(p.category || "").toLowerCase() === newProductCategoryKey)
+      .forEach((product) => {
+        const specs = product.specs || {};
+        Object.entries(specs).forEach(([specKey, specValue]) => {
+          if (!specKey) return;
+          const values = Array.isArray(specValue) ? specValue : [specValue];
+          values.forEach((raw) => {
+            if (raw === null || raw === undefined || raw === "") return;
+            const cleaned = String(raw).trim();
+            if (!cleaned) return;
+            if (!map[specKey]) map[specKey] = new Set();
+            map[specKey].add(cleaned);
+          });
+        });
+      });
+    return Object.fromEntries(
+      Object.entries(map).map(([k, set]) => [k, Array.from(set).sort((a, b) => a.localeCompare(b))])
+    );
+  }, [products, newProductCategoryKey]);
 
   const editImageSrc = editProductForm?.image || "/assets/placeholder.jpg";
   const isAnyModalOpen = !!(
@@ -2010,91 +2094,135 @@ const renderBusinessInsights = () => (
             <div className="col-md-12 mt-2">
               <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
                 <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
-                {newProduct.category === "other" ? (
+                {newProduct.category ? (
                   <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
-                    + Add Field
-                  </button>
-                ) : newProduct.category ? (
-                  <button type="button" className="btn btn-sm btn-light" onClick={() => setShowCustomSpecInput(true)}>
                     New Field
                   </button>
                 ) : null}
               </div>
 
               <div className="p-3 border rounded-bottom bg-white">
-                {newProduct.category && newProduct.category !== "other" && showCustomSpecInput && (
-                  <div className="row g-2 mb-3 align-items-center">
-                    <div className="col-md-5">
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="Custom spec name"
-                        value={customFieldName}
-                        onChange={(e) => setCustomFieldName(e.target.value)}
-                      />
-                    </div>
-                    <div className="col-md-3">
-                      <button
-                        type="button"
-                        className="btn btn-outline-saas btn-sm w-100"
-                        onClick={addCustomField}
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <div className="col-md-4">
-                      <span className="text-muted small">Adds a custom spec field.</span>
-                    </div>
-                  </div>
-                )}
-                {Object.entries(newProduct.specs).map(([key, value], index) => (
-                  <div className="row g-2 mb-2 align-items-center" key={index}>
-                    <div className="col-md-5">
-                      {newProductTemplate ? (
+                {Object.entries(newProduct.specs).map(([key, value], index) => {
+                  const usedKeys = new Set(Object.keys(newProduct.specs));
+                  usedKeys.delete(key);
+                  const customDraft = customSpecDrafts[index];
+                  const selectValue = customDraft !== undefined ? "__custom__" : key;
+                  const showCustomInput = customDraft !== undefined;
+                  const valueOptions = key ? newProductValueOptions[key] || [] : [];
+                  const customValueDraft = customSpecValueDrafts[index];
+                  const normalizedValue = value === null || value === undefined ? "" : String(value);
+                  const valueSelectValue = customValueDraft !== undefined ? "__custom__" : normalizedValue;
+                  const showCustomValueInput = customValueDraft !== undefined;
+                  const hasValueOption = normalizedValue ? valueOptions.includes(normalizedValue) : false;
+                  return (
+                    <div className="row g-2 mb-2 align-items-center" key={index}>
+                      <div className="col-md-5">
                         <select
                           className="form-select form-select-sm"
-                          value={key}
-                          onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                          value={selectValue}
+                          onChange={(e) => handleSpecKeySelect(key, e.target.value, index)}
                         >
-                          {!newProductTemplateKeys.includes(key) && (
-                            <option value={key}>{key}</option>
+                          <option value="">Select spec</option>
+                          {key && !newProductAvailableKeys.includes(key) && (
+                            <option value={key}>{key.replace(/_/g, " ")}</option>
                           )}
-                          {newProductTemplateKeys.map((templateKey) => (
-                            <option key={templateKey} value={templateKey}>
-                              {templateKey.replace(/_/g, " ")}
+                          {newProductAvailableKeys.map((availableKey) => (
+                            <option
+                              key={availableKey}
+                              value={availableKey}
+                              disabled={usedKeys.has(availableKey)}
+                            >
+                              {availableKey.replace(/_/g, " ")}
                             </option>
                           ))}
+                          <option value="__custom__">Custom...</option>
                         </select>
-                      ) : (
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          placeholder="Spec Title"
-                          value={key}
-                          onChange={(e) => handleSpecKeyChange(key, e.target.value)}
-                        />
-                      )}
+                        {showCustomInput && (
+                          <div className="d-flex gap-2 mt-2">
+                            <input
+                              type="text"
+                              className="form-control form-control-sm"
+                              placeholder="Custom spec name"
+                              value={customSpecDrafts[index]}
+                              onChange={(e) =>
+                                setCustomSpecDrafts((prev) => ({ ...prev, [index]: e.target.value }))
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-outline-saas btn-sm"
+                              onClick={() => applyCustomSpecKey(key, customSpecDrafts[index], index)}
+                            >
+                              Add
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="col-md-6">
+                        {key ? (
+                          <>
+                            <select
+                              className="form-select form-select-sm"
+                              value={valueSelectValue}
+                              onChange={(e) => handleSpecValueSelect(key, e.target.value, index)}
+                            >
+                              <option value="">Select value</option>
+                              {!hasValueOption && normalizedValue ? (
+                                <option value={normalizedValue}>{normalizedValue}</option>
+                              ) : null}
+                              {valueOptions.map((opt) => (
+                                <option key={opt} value={opt}>
+                                  {opt}
+                                </option>
+                              ))}
+                              <option value="__custom__">Custom...</option>
+                            </select>
+                            {showCustomValueInput && (
+                              <div className="d-flex gap-2 mt-2">
+                                <input
+                                  type="text"
+                                  className="form-control form-control-sm"
+                                  placeholder="Custom value"
+                                  value={customSpecValueDrafts[index]}
+                                  onChange={(e) =>
+                                    setCustomSpecValueDrafts((prev) => ({ ...prev, [index]: e.target.value }))
+                                  }
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-saas btn-sm"
+                                  onClick={() =>
+                                    applyCustomSpecValue(key, customSpecValueDrafts[index], index)
+                                  }
+                                >
+                                  Add
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="Select spec first"
+                            value={value}
+                            disabled
+                            onChange={() => {}}
+                          />
+                        )}
+                      </div>
+                      <div className="col-md-1 text-center">
+                        <button
+                          type="button"
+                          className="btn btn-link btn-sm text-danger p-0"
+                          onClick={() => removeSpecField(key)}
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
-                    <div className="col-md-6">
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="Content"
-                        value={value}
-                        onChange={(e) => handleSpecValueChange(key, e.target.value)}
-                      />
-                    </div>
-                    <div className="col-md-1 text-center">
-                      <button
-                        type="button"
-                        className="btn btn-link btn-sm text-danger p-0"
-                        onClick={() => removeSpecField(key)}
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
