@@ -77,9 +77,10 @@ const AdminDashboard = () => {
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
+  const [policySlugFilter, setPolicySlugFilter] = useState("");
   const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
-  const [policyForm, setPolicyForm] = useState({ id: null, title: "", content: "" });
+  const [policyForm, setPolicyForm] = useState({ id: null, title: "", tag: "", content: "" });
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const emptyPromoForm = {
@@ -1326,7 +1327,7 @@ const renderManagement = () => (
                 setFaqForm({ id: null, question: "", answer: "" });
                 setShowFaqModal(true);
               } else {
-                setPolicyForm({ id: null, title: "", content: "" });
+                setPolicyForm({ id: null, title: "", tag: "", content: "" });
                 setShowPolicyModal(true);
               }
             }}
@@ -1403,38 +1404,58 @@ const renderManagement = () => (
         {managementTab === "policies" && (
           <div className="admin-grid">
             <div className="admin-card wide">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Existing policies</p>
-                  <h4>Manage documents</h4>
+                <div className="card-header">
+                  <div>
+                    <p className="eyebrow">Existing policies</p>
+                    <h4>Manage documents</h4>
+                  </div>
                 </div>
-              </div>
-              {policyLoading ? (
-                <p className="muted mb-0">Loading policies...</p>
-              ) : policyItems.length === 0 ? (
-                <p className="muted mb-0">No policies yet.</p>
-              ) : (
-                <div className="table-responsive management-scroll">
-                  <table className="dashboard-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Content</th>
-                        <th className="text-end" style={{ width: 160 }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {policyItems.map((item) => (
-                        <tr key={item.id}>
-                          <td className="fw-semibold">{item.title}</td>
-                          <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
-                          <td className="text-end">
-                            <div className="d-flex gap-2 justify-content-end">
-                              <button
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="policy-slug-filter">Filter by tag</label>
+                  <input
+                    id="policy-slug-filter"
+                    type="text"
+                    className="form-control"
+                    value={policySlugFilter}
+                    onChange={(e) => setPolicySlugFilter(e.target.value)}
+                    placeholder="e.g. privacy, terms, shipping-returns"
+                  />
+                </div>
+                {policyLoading ? (
+                  <p className="muted mb-0">Loading policies...</p>
+                ) : policyItems.length === 0 ? (
+                  <p className="muted mb-0">No policies yet.</p>
+                ) : (
+                  <div className="table-responsive management-scroll">
+                    <table className="dashboard-table">
+                      <thead>
+                        <tr>
+                          <th>Title</th>
+                          <th>Tag</th>
+                          <th>Content</th>
+                          <th className="text-end" style={{ width: 160 }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {policyItems
+                          .filter((item) => {
+                            if (!policySlugFilter.trim()) return true;
+                            return (item.slug || "")
+                              .toLowerCase()
+                              .includes(policySlugFilter.trim().toLowerCase());
+                          })
+                          .map((item) => (
+                          <tr key={item.id}>
+                            <td className="fw-semibold">{item.title}</td>
+                            <td>{item.slug || "-"}</td>
+                            <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
+                            <td className="text-end">
+                              <div className="d-flex gap-2 justify-content-end">
+                                <button
                                 type="button"
                                 className="btn btn-outline-saas btn-sm"
                                 onClick={() => {
-                                  setPolicyForm(item);
+                                  setPolicyForm({ ...item, tag: item.slug || "" });
                                   setShowPolicyModal(true);
                                 }}
                               >
@@ -2909,17 +2930,19 @@ const renderBusinessInsights = () => (
               if (policyForm.id) {
                 await updatePolicy(policyForm.id, {
                   title: policyForm.title.trim(),
+                  slug: policyForm.tag.trim() || null,
                   content: policyForm.content.trim(),
                 });
                 toast.success("Policy updated");
               } else {
                 await createPolicy({
                   title: policyForm.title.trim(),
+                  slug: policyForm.tag.trim() || null,
                   content: policyForm.content.trim(),
                 });
                 toast.success("Policy created");
               }
-              setPolicyForm({ id: null, title: "", content: "" });
+              setPolicyForm({ id: null, title: "", tag: "", content: "" });
               setShowPolicyModal(false);
               await loadPolicies();
             } catch (err) {
@@ -2937,6 +2960,20 @@ const renderBusinessInsights = () => (
               onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
               placeholder="Policy title"
             />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-tag">Tag</label>
+            <input
+              id="policy-tag"
+              type="text"
+              className="form-control"
+              value={policyForm.tag}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, tag: e.target.value }))}
+              placeholder="privacy | terms | shipping-returns"
+            />
+            <div className="muted tiny mt-1">
+              Used for public pages. You can reuse the same tag on multiple policies.
+            </div>
           </div>
           <div className="mb-3">
             <label className="form-label" htmlFor="policy-content">Content</label>
@@ -2957,7 +2994,7 @@ const renderBusinessInsights = () => (
               <button
                 type="button"
                 className="btn btn-outline-saas"
-                onClick={() => setPolicyForm({ id: null, title: "", content: "" })}
+                onClick={() => setPolicyForm({ id: null, title: "", tag: "", content: "" })}
               >
                 Clear
               </button>
