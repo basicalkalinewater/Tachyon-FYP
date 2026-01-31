@@ -3421,7 +3421,10 @@ const renderInventory = () => (
         ) : (
           inventoryItems.map(({ product, stock }) => {
             const qty = Number(stock?.quantity_available ?? 0);
-            const threshold = Number(stock?.low_stock_threshold ?? 15);
+            const rawThreshold = stock?.low_stock_threshold;
+            const hasThreshold = Number.isFinite(Number(rawThreshold));
+            const threshold = hasThreshold ? Number(rawThreshold) : 15;
+            const thresholdLabel = hasThreshold ? threshold : "-";
             const hasStock = !!stock;
 
             let statusText = "In Stock";
@@ -3504,9 +3507,7 @@ const renderInventory = () => (
                           {statusText.toUpperCase()}
                         </span>
                       </div>
-                      {hasStock && (
-                        <p className="muted tiny mb-0">Threshold: {threshold}</p>
-                      )}
+                      <p className="muted tiny mb-0">Threshold: {thresholdLabel}</p>
                     </div>
 
                     <div className="d-flex gap-2">

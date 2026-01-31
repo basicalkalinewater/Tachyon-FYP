@@ -80,7 +80,30 @@ const Product = () => {
     );
   };
 
+  const formatSpecLabel = (key) =>
+    String(key || "")
+      .replace(/[_-]+/g, " ")
+      .trim()
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+
   const ShowProduct = () => {
+    const specs = product?.specs || {};
+    const rawSpecEntries = Object.entries(specs).filter(([, value]) => value !== "" && value !== null && value !== undefined);
+    const knownSpecKeys = new Set([
+      "panel_type",
+      "refresh_hz",
+      "screen_size_inches",
+      "resolution",
+      "size",
+      "switch_type",
+      "connection",
+      "polling_hz",
+      "capacity_gb",
+      "interface",
+      "read_mb_s",
+      "write_mb_s"
+    ]);
+    const extraSpecEntries = rawSpecEntries.filter(([key]) => !knownSpecKeys.has(key));
     return (
       <>
         <div className="container my-5 py-2">
@@ -129,36 +152,46 @@ const Product = () => {
                 );
               })()}
               <p className="lead text-muted mb-5">{product.description}</p>
-              {product.specs && (
-                <div className="p-4 rounded-4 mb-5 border border-light" style={{ backgroundColor: "var(--bg-card)" }}>
-                  <h6 className="fw-bold mb-3" style={{ color: "var(--text-main)" }}>
-                    Specifications
-                  </h6>
+              <div className="p-4 rounded-4 mb-5 border border-light" style={{ backgroundColor: "var(--bg-card)" }}>
+                <h6 className="fw-bold mb-3" style={{ color: "var(--text-main)" }}>
+                  Specifications
+                </h6>
+                {rawSpecEntries.length === 0 ? (
+                  <p className="mb-0 small" style={{ color: "var(--text-muted)" }}>
+                    Specs coming soon
+                  </p>
+                ) : (
                   <ul className="list-unstyled mb-0 small" style={{ color: "var(--text-muted)" }}>
-                    {product.specs.panel_type && <li className="mb-2"><strong>Panel:</strong> {product.specs.panel_type}</li>}
-                    {product.specs.refresh_hz && <li className="mb-2"><strong>Refresh:</strong> {product.specs.refresh_hz}Hz</li>}
-                    {product.specs.screen_size_inches && (
-                      <li className="mb-2"><strong>Size:</strong> {product.specs.screen_size_inches}"</li>
+                    {specs.panel_type && <li className="mb-2"><strong>Panel:</strong> {specs.panel_type}</li>}
+                    {specs.refresh_hz && <li className="mb-2"><strong>Refresh:</strong> {specs.refresh_hz}Hz</li>}
+                    {specs.screen_size_inches && (
+                      <li className="mb-2"><strong>Size:</strong> {specs.screen_size_inches}"</li>
                     )}
-                    {product.specs.resolution && <li className="mb-2"><strong>Resolution:</strong> {product.specs.resolution}</li>}
-                    {product.specs.size && <li className="mb-2"><strong>Size:</strong> {product.specs.size}</li>}
-                    {product.specs.switch_type && <li className="mb-2"><strong>Switch:</strong> {product.specs.switch_type}</li>}
-                    {product.specs.connection && (
+                    {specs.resolution && <li className="mb-2"><strong>Resolution:</strong> {specs.resolution}</li>}
+                    {specs.size && <li className="mb-2"><strong>Size:</strong> {specs.size}</li>}
+                    {specs.switch_type && <li className="mb-2"><strong>Switch:</strong> {specs.switch_type}</li>}
+                    {specs.connection && (
                       <li className="mb-2">
                         <strong>Connection:</strong>{" "}
-                        {Array.isArray(product.specs.connection)
-                          ? product.specs.connection.join(", ")
-                          : product.specs.connection}
+                        {Array.isArray(specs.connection)
+                          ? specs.connection.join(", ")
+                          : specs.connection}
                       </li>
                     )}
-                    {product.specs.polling_hz && <li className="mb-2"><strong>Polling:</strong> {product.specs.polling_hz}Hz</li>}
-                    {product.specs.capacity_gb && <li className="mb-2"><strong>Capacity:</strong> {product.specs.capacity_gb}GB</li>}
-                    {product.specs.interface && <li className="mb-2"><strong>Interface:</strong> {product.specs.interface}</li>}
-                    {product.specs.read_mb_s && <li className="mb-2"><strong>Read:</strong> {product.specs.read_mb_s} MB/s</li>}
-                    {product.specs.write_mb_s && <li className="mb-2"><strong>Write:</strong> {product.specs.write_mb_s} MB/s</li>}
+                    {specs.polling_hz && <li className="mb-2"><strong>Polling:</strong> {specs.polling_hz}Hz</li>}
+                    {specs.capacity_gb && <li className="mb-2"><strong>Capacity:</strong> {specs.capacity_gb}GB</li>}
+                    {specs.interface && <li className="mb-2"><strong>Interface:</strong> {specs.interface}</li>}
+                    {specs.read_mb_s && <li className="mb-2"><strong>Read:</strong> {specs.read_mb_s} MB/s</li>}
+                    {specs.write_mb_s && <li className="mb-2"><strong>Write:</strong> {specs.write_mb_s} MB/s</li>}
+                    {extraSpecEntries.map(([key, value]) => (
+                      <li className="mb-2" key={key}>
+                        <strong>{formatSpecLabel(key)}:</strong>{" "}
+                        {Array.isArray(value) ? value.join(", ") : String(value)}
+                      </li>
+                    ))}
                   </ul>
-                </div>
-              )}
+                )}
+              </div>
               <div className="d-flex gap-3">
                 <button className="btn btn-outline-saas btn-lg px-4" onClick={() => addProduct(product)}>
                   Add to Cart
