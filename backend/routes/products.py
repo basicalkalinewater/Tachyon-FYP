@@ -1,6 +1,7 @@
 import os
 import logging
 import json
+import re
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -22,6 +23,20 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def safe_category_folder(category):
+    if not category:
+        return "uncategorized"
+    raw = re.sub(r"[^a-z0-9]+", "-", str(category).lower()).strip("-")
+    if not raw:
+        return "uncategorized"
+    if raw == "mice":
+        return "mouse"
+    if raw in {"other", "others"}:
+        return "others"
+    if raw in {"keyboard", "mouse", "monitor", "ssd"}:
+        return raw
+    return "uncategorized"
+
 @products_bp.route("/", methods=["GET", "POST"])
 def handle_products_collection():
     supabase = current_app.config["SUPABASE"]
@@ -30,8 +45,48 @@ def handle_products_collection():
         return jsonify([map_product(r) for r in res.data or []])
 
     if request.method == "POST":
-        # logic for creation...
-        return jsonify({"message": "creation logic here"}), 201
+        try:
+            payload = {}
+            form = request.form or {}
+
+            # Basic text fields
+            for field in ["title", "category", "price", "Brand", "description"]:
+                val = form.get(field)
+                if val is not None and val != "":
+                    payload[field] = float(val) if field == "price" else val
+
+            # Specs JSON
+            if form.get("specs"):
+                try:
+                    payload["specs"] = json.loads(form.get("specs"))
+                except json.JSONDecodeError:
+                    return jsonify({"error": "Invalid specs JSON"}), 400
+
+            # Image handling
+            if "image" in request.files:
+                file = request.files["image"]
+                if file and allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    category_folder = safe_category_folder(payload.get("category"))
+                    category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
+                    os.makedirs(category_path, exist_ok=True)
+                    save_path = os.path.join(category_path, filename)
+                    file.save(save_path)
+                    payload["image_url"] = f"/assets/products/{category_folder}/{filename}"
+                else:
+                    return jsonify({"error": "Invalid image file type"}), 400
+
+            if "title" not in payload or "price" not in payload:
+                return jsonify({"error": "Missing required fields: title and price"}), 400
+
+            res = supabase.table("products").insert(payload).execute()
+            if not res.data:
+                return jsonify({"error": "Create failed in Database"}), 500
+
+            return jsonify(map_product(res.data[0])), 201
+        except Exception as err:
+            logging.error(f"Create Product Error: {err}", exc_info=True)
+            return jsonify({"error": str(err)}), 500
 
 @products_bp.route("/<string:product_id>", methods=["GET", "PUT", "DELETE"])
 def handle_product_by_id(product_id):
@@ -59,15 +114,21 @@ def handle_product_by_id(product_id):
                 file = request.files['image']
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
-                    
-                    # Force creation of path
-                    os.makedirs(FRONTEND_ASSETS_PATH, exist_ok=True)
-                    
-                    save_path = os.path.join(FRONTEND_ASSETS_PATH, filename)
+
+                    category_for_image = update_payload.get("category")
+                    if not category_for_image:
+                        existing = supabase.table("products").select("category").eq("id", product_id).maybe_single().execute()
+                        if existing.data:
+                            category_for_image = existing.data.get("category")
+
+                    category_folder = safe_category_folder(category_for_image)
+                    category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
+                    os.makedirs(category_path, exist_ok=True)
+                    save_path = os.path.join(category_path, filename)
                     file.save(save_path)
                     
                     print(f"SUCCESS: Saved image to {save_path}")
-                    update_payload["image_url"] = f"/assets/products/{filename}"
+                    update_payload["image_url"] = f"/assets/products/{category_folder}/{filename}"
                 else:
                     print("WARNING: File present but extension not allowed or file empty.")
             else:
