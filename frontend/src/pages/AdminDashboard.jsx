@@ -2118,7 +2118,7 @@ const renderBusinessInsights = () => (
                     <div className="row g-2 mb-2 align-items-center" key={index}>
                       <div className="col-md-5">
                         <select
-                          className="form-select form-select-sm"
+                          className="form-select"
                           value={selectValue}
                           onChange={(e) => handleSpecKeySelect(key, e.target.value, index)}
                         >
@@ -2162,7 +2162,7 @@ const renderBusinessInsights = () => (
                         {key ? (
                           <>
                             <select
-                              className="form-select form-select-sm"
+                              className="form-select"
                               value={valueSelectValue}
                               onChange={(e) => handleSpecValueSelect(key, e.target.value, index)}
                             >
