@@ -469,7 +469,8 @@ const AdminDashboard = () => {
 
     try {
       // 3. Pass the formData to your API helper
-      await updateProduct(editProductForm.id, formData);
+      const res = await updateProduct(editProductForm.id, formData);
+      if (res?.warning) toast.error(res.warning);
       
       toast.success("Product updated successfully");
       setEditImagePreview("");
@@ -507,7 +508,8 @@ const AdminDashboard = () => {
     }
     try {
       // Note: ensure your createProduct API function can handle FormData
-      await createProduct(formData);
+      const res = await createProduct(formData);
+      if (res?.warning) toast.error(res.warning);
       toast.success(`Product added to ${finalCategory}!`);
       setShowCreateProductForm(false);
       // Reset state
@@ -1710,6 +1712,7 @@ const renderBusinessInsights = () => (
           {insightsHistoryLoading ? "Loading..." : "Refresh"}
         </button>
       </div>
+      <div className="results-count">{insightsHistory.length} results found</div>
       <div className="table-responsive">
         <table className="dashboard-table">
           <thead>
@@ -1799,6 +1802,7 @@ const renderBusinessInsights = () => (
               New Promo
             </button>
           </div>
+          <div className="results-count">{promoItems.length} results found</div>
 
         <div className="admin-grid">
           <div className="admin-card">
@@ -1847,8 +1851,29 @@ const renderBusinessInsights = () => (
                           {describeWindow(promo.starts_at || promo.startsAt, promo.expires_at || promo.expiresAt)}
                         </td>
                         <td className="small">
-                          {(promo.times_redeemed ?? promo.timesRedeemed ?? 0).toLocaleString()}
-                          {promo.max_uses || promo.maxUses ? ` / ${(promo.max_uses ?? promo.maxUses).toLocaleString()}` : ""}
+                          {(() => {
+                            const used = Number(promo.times_redeemed ?? promo.timesRedeemed ?? 0);
+                            const max = promo.max_uses ?? promo.maxUses;
+                            const hasMax = max !== null && max !== undefined && max !== "";
+                            const maxNum = hasMax ? Number(max) : null;
+                            const remaining = hasMax && Number.isFinite(maxNum) ? Math.max(maxNum - used, 0) : null;
+                            return (
+                              <>
+                                {used.toLocaleString()}
+                                {hasMax && Number.isFinite(maxNum) ? (
+                                  <>
+                                    {" "}
+                                    / {maxNum.toLocaleString()} used
+                                    <span className="ms-2 text-muted">
+                                      ({remaining?.toLocaleString()} left)
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="ms-2 text-muted">(Unlimited)</span>
+                                )}
+                              </>
+                            );
+                          })()}
                         </td>
                         <td className="text-end">
                           <div className="d-flex gap-2 justify-content-end">
@@ -1931,6 +1956,7 @@ const renderBusinessInsights = () => (
             New Promotion
           </button>
         </div>
+        <div className="results-count">{promotionItems.length} results found</div>
 
         <div className="admin-grid">
           <div className="admin-card">
@@ -3215,6 +3241,7 @@ const renderBusinessInsights = () => (
             New User
           </button>
         </div>
+        <div className="results-count">{users.length} results found</div>
 
         <div className="admin-grid">
           <div className="admin-card">
@@ -3577,6 +3604,7 @@ const renderInventory = () => (
           </button>
         </div>
       </div>
+      <div className="results-count">{inventoryItems.length} results found</div>
 
       <div className="admin-grid">
         {productsLoading || stocksLoading ? (

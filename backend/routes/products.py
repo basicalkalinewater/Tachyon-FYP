@@ -37,6 +37,14 @@ def safe_category_folder(category):
         return raw
     return "uncategorized"
 
+
+def _image_folder_warning(category, category_folder):
+    if not category:
+        return None
+    if category_folder != "uncategorized":
+        return None
+    return f"Image saved to 'uncategorized' because category '{category}' is not a supported image folder."
+
 @products_bp.route("/", methods=["GET", "POST"])
 def handle_products_collection():
     supabase = current_app.config["SUPABASE"]
@@ -62,12 +70,14 @@ def handle_products_collection():
                 except json.JSONDecodeError:
                     return jsonify({"error": "Invalid specs JSON"}), 400
 
+            warning = None
             # Image handling
             if "image" in request.files:
                 file = request.files["image"]
                 if file and allowed_file(file.filename):
                     filename = secure_filename(file.filename)
                     category_folder = safe_category_folder(payload.get("category"))
+                    warning = _image_folder_warning(payload.get("category"), category_folder)
                     category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
                     os.makedirs(category_path, exist_ok=True)
                     save_path = os.path.join(category_path, filename)
@@ -83,7 +93,11 @@ def handle_products_collection():
             if not res.data:
                 return jsonify({"error": "Create failed in Database"}), 500
 
-            return jsonify(map_product(res.data[0])), 201
+            product = map_product(res.data[0])
+            if warning:
+                logging.warning(warning)
+                product["warning"] = warning
+            return jsonify(product), 201
         except Exception as err:
             logging.error(f"Create Product Error: {err}", exc_info=True)
             return jsonify({"error": str(err)}), 500
@@ -98,6 +112,7 @@ def handle_product_by_id(product_id):
             print(f"Files received: {request.files.keys()}") # <--- CHECK THIS IN YOUR TERMINAL
 
             update_payload = {}
+            warning = None
             
             # Text fields
             for field in ["title", "category", "price", "Brand", "description"]:
@@ -122,6 +137,7 @@ def handle_product_by_id(product_id):
                             category_for_image = existing.data.get("category")
 
                     category_folder = safe_category_folder(category_for_image)
+                    warning = _image_folder_warning(category_for_image, category_folder)
                     category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
                     os.makedirs(category_path, exist_ok=True)
                     save_path = os.path.join(category_path, filename)
@@ -140,7 +156,11 @@ def handle_product_by_id(product_id):
             if not res.data:
                 return jsonify({"error": "Update failed in Database"}), 404
                 
-            return jsonify(map_product(res.data[0])), 200
+            product = map_product(res.data[0])
+            if warning:
+                logging.warning(warning)
+                product["warning"] = warning
+            return jsonify(product), 200
 
         elif request.method == "GET":
             res = supabase.table("products").select("*").eq("id", product_id).maybe_single().execute()

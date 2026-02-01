@@ -379,6 +379,22 @@ h1 {
   font-size: 0.82rem;
 }
 
+.results-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 12px;
+  border-radius: 999px;
+  background: var(--ad-surface-2);
+  border: 1px solid var(--ad-border);
+  color: var(--ad-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+}
+
 .card-header {
   display: flex;
   align-items: center;
