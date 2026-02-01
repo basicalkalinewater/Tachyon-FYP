@@ -3625,20 +3625,20 @@ const renderInventory = () => (
             const hasStock = !!stock;
 
             let statusText = "In Stock";
-            let statusColor = "#2c7a7b";
-            let statusBg = "#e6fffa";
+            let statusClass = "stock-status is-ok";
+            let qtyClass = "stock-qty is-ok";
             if (!hasStock) {
               statusText = "No Stock Record";
-              statusColor = "#718096";
-              statusBg = "#edf2f7";
+              statusClass = "stock-status is-none";
+              qtyClass = "stock-qty is-none";
             } else if (qty <= 0) {
               statusText = "Out of Stock";
-              statusColor = "#e53e3e";
-              statusBg = "#fff5f5";
+              statusClass = "stock-status is-out";
+              qtyClass = "stock-qty is-out";
             } else if (qty <= threshold) {
               statusText = "Low Stock";
-              statusColor = "#dd6b20";
-              statusBg = "#fffaf0";
+              statusClass = "stock-status is-low";
+              qtyClass = "stock-qty is-low";
             }
 
             return (
@@ -3682,25 +3682,13 @@ const renderInventory = () => (
                   </div>
                 </div>
 
-                <div className="inventory-stock-panel mt-3 p-3 rounded bg-light">
+                <div className="inventory-stock-panel mt-3 p-3 rounded">
                   <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div>
                       <p className="muted tiny mb-1">Stock</p>
                       <div className="d-flex align-items-center gap-2">
-                        <strong style={{ color: !hasStock ? "inherit" : qty <= threshold ? "#e53e3e" : "inherit" }}>
-                          {hasStock ? qty : "-"}
-                        </strong>
-                        <span
-                          style={{
-                            backgroundColor: statusBg,
-                            color: statusColor,
-                            padding: "4px 10px",
-                            borderRadius: "20px",
-                            fontSize: "11px",
-                            fontWeight: "700",
-                            border: `1px solid ${statusColor}22`,
-                          }}
-                        >
+                        <strong className={qtyClass}>{hasStock ? qty : "-"}</strong>
+                        <span className={statusClass}>
                           {statusText.toUpperCase()}
                         </span>
                       </div>

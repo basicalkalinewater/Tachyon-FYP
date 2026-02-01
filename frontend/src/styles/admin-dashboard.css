@@ -11,6 +11,18 @@
   --ad-accent: #6366f1;
   --ad-accent-2: #0ea5e9;
   --ad-accent-soft: rgba(99, 102, 241, 0.12);
+  --ad-success-bg: #dcfce7;
+  --ad-success-text: #166534;
+  --ad-muted-bg: #e2e8f0;
+  --ad-muted-text: #475569;
+  --ad-stock-ok-bg: #e0f2fe;
+  --ad-stock-ok-text: #0369a1;
+  --ad-stock-low-bg: #fff7ed;
+  --ad-stock-low-text: #b45309;
+  --ad-stock-out-bg: #fee2e2;
+  --ad-stock-out-text: #b91c1c;
+  --ad-stock-none-bg: #e2e8f0;
+  --ad-stock-none-text: #64748b;
   --ad-radius: 18px;
   --ad-shadow: 0 22px 60px -38px rgba(15, 23, 42, 0.45);
 }
@@ -28,6 +40,18 @@
   --ad-accent: #a78bfa;
   --ad-accent-2: #38bdf8;
   --ad-accent-soft: rgba(167, 139, 250, 0.18);
+  --ad-success-bg: rgba(34, 197, 94, 0.2);
+  --ad-success-text: #86efac;
+  --ad-muted-bg: rgba(148, 163, 184, 0.18);
+  --ad-muted-text: #cbd5f5;
+  --ad-stock-ok-bg: rgba(14, 165, 233, 0.18);
+  --ad-stock-ok-text: #7dd3fc;
+  --ad-stock-low-bg: rgba(245, 158, 11, 0.18);
+  --ad-stock-low-text: #fbbf24;
+  --ad-stock-out-bg: rgba(239, 68, 68, 0.18);
+  --ad-stock-out-text: #fca5a5;
+  --ad-stock-none-bg: rgba(148, 163, 184, 0.18);
+  --ad-stock-none-text: #cbd5f5;
   --ad-shadow: 0 28px 90px -48px rgba(0, 0, 0, 0.75);
 }
 
@@ -282,6 +306,76 @@
 
 .inventory-stock-panel {
   min-height: 120px;
+  background: var(--ad-surface-2);
+  border: 1px solid var(--ad-border);
+}
+
+.stock-qty {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.stock-qty.is-ok {
+  color: var(--ad-text);
+}
+
+.stock-qty.is-low,
+.stock-qty.is-out {
+  color: var(--ad-stock-out-text);
+}
+
+.stock-qty.is-none {
+  color: var(--ad-muted);
+}
+
+.stock-status {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+  letter-spacing: 0.35px;
+}
+
+.stock-status.is-ok {
+  background: var(--ad-stock-ok-bg);
+  color: var(--ad-stock-ok-text);
+  border-color: color-mix(in srgb, var(--ad-stock-ok-text) 28%, transparent);
+}
+
+.stock-status.is-low {
+  background: var(--ad-stock-low-bg);
+  color: var(--ad-stock-low-text);
+  border-color: color-mix(in srgb, var(--ad-stock-low-text) 28%, transparent);
+}
+
+.stock-status.is-out {
+  background: var(--ad-stock-out-bg);
+  color: var(--ad-stock-out-text);
+  border-color: color-mix(in srgb, var(--ad-stock-out-text) 28%, transparent);
+}
+
+.stock-status.is-none {
+  background: var(--ad-stock-none-bg);
+  color: var(--ad-stock-none-text);
+  border-color: color-mix(in srgb, var(--ad-stock-none-text) 28%, transparent);
+}
+
+.admin-dashboard-page .inventory-actions .btn-outline-saas,
+.admin-dashboard-page .inventory-stock-panel .btn-outline-saas {
+  border-color: var(--ad-accent);
+  color: var(--ad-accent);
+}
+
+.admin-dashboard-page .inventory-actions .btn-outline-saas:hover,
+.admin-dashboard-page .inventory-stock-panel .btn-outline-saas:hover {
+  background: var(--ad-accent-soft);
+  color: var(--ad-accent);
+}
+
+.admin-dashboard-page .inventory-actions .btn-primary-saas,
+.admin-dashboard-page .inventory-stock-panel .btn-primary-saas {
+  box-shadow: 0 14px 28px -20px rgba(14, 165, 233, 0.55);
 }
 
 .admin-card.metric {
@@ -491,6 +585,18 @@ h1 {
   color: var(--ad-accent);
   font-weight: 700;
   font-size: 0.82rem;
+}
+
+.admin-dashboard-page .badge.rounded-pill.bg-success {
+  background: var(--ad-success-bg) !important;
+  color: var(--ad-success-text) !important;
+  border: 1px solid color-mix(in srgb, var(--ad-success-text) 25%, transparent);
+}
+
+.admin-dashboard-page .badge.rounded-pill.bg-secondary {
+  background: var(--ad-muted-bg) !important;
+  color: var(--ad-muted-text) !important;
+  border: 1px solid color-mix(in srgb, var(--ad-muted-text) 25%, transparent);
 }
 
 .badge.soft {
