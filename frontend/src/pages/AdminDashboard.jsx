@@ -138,6 +138,7 @@ const AdminDashboard = () => {
   const [editProductSaving, setEditProductSaving] = useState(false);
   const [showCreateProductForm, setShowCreateProductForm] = useState(false);
   const [editImagePreview, setEditImagePreview] = useState("");
+  const [newProductImageKey, setNewProductImageKey] = useState(0);
   const [newProduct, setNewProduct] = useState({
   title: "",
   Brand: "",
@@ -530,6 +531,7 @@ const AdminDashboard = () => {
     setCustomCategory("");
     setCustomSpecDrafts({});
     setCustomSpecValueDrafts({});
+    setNewProductImageKey((prev) => prev + 1);
   };
 
   const handleDeleteProduct = async (id, title) => {
@@ -852,9 +854,47 @@ const handleStockSubmit = async (productId) => {
     }
   };
 
+  const resetFaqForm = () => setFaqForm({ id: null, question: "", answer: "" });
+  const resetPolicyForm = () => setPolicyForm({ id: null, title: "", tag: "", content: "" });
   const resetPromoForm = () => setPromoForm(emptyPromoForm);
   const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
   const isValidPromoCode = (value) => /^[A-Za-z0-9]+$/.test(value);
+  const closeCreateProductModal = () => {
+    setShowCreateProductForm(false);
+    resetNewProductForm();
+  };
+  const closeEditProductModal = () => {
+    setEditProductForm(null);
+    setEditImagePreview("");
+  };
+  const closeCreatePromoModal = () => {
+    setShowCreatePromoForm(false);
+    resetPromoForm();
+  };
+  const closeEditPromoModal = () => setEditPromoForm(null);
+  const closeCreatePromotionModal = () => {
+    setShowCreatePromotionForm(false);
+    resetPromotionForm();
+  };
+  const closeEditPromotionModal = () => setEditPromotionForm(null);
+  const closeFaqModal = () => {
+    setShowFaqModal(false);
+    resetFaqForm();
+  };
+  const closePolicyModal = () => {
+    setShowPolicyModal(false);
+    resetPolicyForm();
+  };
+  const closeCreateUserModal = () => {
+    if (userSaving) return;
+    setShowCreateForm(false);
+    setUserForm({ id: null, email: "", role: "customer", full_name: "", phone: "", password: "", status: "active" });
+  };
+  const closeEditUserModal = () => {
+    if (editUserSaving) return;
+    setEditUserForm(null);
+  };
+
 
   const handlePromoSubmit = async (e) => {
     e.preventDefault();
@@ -1989,7 +2029,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Create product"
-      onClick={() => setShowCreateProductForm(false)}
+      onClick={closeCreateProductModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -1997,7 +2037,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Product Management</p>
             <h4>Create New Product</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreateProductForm(false)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreateProductModal}>
             Close
           </button>
         </div>
@@ -2072,6 +2112,7 @@ const renderBusinessInsights = () => (
             <div className="col-md-8">
               <label className="small fw-bold text-success">Product Image (Upload)</label>
               <input
+                key={newProductImageKey}
                 type="file"
                 className="form-control"
                 accept="image/*"
@@ -2246,7 +2287,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Edit product"
-      onClick={() => setEditProductForm(null)}
+      onClick={closeEditProductModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2254,7 +2295,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Product Management</p>
             <h4>Edit Product: {editProductForm.title}</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditProductForm(null)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditProductModal}>
             Close
           </button>
         </div>
@@ -2365,7 +2406,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Create new promo"
-      onClick={() => setShowCreatePromoForm(false)}
+      onClick={closeCreatePromoModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2373,7 +2414,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Create Promo</p>
             <h4>New Promo Code</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromoForm(false)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromoModal}>
             Close
           </button>
         </div>
@@ -2497,7 +2538,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Edit promo"
-      onClick={() => setEditPromoForm(null)}
+      onClick={closeEditPromoModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2505,7 +2546,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Edit promo</p>
             <h4>{editPromoForm.code}</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromoForm(null)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromoModal}>
             Close
           </button>
         </div>
@@ -2614,7 +2655,7 @@ const renderBusinessInsights = () => (
             <button type="submit" className="btn btn-primary-saas">
               Save changes
             </button>
-            <button type="button" className="btn btn-outline-saas" onClick={() => setEditPromoForm(null)}>
+            <button type="button" className="btn btn-outline-saas" onClick={closeEditPromoModal}>
               Cancel
             </button>
           </div>
@@ -2629,7 +2670,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Create new promotion"
-      onClick={() => setShowCreatePromotionForm(false)}
+      onClick={closeCreatePromotionModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2637,7 +2678,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Create Promotion</p>
             <h4>New auto-applied discount</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setShowCreatePromotionForm(false)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromotionModal}>
             Close
           </button>
         </div>
@@ -2790,7 +2831,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label="Edit promotion"
-      onClick={() => setEditPromotionForm(null)}
+      onClick={closeEditPromotionModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2798,7 +2839,7 @@ const renderBusinessInsights = () => (
             <p className="eyebrow">Edit promotion</p>
             <h4>Update auto-applied discount</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => setEditPromotionForm(null)}>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromotionModal}>
             Close
           </button>
         </div>
@@ -2943,7 +2984,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label={faqForm.id ? "Edit FAQ" : "Create FAQ"}
-      onClick={() => setShowFaqModal(false)}
+      onClick={closeFaqModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -2954,7 +2995,7 @@ const renderBusinessInsights = () => (
           <button
             type="button"
             className="btn btn-outline-saas btn-sm"
-            onClick={() => setShowFaqModal(false)}
+            onClick={closeFaqModal}
           >
             Close
           </button>
@@ -3033,7 +3074,7 @@ const renderBusinessInsights = () => (
       role="dialog"
       aria-modal="true"
       aria-label={policyForm.id ? "Edit policy" : "Create policy"}
-      onClick={() => setShowPolicyModal(false)}
+      onClick={closePolicyModal}
     >
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
@@ -3044,7 +3085,7 @@ const renderBusinessInsights = () => (
           <button
             type="button"
             className="btn btn-outline-saas btn-sm"
-            onClick={() => setShowPolicyModal(false)}
+            onClick={closePolicyModal}
           >
             Close
           </button>
@@ -3171,7 +3212,7 @@ const renderBusinessInsights = () => (
             onClick={startCreateUser}
             disabled={usersLoading}
           >
-            New user
+            New User
           </button>
         </div>
 
@@ -3246,7 +3287,7 @@ const renderBusinessInsights = () => (
           role="dialog"
           aria-modal="true"
           aria-label="Create new user"
-          onClick={() => !userSaving && setShowCreateForm(false)}
+          onClick={closeCreateUserModal}
         >
           <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
@@ -3257,7 +3298,7 @@ const renderBusinessInsights = () => (
               <button
                 type="button"
                 className="btn btn-outline-saas btn-sm"
-                onClick={() => setShowCreateForm(false)}
+                onClick={closeCreateUserModal}
                 disabled={userSaving}
               >
                 Close
@@ -3370,7 +3411,7 @@ const renderBusinessInsights = () => (
           role="dialog"
           aria-modal="true"
           aria-label="Edit user"
-          onClick={() => !editUserSaving && setEditUserForm(null)}
+          onClick={closeEditUserModal}
         >
           <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
             <div className="card-header">
@@ -3381,7 +3422,7 @@ const renderBusinessInsights = () => (
               <button
                 type="button"
                 className="btn btn-outline-saas btn-sm"
-                onClick={() => setEditUserForm(null)}
+                onClick={closeEditUserModal}
                 disabled={editUserSaving}
               >
                 Close
