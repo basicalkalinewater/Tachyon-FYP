@@ -229,15 +229,6 @@ const ProductsList = () => {
                   <h5 className="card-title fw-bold mb-1 text-truncate" title={product.title}>{product.title}</h5>
                   <p className="text-muted small mb-3 text-capitalize">{product.category}</p>
 
-                  {product.specs && (
-                    <div className="mb-3 small text-muted">
-                      {/* Show only key specs to keep it clean */}
-                      {product.specs.screen_size_inches && <div>Size: {product.specs.screen_size_inches}"</div>}
-                      {product.specs.capacity_gb && <div>Capacity: {product.specs.capacity_gb}GB</div>}
-                      {product.specs.switch_type && <div>Switch: {product.specs.switch_type}</div>}
-                    </div>
-                  )}
-
                   <div className="mt-auto">
                     <div className="d-flex align-items-center justify-content-between mb-3">
                       {(() => {
