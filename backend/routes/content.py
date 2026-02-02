@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, jsonify
+from flask import Blueprint, current_app, jsonify, request
 
 from services import content_service
 
@@ -14,6 +14,14 @@ def _ok(data=None):
 def public_faqs():
     supabase = current_app.config["SUPABASE"]
     data = content_service.list_faqs(supabase)
+    return _ok(data)
+
+
+@content_bp.get("/faqs/search")
+def public_faq_search():
+    supabase = current_app.config["SUPABASE"]
+    query = (request.args.get("q") or "").strip()
+    data = content_service.search_faqs(supabase, query, limit=3)
     return _ok(data)
 
 

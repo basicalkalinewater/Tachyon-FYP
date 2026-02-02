@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../redux/authSlice";
 import { SUPPORT_BASE_URL } from "../api/client";
+import { fetchFaqs, searchFaqs } from "../api/content";
 import "../styles/RasaWidget.css";
 
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
@@ -71,6 +72,7 @@ const RasaWidget = () => {
   const [messages, setMessages] = useState([
     { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
   ]);
+  const [faqMenu, setFaqMenu] = useState({ open: false, loading: false, items: [] });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [mode, setMode] = useState("bot"); // bot | agent
@@ -119,6 +121,25 @@ const RasaWidget = () => {
       ...prev,
       { from, text, timestamp: timestamp || Date.now(), type: isCsat ? "csat" : "text" },
     ]);
+  };
+
+  const openFaqMenu = async () => {
+    setFaqMenu({ open: true, loading: true, items: [] });
+    try {
+      const res = await fetchFaqs();
+      const list = res?.data || res || [];
+      setFaqMenu({ open: true, loading: false, items: Array.isArray(list) ? list : [] });
+    } catch {
+      setFaqMenu({ open: true, loading: false, items: [] });
+    }
+  };
+
+  const closeFaqMenu = () => {
+    setFaqMenu((prev) => ({ ...prev, open: false }));
+  };
+
+  const sendPolicyBlurb = (title, summary, link) => {
+    appendMessage("bot", `${summary}\n\n[View full ${title}](${link})`);
   };
 
   const fetchSessionMessages = async (sessId) => {
@@ -442,6 +463,19 @@ const RasaWidget = () => {
     if (mode === "agent" && sessionId) {
       await sendToAgent(trimmed);
     } else {
+      try {
+        if (trimmed.length >= 3) {
+          const res = await searchFaqs(trimmed);
+          const list = res?.data || res || [];
+          if (Array.isArray(list) && list.length > 0) {
+            const top = list[0];
+            appendMessage("bot", top.answer || "Here's what I found in our FAQs.");
+            return;
+          }
+        }
+      } catch {
+        // ignore and fallback to Rasa
+      }
       await sendToBot(trimmed);
     }
   };
@@ -566,6 +600,35 @@ const RasaWidget = () => {
                       </div>
                     </div>
                   ))}
+                  {faqMenu.open && (
+                    <div className="chat-message bot">
+                      <div className="chat-message-bubble">
+                        <div className="fw-semibold mb-2">Choose a question</div>
+                        {faqMenu.loading ? (
+                          <div className="text-muted small">Loading FAQs...</div>
+                        ) : faqMenu.items.length === 0 ? (
+                          <div className="text-muted small">No FAQs found yet.</div>
+                        ) : (
+                          <div className="d-flex flex-column gap-2">
+                            {faqMenu.items.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                className="btn btn-outline-primary btn-sm text-start"
+                                onClick={() => {
+                                  closeFaqMenu();
+                                  appendMessage("bot", item.answer || "Here's the FAQ answer.");
+                                  appendMessage("bot", "View all FAQs: [FAQs](/faq)");
+                                }}
+                              >
+                                {item.question}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                   <div ref={messagesEndRef} />
                 </>
               )}
@@ -584,6 +647,26 @@ const RasaWidget = () => {
                     key={qr.payload}
                     className="btn btn-outline-primary btn-sm rounded-pill"
                     onClick={() => {
+                      if (qr.payload === "FAQ") {
+                        openFaqMenu();
+                        return;
+                      }
+                      if (qr.payload === "Shipping Info") {
+                        sendPolicyBlurb(
+                          "shipping details",
+                          "Standard shipping: 3-5 business days. Tracking is provided for all shipments. Expedited options are available at checkout.",
+                          "/shipping-returns"
+                        );
+                        return;
+                      }
+                      if (qr.payload === "Return Policy") {
+                        sendPolicyBlurb(
+                          "return policy",
+                          "Returns are accepted within 30 days in original condition. Refunds go back to the original payment method after inspection.",
+                          "/shipping-returns"
+                        );
+                        return;
+                      }
                       if (qr.payload === "__handoff__") {
                         startGuestHandoff("I need to talk to a human agent");
                       } else {

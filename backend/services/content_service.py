@@ -11,6 +11,20 @@ def list_policies(supabase) -> List[Dict]:
     return res.data or []
 
 
+def search_faqs(supabase, query: str, limit: int = 3) -> List[Dict]:
+    if not query:
+        return []
+    pattern = f"%{query.strip()}%"
+    res = (
+        supabase.table("faqs")
+        .select("*")
+        .or_(f"question.ilike.{pattern},answer.ilike.{pattern}")
+        .limit(limit)
+        .execute()
+    )
+    return res.data or []
+
+
 def create_faq(supabase, question: str, answer: str, sort_order: int = 0) -> Dict:
     res = (
         supabase.table("faqs")
