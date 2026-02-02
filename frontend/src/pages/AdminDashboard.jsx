@@ -2761,19 +2761,19 @@ const renderBusinessInsights = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category">Category</label>
-                  <input
+                  <select
                     id="promotion-category"
-                    list="promotion-category-list"
-                    className="form-control"
+                    className="form-select"
                     value={promotionForm.category}
                     onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                    placeholder="keyboard"
-                  />
-                  <datalist id="promotion-category-list">
+                  >
+                    <option value="">Select category</option>
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat} />
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </>
               )}
             </div>
@@ -2921,18 +2921,19 @@ const renderBusinessInsights = () => (
               ) : (
                 <>
                   <label className="form-label" htmlFor="promotion-category-edit">Category</label>
-                  <input
+                  <select
                     id="promotion-category-edit"
-                    list="promotion-category-list-edit"
-                    className="form-control"
+                    className="form-select"
                     value={editPromotionForm.category}
                     onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  />
-                  <datalist id="promotion-category-list-edit">
+                  >
+                    <option value="">Select category</option>
                     {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat} />
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
                     ))}
-                  </datalist>
+                  </select>
                 </>
               )}
             </div>

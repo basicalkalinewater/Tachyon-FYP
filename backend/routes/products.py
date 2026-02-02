@@ -20,6 +20,11 @@ FRONTEND_ASSETS_PATH = os.path.join(project_root, "frontend", "public", "assets"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+def _is_truthy(value):
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -49,8 +54,16 @@ def _image_folder_warning(category, category_folder):
 def handle_products_collection():
     supabase = current_app.config["SUPABASE"]
     if request.method == "GET":
+        include_promotions = _is_truthy(request.args.get("include_promotions"))
         res = supabase.table("products").select("*").order("id", desc=False).execute()
-        return jsonify([map_product(r) for r in res.data or []])
+        products = [map_product(r) for r in res.data or []]
+        if include_promotions:
+            active_promos = promotion_service.list_active_promotions(supabase)
+            products = [
+                promotion_service.apply_best_promotion(p, active_promos)
+                for p in products
+            ]
+        return jsonify(products)
 
     if request.method == "POST":
         try:
@@ -163,8 +176,15 @@ def handle_product_by_id(product_id):
             return jsonify(product), 200
 
         elif request.method == "GET":
+            include_promotions = _is_truthy(request.args.get("include_promotions"))
             res = supabase.table("products").select("*").eq("id", product_id).maybe_single().execute()
-            return jsonify(map_product(res.data)) if res.data else (jsonify({"error": "Not found"}), 404)
+            if not res.data:
+                return jsonify({"error": "Not found"}), 404
+            product = map_product(res.data)
+            if include_promotions:
+                active_promos = promotion_service.list_active_promotions(supabase)
+                product = promotion_service.apply_best_promotion(product, active_promos)
+            return jsonify(product)
 
         elif request.method == "DELETE":
             supabase.table("product_stock").delete().eq("product_id", product_id).execute()
