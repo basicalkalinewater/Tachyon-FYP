@@ -108,6 +108,43 @@
   gap: 18px;
 }
 
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  padding: 24px;
+  border-radius: var(--cd-radius);
+  background: linear-gradient(120deg, rgba(99, 102, 241, 0.12), rgba(14, 165, 233, 0.14)),
+    var(--cd-surface);
+  border: 1px solid var(--cd-border);
+  box-shadow: var(--cd-shadow);
+}
+
+.dashboard-hero .eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 0.82rem;
+  color: var(--cd-muted);
+  margin-bottom: 4px;
+}
+
+.dashboard-hero h1 {
+  margin: 0 0 6px;
+}
+
+.dashboard-hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: var(--cd-accent-soft);
+  color: var(--cd-accent);
+  font-size: 0.95rem;
+  vertical-align: middle;
+}
+
 .dashboard-section {
   padding: 22px;
   border-radius: 22px;
