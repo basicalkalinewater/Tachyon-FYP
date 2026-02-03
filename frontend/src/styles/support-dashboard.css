@@ -106,6 +106,9 @@
 }
 
 .sidebar-link {
+  display: block;
+  text-decoration: none;
+  text-align: left;
   width: 100%;
   border: 1px solid var(--sd-border);
   border-radius: 14px;

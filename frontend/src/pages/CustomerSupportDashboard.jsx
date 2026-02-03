@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { logout, selectCurrentUser } from "../redux/authSlice";
 import { logoutRequest } from "../api/auth";
@@ -20,6 +21,7 @@ import "../styles/support-dashboard.css"; // dedicated styling for support dashb
 
 // Support dashboard sections
 const SUPPORT_SECTIONS = [
+  { id: "overview", label: "Overview", group: "Ticket Management" },
   { id: "inbox", label: "Open Tickets", group: "Ticket Management" },
   { id: "assigned", label: "My Tickets", group: "Ticket Management" },
   { id: "history", label: "Closed Tickets", group: "Ticket Management" },
@@ -42,14 +44,16 @@ const CustomerSupportDashboard = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectCurrentUser);
 
-  const RESOLUTION_PRESETS = ["resolved", "refund_issued", "other"];
+  const RESOLUTION_PRESETS = ["Resolved", "Refund Issued", "Other"];
 
-  const formatPresetLabel = (preset) =>
-    preset
-      .replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+  const formatPresetLabel = (preset) => preset;
 
-  const [activeSection, setActiveSection] = useState("inbox");
+  const { section } = useParams();
+  const sectionIds = useMemo(() => new Set(SUPPORT_SECTIONS.map((item) => item.id)), []);
+  const defaultSection = "overview";
+  const [activeSection, setActiveSection] = useState(
+    section && sectionIds.has(section) ? section : defaultSection
+  );
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
@@ -261,6 +265,19 @@ const CustomerSupportDashboard = () => {
   useEffect(() => {
     loadSessions();
   }, [activeSection, loadSessions]);
+
+  useEffect(() => {
+    if (!section) {
+      if (activeSection !== defaultSection) {
+        setActiveSection(defaultSection);
+      }
+      return;
+    }
+    if (!sectionIds.has(section)) return;
+    if (section !== activeSection) {
+      setActiveSection(section);
+    }
+  }, [section, sectionIds, activeSection]);
 
   // Periodic refresh for session list (keeps counts fresh without thrashing UI)
   useEffect(() => {
@@ -735,6 +752,35 @@ const CustomerSupportDashboard = () => {
 
   const renderSection = () => {
     switch (activeSection) {
+      case "overview":
+        return (
+          <section className="dashboard-section card-saas">
+            <p className="text-muted text-uppercase small fw-semibold mb-1">Overview</p>
+            <h3 className="mb-3">Support overview</h3>
+            <section className="stat-grid">
+              <div className="stat-card">
+                <p className="stat-label">Open</p>
+                <h4 className="stat-value">{stats.pending}</h4>
+                <span className="stat-help">Pending escalations</span>
+              </div>
+              <div className="stat-card">
+                <p className="stat-label">In Progress</p>
+                <h4 className="stat-value">{stats.claimed}</h4>
+                <span className="stat-help">Chats you’re handling</span>
+              </div>
+              <div className="stat-card">
+                <p className="stat-label">Closed Tickets</p>
+                <h4 className="stat-value">{stats.closed}</h4>
+                <span className="stat-help">Resolved tickets</span>
+              </div>
+              <div className="stat-card">
+                <p className="stat-label">Total in view</p>
+                <h4 className="stat-value">{stats.total}</h4>
+                <span className="stat-help">Filtered by tab</span>
+              </div>
+            </section>
+          </section>
+        );
       case "inbox":
         return (
           <section className="dashboard-section support-section">
@@ -861,16 +907,15 @@ const CustomerSupportDashboard = () => {
               </p>
               <nav className="dashboard-nav">
                 {items.map((section) => (
-                  <button
+                  <Link
                     key={section.id}
-                    type="button"
                     className={`sidebar-link ${
                       activeSection === section.id ? "active" : ""
                     }`}
-                    onClick={() => setActiveSection(section.id)}
+                    to={section.id === defaultSection ? "/dashboard/customer-support" : `/dashboard/customer-support/${section.id}`}
                   >
                     {section.label}
-                  </button>
+                  </Link>
                 ))}
               </nav>
             </div>
@@ -898,29 +943,6 @@ const CustomerSupportDashboard = () => {
               <button className="btn btn-outline-saas" onClick={loadSessions}>
                 Refresh data
               </button>
-            </div>
-          </section>
-
-          <section className="stat-grid">
-            <div className="stat-card">
-              <p className="stat-label">Open</p>
-              <h4 className="stat-value">{stats.pending}</h4>
-              <span className="stat-help">Pending escalations</span>
-            </div>
-            <div className="stat-card">
-              <p className="stat-label">In Progress</p>
-              <h4 className="stat-value">{stats.claimed}</h4>
-              <span className="stat-help">Chats you’re handling</span>
-            </div>
-            <div className="stat-card">
-              <p className="stat-label">Closed Tickets</p>
-              <h4 className="stat-value">{stats.closed}</h4>
-              <span className="stat-help">Resolved tickets</span>
-            </div>
-            <div className="stat-card">
-              <p className="stat-label">Total in view</p>
-              <h4 className="stat-value">{stats.total}</h4>
-              <span className="stat-help">Filtered by tab</span>
             </div>
           </section>
 

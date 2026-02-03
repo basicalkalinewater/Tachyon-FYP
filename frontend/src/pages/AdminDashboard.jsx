@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { Link, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
 import { fetchAdminProfile, logoutRequest, updateAdminProfile } from "../api/auth";
@@ -78,7 +79,12 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [viewMode, setViewMode] = useState("dashboard"); // dashboard | inventory | profile | users | management | promos | promotions
+  const { section } = useParams();
+  const sectionIds = useMemo(() => new Set(ADMIN_SECTIONS.map((item) => item.id)), []);
+  const defaultSection = "dashboard";
+  const [viewMode, setViewMode] = useState(
+    section && sectionIds.has(section) ? section : defaultSection
+  ); // dashboard | inventory | profile | users | management | promos | promotions
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies | announcement
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
@@ -495,6 +501,19 @@ const AdminDashboard = () => {
       loadPromotions();
     }
   }, [viewMode, managementTab, loadFaqs, loadPolicies, loadAnnouncement, loadInsightsHistory, loadPromos, loadPromotions]);
+
+  useEffect(() => {
+    if (!section) {
+      if (viewMode !== defaultSection) {
+        setViewMode(defaultSection);
+      }
+      return;
+    }
+    if (!sectionIds.has(section)) return;
+    if (section !== viewMode) {
+      setViewMode(section);
+    }
+  }, [section, sectionIds, viewMode]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -3602,15 +3621,14 @@ const renderInventory = () => (
                 <p className="muted tiny sidebar-label">{group}</p>
                 <nav className="admin-nav">
                   {items.map((section) => (
-                    <button
+                    <Link
                       key={section.id}
-                      type="button"
                       className={`sidebar-link ${viewMode === section.id ? "active" : ""}`}
-                      onClick={() => setViewMode(section.id)}
-                      aria-pressed={viewMode === section.id}
+                      to={section.id === defaultSection ? "/dashboard/admin" : `/dashboard/admin/${section.id}`}
+                      aria-current={viewMode === section.id ? "page" : undefined}
                     >
                       {section.label}
-                    </button>
+                    </Link>
                   ))}
                 </nav>
               </div>
@@ -3638,9 +3656,9 @@ const renderInventory = () => (
                     </button>
                   )}
                   {viewMode !== "dashboard" && (
-                    <button className="pill-btn ghost" type="button" onClick={() => setViewMode("dashboard")}>
+                    <Link className="pill-btn ghost" to="/dashboard/admin">
                       Back to overview
-                    </button>
+                    </Link>
                   )}
                 </div>
               </div>

@@ -78,9 +78,11 @@ root.render(
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={["support"]} />}>
                   <Route path="/dashboard/customer-support" element={<CustomerSupportDashboard />} />
+                  <Route path="/dashboard/customer-support/:section" element={<CustomerSupportDashboard />} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
                   <Route path="/dashboard/admin" element={<AdminDashboard />} />
+                  <Route path="/dashboard/admin/:section" element={<AdminDashboard />} />
                   <Route path="/dashboard/admin/products" element={<AdminProducts />} />
                 </Route>
                 <Route path="*" element={<PageNotFound />} />
