@@ -88,10 +88,9 @@ const AdminDashboard = () => {
   const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies | announcement
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
-  const [policySlugFilter, setPolicySlugFilter] = useState("");
   const [promoItems, setPromoItems] = useState([]);
-  const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
-  const [policyForm, setPolicyForm] = useState({ id: null, title: "", tag: "", content: "" });
+  const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "", sort_order: 1 });
+  const [policyForm, setPolicyForm] = useState({ id: null, title: "", tag: "", content: "", sort_order: 1 });
   const [announcement, setAnnouncement] = useState({ id: null, message: "", link_url: "", link_label: "", enabled: true });
   const [announcementLoading, setAnnouncementLoading] = useState(false);
   const [announcementSaving, setAnnouncementSaving] = useState(false);
@@ -330,7 +329,13 @@ const AdminDashboard = () => {
     try {
       const data = await listFaqs();
       const list = data.data || data || [];
-      setFaqItems(list);
+      const sorted = [...list].sort((a, b) => {
+        const aOrder = Number(a.sort_order ?? 0);
+        const bOrder = Number(b.sort_order ?? 0);
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return String(a.question || "").localeCompare(String(b.question || ""));
+      });
+      setFaqItems(sorted);
     } catch (err) {
       toast.error(err.message || "Failed to load FAQs");
     } finally {
@@ -1630,13 +1635,13 @@ const handleStockSubmit = async (productId) => {
             >
               FAQs
             </button>
-            <button
-              type="button"
-              className={`btn ${managementTab === "policies" ? "btn-primary-saas" : "btn-outline-saas"}`}
-              onClick={() => setManagementTab("policies")}
-            >
-              Policies
-            </button>
+          <button
+            type="button"
+            className={`btn ${managementTab === "policies" ? "btn-primary-saas" : "btn-outline-saas"}`}
+            onClick={() => setManagementTab("policies")}
+          >
+            Policies
+          </button>
             <button
               type="button"
               className={`btn ${managementTab === "announcement" ? "btn-primary-saas" : "btn-outline-saas"}`}
@@ -1644,24 +1649,19 @@ const handleStockSubmit = async (productId) => {
             >
               Promotional Banner
             </button>
-            {managementTab !== "announcement" && (
-              <button
-                type="button"
-                className="btn btn-primary-saas"
-                onClick={() => {
-                  if (managementTab === "faqs") {
-                    setFaqForm({ id: null, question: "", answer: "" });
-                    setShowFaqModal(true);
-                  } else if (managementTab === "policies") {
-                    setPolicyForm({ id: null, title: "", tag: "", content: "" });
-                    setShowPolicyModal(true);
-                  }
-                }}
-              >
-                {managementTab === "faqs" ? "Create FAQ" : "Create Policy"}
-              </button>
-            )}
-          </div>
+          {managementTab === "faqs" && (
+            <button
+              type="button"
+              className="btn btn-primary-saas"
+              onClick={() => {
+                setFaqForm({ id: null, question: "", answer: "", sort_order: 1 });
+                setShowFaqModal(true);
+              }}
+            >
+              Create FAQ
+            </button>
+          )}
+      </div>
           {managementTab === "faqs" && (
             <div className="admin-grid">
               <div className="admin-card wide">
@@ -1680,6 +1680,7 @@ const handleStockSubmit = async (productId) => {
                     <table className="dashboard-table">
                       <thead>
                         <tr>
+                          <th style={{ width: 90 }}>Order</th>
                           <th>Question</th>
                           <th>Answer</th>
                           <th className="text-end" style={{ width: 160 }}>Actions</th>
@@ -1688,6 +1689,7 @@ const handleStockSubmit = async (productId) => {
                       <tbody>
                         {faqItems.map((item) => (
                           <tr key={item.id}>
+                            <td>{Number(item.sort_order ?? 0)}</td>
                             <td className="fw-semibold">{item.question}</td>
                             <td style={{ whiteSpace: "pre-wrap" }}>{item.answer}</td>
                             <td className="text-end">
@@ -1728,95 +1730,113 @@ const handleStockSubmit = async (productId) => {
               </div>
             </div>
           )}
-          {managementTab === "policies" && (
-            <div className="admin-grid">
-              <div className="admin-card wide">
-                  <div className="card-header">
-                    <div>
-                      <p className="eyebrow">Existing policies</p>
-                      <h4>Manage documents</h4>
-                    </div>
+        {managementTab === "policies" && (
+          <div className="admin-grid">
+            <div className="admin-card wide">
+                <div className="card-header">
+                  <div>
+                    <p className="eyebrow">Existing policies</p>
+                    <h4>Manage documents</h4>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label" htmlFor="policy-slug-filter">Filter by tag</label>
-                    <select
-                      id="policy-slug-filter"
-                      className="form-select"
-                      value={policySlugFilter}
-                      onChange={(e) => setPolicySlugFilter(e.target.value)}
-                    >
-                      <option value="">All tags</option>
-                      <option value="shipping-returns">Shipping-returns</option>
-                      <option value="privacy">Privacy</option>
-                      <option value="terms">Terms</option>
-                    </select>
+                </div>
+                {policyLoading ? (
+                  <p className="muted mb-0">Loading policies...</p>
+                ) : policyItems.length === 0 ? (
+                  <p className="muted mb-0">No policies yet.</p>
+                ) : (
+                  <div className="d-flex flex-column gap-4">
+                      {[
+                      { slug: "shipping-returns", label: "Shipping & Returns" },
+                      { slug: "privacy", label: "Privacy" },
+                      { slug: "terms", label: "Terms" },
+                    ].map((group) => {
+                      const items = policyItems
+                        .filter((item) => String(item.slug || "").toLowerCase() === group.slug)
+                        .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+                      return (
+                        <div key={group.slug} className="admin-card">
+                          <div className="card-header">
+                            <div>
+                              <p className="eyebrow">Policies</p>
+                              <h4>{group.label}</h4>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-primary-saas btn-sm"
+                              onClick={() => {
+                                setPolicyForm({ id: null, title: "", tag: group.slug, content: "", sort_order: 1 });
+                                setShowPolicyModal(true);
+                              }}
+                            >
+                              New
+                            </button>
+                          </div>
+                          {items.length === 0 ? (
+                            <p className="muted mb-0">No policies yet.</p>
+                          ) : (
+                            <div className="table-responsive">
+                              <table className="dashboard-table">
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: 90 }}>Order</th>
+                                    <th>Title</th>
+                                    <th>Content</th>
+                                    <th className="text-end" style={{ width: 160 }}>Actions</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {items.map((item) => (
+                                    <tr key={item.id}>
+                                      <td>{Number(item.sort_order ?? 0)}</td>
+                                      <td className="fw-semibold">{item.title}</td>
+                                      <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
+                                      <td className="text-end">
+                                        <div className="d-flex gap-2 justify-content-end">
+                                          <button
+                                            type="button"
+                                            className="btn btn-outline-saas btn-sm"
+                                            onClick={() => {
+                                              setPolicyForm({
+                                                ...item,
+                                                tag: item.slug || group.slug,
+                                                sort_order: Number(item.sort_order ?? 1),
+                                              });
+                                              setShowPolicyModal(true);
+                                            }}
+                                          >
+                                            Edit
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn btn-outline-danger btn-sm"
+                                            onClick={async () => {
+                                              try {
+                                                await deletePolicy(item.id);
+                                                toast.success("Policy removed");
+                                                await loadPolicies();
+                                              } catch (err) {
+                                                toast.error(err.message || "Failed to remove policy");
+                                              }
+                                            }}
+                                          >
+                                            Delete
+                                          </button>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                  {policyLoading ? (
-                    <p className="muted mb-0">Loading policies...</p>
-                  ) : policyItems.length === 0 ? (
-                    <p className="muted mb-0">No policies yet.</p>
-                  ) : (
-                    <div className="table-responsive management-scroll">
-                      <table className="dashboard-table">
-                        <thead>
-                          <tr>
-                            <th>Title</th>
-                            <th>Tag</th>
-                            <th>Content</th>
-                            <th className="text-end" style={{ width: 160 }}>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {policyItems
-                            .filter((item) => {
-                              if (!policySlugFilter.trim()) return true;
-                              return (item.slug || "")
-                                .toLowerCase()
-                                .includes(policySlugFilter.trim().toLowerCase());
-                            })
-                            .map((item) => (
-                            <tr key={item.id}>
-                              <td className="fw-semibold">{item.title}</td>
-                              <td>{item.slug || "-"}</td>
-                              <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
-                              <td className="text-end">
-                                <div className="d-flex gap-2 justify-content-end">
-                                  <button
-                                  type="button"
-                                  className="btn btn-outline-saas btn-sm"
-                                  onClick={() => {
-                                    setPolicyForm({ ...item, tag: item.slug || "" });
-                                    setShowPolicyModal(true);
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-danger btn-sm"
-                                  onClick={async () => {
-                                    try {
-                                      await deletePolicy(item.id);
-                                      toast.success("Policy removed");
-                                      await loadPolicies();
-                                    } catch (err) {
-                                      toast.error(err.message || "Failed to remove policy");
-                                    }
-                                  }}
-                                >
-                                  Delete
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        )}
           {managementTab === "announcement" && (
             <div className="admin-grid">
               <div className="admin-card wide">
@@ -2932,7 +2952,7 @@ const renderInventory = () => (
                 await createFaq(faqForm);
                 toast.success("FAQ created");
               }
-              setFaqForm({ id: null, question: "", answer: "" });
+              setFaqForm({ id: null, question: "", answer: "", sort_order: 1 });
               setShowFaqModal(false);
               await loadFaqs();
             } catch (err) {
@@ -2949,6 +2969,19 @@ const renderInventory = () => (
               value={faqForm.question}
               onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
               required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="faq-order">Sort order</label>
+            <input
+              id="faq-order"
+              type="number"
+              className="form-control"
+              value={faqForm.sort_order ?? 1}
+              onChange={(e) =>
+                setFaqForm((p) => ({ ...p, sort_order: Number(e.target.value) || 1 }))
+              }
+              min="1"
             />
           </div>
           <div className="mb-3">
@@ -2976,7 +3009,7 @@ const renderInventory = () => (
   );
 
   const policyModal = showPolicyModal && (
-    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closePolicyModal}>
+    <div className="admin-modal" role="dialog" aria-modal="true">
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
           <div>
@@ -2993,8 +3026,9 @@ const renderInventory = () => (
             e.preventDefault();
             const payload = {
               title: policyForm.title,
-              tag: policyForm.tag,
+              slug: policyForm.tag,
               content: policyForm.content,
+              sort_order: policyForm.sort_order,
             };
             try {
               if (policyForm.id) {
@@ -3004,7 +3038,7 @@ const renderInventory = () => (
                 await createPolicy(payload);
                 toast.success("Policy created");
               }
-              setPolicyForm({ id: null, title: "", tag: "", content: "" });
+              setPolicyForm({ id: null, title: "", tag: "", content: "", sort_order: 1 });
               setShowPolicyModal(false);
               await loadPolicies();
             } catch (err) {
@@ -3021,6 +3055,19 @@ const renderInventory = () => (
               value={policyForm.title}
               onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
               required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-order">Sort order</label>
+            <input
+              id="policy-order"
+              type="number"
+              className="form-control"
+              value={policyForm.sort_order ?? 1}
+              onChange={(e) =>
+                setPolicyForm((p) => ({ ...p, sort_order: Number(e.target.value) || 1 }))
+              }
+              min="1"
             />
           </div>
           <div className="mb-3">

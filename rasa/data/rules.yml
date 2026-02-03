@@ -33,6 +33,11 @@ rules:
       - intent: request_live_agent
       - action: action_handoff_to_agent
 
+  - rule: Product comparison via LLM
+    steps:
+      - intent: product_compare
+      - action: action_llm_compare
+
   - rule: Forward messages during handoff
     condition:
       - slot_was_set:
@@ -57,15 +62,15 @@ rules:
       - intent: shipping_info
       - action: action_shipping_info_link
 
-  - rule: Provide order status info
+  - rule: Restricted request
     steps:
-      - intent: order_status
-      - action: utter_order_status
+      - intent: restricted_request
+      - action: utter_restricted_request
 
   - rule: Fallback
     steps:
       - intent: nlu_fallback
-      - action: utter_default
+      - action: action_llm_fallback
       - action: action_listen
 
   - rule: Reset handoff when user says goodbye

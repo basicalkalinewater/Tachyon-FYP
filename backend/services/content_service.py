@@ -1,6 +1,24 @@
 from typing import Dict, List
 
 
+def _normalize_policies_order(supabase, slug: str) -> None:
+    if not slug:
+        return
+    res = (
+        supabase.table("policies")
+        .select("id, sort_order, created_at")
+        .eq("slug", slug)
+        .order("sort_order")
+        .order("created_at")
+        .execute()
+    )
+    rows = res.data or []
+    for idx, row in enumerate(rows, start=1):
+        current = int(row.get("sort_order") or 0)
+        if current != idx:
+            supabase.table("policies").update({"sort_order": idx}).eq("id", row.get("id")).execute()
+
+
 def list_faqs(supabase) -> List[Dict]:
     res = supabase.table("faqs").select("*").order("sort_order").order("created_at", desc=True).execute()
     return res.data or []
@@ -70,20 +88,41 @@ def delete_faq(supabase, faq_id: str) -> Dict:
 def create_policy(supabase, title: str, content: str, sort_order: int = 0, slug: str = None) -> Dict:
     payload = {"title": title, "content": content, "sort_order": sort_order}
     if slug:
+        max_res = (
+            supabase.table("policies")
+            .select("sort_order")
+            .eq("slug", slug)
+            .order("sort_order", desc=True)
+            .limit(1)
+            .execute()
+        )
+        max_order = 0
+        if max_res.data:
+            max_order = int(max_res.data[0].get("sort_order") or 0)
+        payload["sort_order"] = max_order + 1
+    if slug:
         payload["slug"] = slug
     res = (
         supabase.table("policies")
         .insert(payload)
         .execute()
     )
+    _normalize_policies_order(supabase, slug)
     return (res.data or [{}])[0]
 
 
 def update_policy(supabase, policy_id: str, updates: Dict) -> Dict:
+    slug_res = supabase.table("policies").select("slug").eq("id", policy_id).maybe_single().execute()
+    slug = (slug_res.data or {}).get("slug")
     res = supabase.table("policies").update(updates).eq("id", policy_id).execute()
+    target_slug = updates.get("slug") or slug
+    _normalize_policies_order(supabase, target_slug)
     return (res.data or [{}])[0]
 
 
 def delete_policy(supabase, policy_id: str) -> Dict:
+    slug_res = supabase.table("policies").select("slug").eq("id", policy_id).maybe_single().execute()
+    slug = (slug_res.data or {}).get("slug")
     res = supabase.table("policies").delete().eq("id", policy_id).execute()
+    _normalize_policies_order(supabase, slug)
     return {"deleted": True, "id": policy_id} if res else {"deleted": False}

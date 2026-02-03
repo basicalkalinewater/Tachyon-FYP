@@ -6,12 +6,58 @@ nlu:
       - hi
       - hello
       - hey
+      - hey there
+      - hi there
+      - hello there
+      - yo
+      - sup
+      - what's up
+      - whats up
+      - good morning
+      - good afternoon
+      - good evening
+      - morning
+      - afternoon
+      - evening
+      - greetings
+      - hiya
+      - heyyo
+      - heyy
+      - hello!
+      - hey!
+      - hi!
+      - hiii
+      - helo
+      - helloo
+      - howdy
 
   - intent: goodbye
     examples: |
       - bye
       - goodbye
       - see you
+      - see ya
+      - cya
+      - later
+      - later on
+      - talk later
+      - talk to you later
+      - catch you later
+      - take care
+      - have a good one
+      - peace
+      - peace out
+      - i'm out
+      - im out
+      - bye bye
+      - byee
+      - good night
+      - night
+      - see you soon
+      - see you later
+      - gotta go
+      - got to go
+      - brb
 
   - intent: fetch_all_products
     examples: |
@@ -21,9 +67,22 @@ nlu:
       - products
       - what products do you have
       - what are you selling
+      - show all items
+      - show everything
+      - list the catalog
+      - browse all products
+      - display all products
+      - view all items
+      - show all gear
+      - show me your catalog
+      - full product list
+      - all items
+      - everything you sell
+      - show me everything
+      - all products pls
+      - list all stock
+      - show inventory
 
-# Fetch products depending on user-specified filters, can be single or multiple filters.
-# Enhance single filter intents to support multiple filters in one intent. (blk 1-4)
 
   - intent: fetch_products_with_filters
     examples: |
@@ -32,12 +91,12 @@ nlu:
       - I would like to see all your [keyboard](product_category)
       - List the [mouse](product_category) you sell
 
-      - show me [keyboard](product_category) 65% under [300](product_price)
+      - show me [keyboard](product_category) 65 percent under [300](product_price)
       - 65 percent [keyboard](product_category) below [300](product_price)
       - compact [keyboard](product_category) under [200](product_price)
       - TKL [keyboard](product_category) under [150](product_price)
-      - 75% [keyboard](product_category) with [wireless](product_specs) under [250](product_price)
-      - I need a [65%](product_specs) [keyboard](product_category) below [300](product_price)
+      - 75 percent [keyboard](product_category) with [wireless](product_specs) under [250](product_price)
+      - I need a [65 percent](product_specs) [keyboard](product_category) below [300](product_price)
       - any [keyboard](product_category) with [hot swap](product_specs) under [200](product_price)
       - show me [keyboards](product_category) with [tactile](product_specs) switches under [250](product_price)
       - [gaming](product_specs) [mouse](product_category) under [100](product_price)
@@ -60,7 +119,7 @@ nlu:
       - [ergonomic](product_specs) [mouse](product_category) under [130](product_price)
       - [hot swappable](product_specs) [keyboard](product_category) with [linear](product_specs) switches below [180](product_price)
       - [low profile](product_specs) [keyboard](product_category) under [220](product_price)
-      - [80%](product_specs) [keyboard](product_category) with [rgb](product_specs) lighting under [250](product_price)
+      - [80 percent](product_specs) [keyboard](product_category) with [rgb](product_specs) lighting under [250](product_price)
       - [full size](product_specs) [keyboard](product_category) with [num pad](product_specs) under [200](product_price)
       - [Gen4](product_specs) [nvme](product_specs) [ssd](product_category) 2TB under [250](product_price)
       - [Gen5](product_specs) [ssd](product_category) 2TB under [400](product_price)
@@ -98,6 +157,101 @@ nlu:
       - I am looking for a [monitor](product_category) between [200-500](product_price)
       - What [keyboard](product_category) are available below [150](product_price)?
       - Find [mouse](product_category) products priced under [100](product_price)
+      - [keyboard](product_category) under [100](product_price)
+      - [keybaord](product_category) under [100](product_price)
+      - [mouse](product_category) below [80](product_price)
+      - [mous](product_category) under [80](product_price)
+      - [monitor](product_category) under [400](product_price)
+      - [moniter](product_category) under [400](product_price)
+      - [ssd](product_category) under [150](product_price)
+      - [headphones](product_category) under [200](product_price)
+      - [laptop](product_category) under [2000](product_price)
+      - [speaker](product_category) under [200](product_price)
+      - [speakers](product_category) under [200](product_price)
+
+      - [keyboard](product_category) with [bluetooth](product_specs)
+      - [keyboard](product_category) with [wireless](product_specs)
+      - [keyboard](product_category) with [rgb](product_specs)
+      - [keyboard](product_category) with [hot swap](product_specs)
+      - [mechanical](product_specs) [keyboard](product_category)
+      - [compact](product_specs) [keyboard](product_category)
+      - [tkl](product_specs) [keyboard](product_category)
+      - [65 percent](product_specs) [keyboard](product_category)
+      - [75 percent](product_specs) [keyboard](product_category)
+      - [full size](product_specs) [keyboard](product_category)
+
+      - [wireless](product_specs) [mouse](product_category)
+      - [ergonomic](product_specs) [mouse](product_category)
+      - [lightweight](product_specs) [mouse](product_category)
+      - [ultra light](product_specs) [mouse](product_category)
+      - [gaming](product_specs) [mouse](product_category)
+      - [fps](product_specs) [mouse](product_category)
+
+      - [monitor](product_category) [27 inch](product_specs)
+      - [monitor](product_category) [24 inch](product_specs)
+      - [monitor](product_category) [32 inch](product_specs)
+      - [monitor](product_category) [144hz](product_specs)
+      - [monitor](product_category) [240hz](product_specs)
+      - [monitor](product_category) [360hz](product_specs)
+      - [monitor](product_category) [4k](product_specs)
+      - [monitor](product_category) [1080p](product_specs)
+      - [monitor](product_category) [1440p](product_specs)
+
+      - [ssd](product_category) [1tb](product_specs)
+      - [ssd](product_category) [2tb](product_specs)
+      - [nvme](product_specs) [ssd](product_category)
+      - [sata](product_specs) [ssd](product_category)
+      - [pci-e 4.0](product_specs) [ssd](product_category)
+      - [Gen4](product_specs) [ssd](product_category)
+      - [Gen5](product_specs) [ssd](product_category)
+
+      - [Logitech](product_brand) [mouse](product_category)
+      - [Razer](product_brand) [keyboard](product_category)
+      - [Samsung](product_brand) [ssd](product_category)
+      - [Asus](product_brand) [monitor](product_category)
+      - [Keychron](product_brand) [keyboard](product_category)
+      - [SteelSeries](product_brand) [mouse](product_category)
+
+      - [Logitech](product_brand) [mouse](product_category) under [150](product_price)
+      - [Razer](product_brand) [keyboard](product_category) under [200](product_price)
+      - [Samsung](product_brand) [ssd](product_category) under [250](product_price)
+      - [Asus](product_brand) [monitor](product_category) under [800](product_price)
+
+      - [wireless](product_specs) [mouse](product_category) under [120](product_price)
+      - [bluetooth](product_specs) [keyboard](product_category) under [180](product_price)
+      - [rgb](product_specs) [keyboard](product_category) under [220](product_price)
+      - [hot swap](product_specs) [keyboard](product_category) under [250](product_price)
+      - [monitor](product_category) with [ips](product_specs) under [500](product_price)
+      - [monitor](product_category) with [tn](product_specs) under [400](product_price)
+      - [monitor](product_category) with [oled](product_specs) under [1200](product_price)
+      - [monitor](product_category) with [1ms](product_specs) under [600](product_price)
+      - [ssd](product_category) with [7000](product_specs) under [300](product_price)
+      - [ssd](product_category) with [5000](product_specs) under [200](product_price)
+      - [keyboard](product_category) below [150](product_price) with [wireless](product_specs)
+      - [keyboard](product_category) below [150](product_price) with [tactile](product_specs)
+      - [keyboard](product_category) below [150](product_price) with [linear](product_specs)
+      - [mouse](product_category) under [100](product_price) with [2000hz](product_specs)
+      - [mouse](product_category) under [100](product_price) with [1000hz](product_specs)
+      - [monitor](product_category) under [300](product_price) with [ips](product_specs)
+      - [monitor](product_category) under [300](product_price) with [1080p](product_specs)
+      - [monitor](product_category) under [500](product_price) with [1440p](product_specs)
+      - [monitor](product_category) under [800](product_price) with [4k](product_specs)
+      - [ssd](product_category) under [120](product_price) with [1tb](product_specs)
+      - [ssd](product_category) under [200](product_price) with [2tb](product_specs)
+
+      - [headphones](product_category) with [wireless](product_specs)
+      - [headphones](product_category) with [bluetooth](product_specs)
+      - [headphones](product_category) under [150](product_price)
+
+      - [monitor](product_category) around [300](product_price)
+      - [keyboard](product_category) around [120](product_price)
+      - [mouse](product_category) around [60](product_price)
+      - [ssd](product_category) around [150](product_price)
+
+      - any [monitor](product_category) under [400](product_price)?
+      - any [keyboard](product_category) below [150](product_price)?
+      - any [mouse](product_category) under [100](product_price)?
+      - any [ssd](product_category) under [200](product_price)?
 
       - Find a [Dell](product_brand) monitor that has [IPS](product_specs) panel type
       - Show me [Logitech](product_brand) keyboard with [Tactile](product_specs) switches
@@ -105,7 +259,7 @@ nlu:
       - Do you have a [Razer](product_brand) mouse with [106](product_specs) weight grams?
 
       - Show me items under [100](product_price) that have [Wireless](product_specs) connection
-      - I want products below[500](product_price) with [1920x1080](product_specs) resolution
+      - I want products below [500](product_price) with [1920x1080](product_specs) resolution
       - Find products in the [200-400](product_price) range that have [IPS](product_specs) panel type
       - Do you have products under [300](product_price) with [Tactile](product_specs) switches?
 
@@ -129,6 +283,41 @@ nlu:
       - Show me [ssd](product_category) with [PCIe 4.0](product_specs) from [Samsung](product_brand) in the [300-400](product_price) range
 
 
+  - intent: product_compare
+    examples: |
+      - compare [Logitech G Pro X Superlight](product_brand) vs [Razer Viper V2 Pro](product_brand)
+      - [Logitech](product_brand) vs [Razer](product_brand) mouse for fps
+      - which is better for fps gaming, [Logitech](product_brand) or [Razer](product_brand)?
+      - is [Keychron](product_brand) good for gaming?
+      - is [Logitech](product_brand) keyboard good for fps gaming
+      - compare [Keychron K2](product_brand) and [Keychron K6](product_brand)
+      - [Samsung 990 Pro](product_brand) vs [WD Black](product_brand) ssd
+      - which [ssd](product_category) is better for gaming?
+      - best [mouse](product_category) for fps
+      - best [keyboard](product_category) for fps
+      - best [monitor](product_category) for competitive gaming
+      - best [monitor](product_category) for fps
+      - [monitor](product_category) for esports, which should I get?
+      - which is better for work, [27 inch](product_specs) or [32 inch](product_specs) monitor?
+      - should I get [144hz](product_specs) or [240hz](product_specs) for fps?
+      - is [4k](product_specs) or [1440p](product_specs) better for gaming?
+      - compare [wireless](product_specs) vs [wired](product_specs) [mouse](product_category)
+      - compare [mechanical](product_specs) vs [membrane](product_specs) [keyboard](product_category)
+      - which [keyboard](product_category) is better for typing?
+      - which [mouse](product_category) has better sensor?
+      - is [Logitech](product_brand) good for fps?
+      - is [Razer](product_brand) good for fps?
+      - should I buy [Logitech](product_brand) or [SteelSeries](product_brand)?
+      - compare [Asus](product_brand) and [Dell](product_brand) monitors
+      - [ips](product_specs) vs [tn](product_specs) for gaming
+      - [oled](product_specs) vs [ips](product_specs) for gaming monitor
+      - which is better for streaming, [AMD](product_brand) or [Intel](product_brand) laptop?
+      - compair [logitech](product_brand) vs [razer](product_brand)
+      - which [ssd](product_category) is faster?
+      - which [keyboard](product_category) is quieter?
+      - is [bluetooth](product_specs) or [wireless](product_specs) better for keyboard?
+      - should I get [tkl](product_specs) or [65 percent](product_specs) keyboard for gaming?
+
 
 
 
@@ -145,6 +334,7 @@ nlu:
   - intent: shipping_info
     examples: |
       - shipping info
+      - Shipping & Returns
       - shipping information
       - how much is shipping
       - shipping cost
@@ -152,7 +342,7 @@ nlu:
       - when will my order arrive
       - tell me about shipping
 
-  - intent: order_status
+  - intent: restricted_request
     examples: |
       - order status
       - check my order
@@ -160,6 +350,36 @@ nlu:
       - where is my order
       - track order
       - order tracking
+      - can you cancel my order
+      - change my order
+      - edit my order
+      - return this order
+      - refund my order
+      - missing item
+      - damaged item
+      - order not arrived
+      - delivery issue
+      - shipment problem
+      - I want a refund
+      - I need to exchange
+
+      - payment failed
+      - card declined
+      - billing issue
+      - chargeback
+      - refund status
+      - transaction failed
+      - payment not going through
+      - my card was charged
+
+      - reset my password
+      - can't log in
+      - update my email
+      - change my address
+      - update my phone number
+      - account help
+      - I need support with my account
+      - my account is locked
 
   - intent: return_policy_link
     examples: |
@@ -185,4 +405,3 @@ nlu:
       - get me a real person
       - I want human support
       - route me to an agent
-

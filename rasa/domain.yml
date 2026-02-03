@@ -5,11 +5,12 @@ intents:
   - goodbye
   - fetch_all_products
   - fetch_products_with_filters
+  - product_compare
   - shipping_info
-  - order_status
   - faq_link
   - return_policy_link
   - request_live_agent
+  - restricted_request
   - nlu_fallback
 
 entities:
@@ -64,8 +65,6 @@ responses:
     - text: "Goodbye! Have a nice day!"
   utter_shipping_info:
     - text: "You can find shipping & delivery details here: [Return Shipping Info]({link})"
-  utter_order_status:
-    - text: "Order status tracking is still in development. For now, contact support or check your confirmation email."
   utter_default:
     - text: "I'm not sure I got that. Could you rephrase or choose a quick option below?"
   utter_ask_product_category:
@@ -78,6 +77,8 @@ responses:
     - text: "I can help with that! Please click the link below to visit our dedicated FAQ page.\n[Frequently Asked Questions]({link})"
   utter_return_policy_link:
     - text: "You can read about our return policy here: [Return Policy Link]({link})"
+  utter_restricted_request:
+    - text: "I can’t help with personal, order, or payment matters here. Please log in and contact support for assistance."
 
 forms:
   product_filter_form:
@@ -89,6 +90,8 @@ forms:
 actions:
   - action_fetch_all_products
   - action_fetch_products_with_filters
+  - action_llm_compare
+  - action_llm_fallback
   - action_faq_link
   - action_return_policy_link
   - action_shipping_info_link

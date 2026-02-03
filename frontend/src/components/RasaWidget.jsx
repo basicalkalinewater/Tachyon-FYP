@@ -11,9 +11,7 @@ const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs e
 const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
 const QUICK_REPLIES = [
   { title: "FAQs", payload: "FAQ" },
-  { title: "Shipping info", payload: "Shipping Info" },
-  { title: "Return policy", payload: "Return Policy" },
-  { title: "Order status", payload: "Order Status" },
+  { title: "Shipping & Returns", payload: "Shipping & Returns" },
   { title: "Products", payload: "Products" },
   { title: "Talk to human", payload: "__handoff__" },
 ];
@@ -124,10 +122,6 @@ const RasaWidget = () => {
 
   const closeFaqMenu = () => {
     setFaqMenu((prev) => ({ ...prev, open: false }));
-  };
-
-  const sendPolicyBlurb = (title, summary, link) => {
-    appendMessage("bot", `${summary}\n\n[View full ${title}](${link})`);
   };
 
   const fetchSessionMessages = async (sessId) => {
@@ -566,22 +560,6 @@ const RasaWidget = () => {
                     onClick={() => {
                       if (qr.payload === "FAQ") {
                         openFaqMenu();
-                        return;
-                      }
-                      if (qr.payload === "Shipping Info") {
-                        sendPolicyBlurb(
-                          "shipping details",
-                          "Standard shipping: 3-5 business days. Tracking is provided for all shipments. Expedited options are available at checkout.",
-                          "/shipping-returns"
-                        );
-                        return;
-                      }
-                      if (qr.payload === "Return Policy") {
-                        sendPolicyBlurb(
-                          "return policy",
-                          "Returns are accepted within 30 days in original condition. Refunds go back to the original payment method after inspection.",
-                          "/shipping-returns"
-                        );
                         return;
                       }
                       if (qr.payload === "__handoff__") {

@@ -25,6 +25,7 @@ try:
     from .routes.promos import promos_bp
     from .routes.product_categories import product_categories_bp, admin_product_categories_bp
     from .routes.product_reviews import product_reviews_bp
+    from .routes.llm import llm_bp
     # Import other blueprints as needed
 except ImportError:
     from supabase_client import get_supabase
@@ -43,6 +44,7 @@ except ImportError:
     from routes.promos import promos_bp
     from routes.product_categories import product_categories_bp, admin_product_categories_bp
     from routes.product_reviews import product_reviews_bp
+    from routes.llm import llm_bp
 
 def create_app() -> Flask:
     # 2. ENV LOADING (Force absolute path to avoid 500s from missing keys)
@@ -106,6 +108,7 @@ def create_app() -> Flask:
     app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
     app.register_blueprint(product_categories_bp, url_prefix="/api/product-categories")
     app.register_blueprint(product_reviews_bp, url_prefix="/api")
+    app.register_blueprint(llm_bp, url_prefix="/api/llm")
     
     # Admin Routes
     app.register_blueprint(stocks_bp, url_prefix="/api/admin/stocks")

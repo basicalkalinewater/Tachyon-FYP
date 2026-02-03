@@ -60,6 +60,15 @@ CSAT_ENDPOINT = os.getenv(
     f"{BACKEND_BASE_URL}/support/sessions/from_rasa/csat",
 )
 
+LLM_COMPARE_ENDPOINT = os.getenv(
+    "LLM_COMPARE_ENDPOINT",
+    f"{BACKEND_BASE_URL}/api/llm/compare",
+)
+LLM_FALLBACK_ENDPOINT = os.getenv(
+    "LLM_FALLBACK_ENDPOINT",
+    f"{BACKEND_BASE_URL}/api/llm/fallback",
+)
+
 
 class ActionFetchProductsWithFilters(Action):
     """Fetch products from Supabase and filter by category, brand, and price."""
@@ -279,9 +288,25 @@ class ActionSendFAQLink(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
-        faq_url = f"{base}/faq" if base else "/faq"
-        dispatcher.utter_template("utter_faq_link", tracker, link=faq_url)
+        url = f"{BACKEND_BASE_URL}/content/faqs"
+        try:
+            resp = requests.get(url, timeout=5)
+            resp.raise_for_status()
+            data = resp.json().get("data", [])
+            if not data:
+                dispatcher.utter_message(text="No FAQs are available right now.")
+                return []
+            lines = []
+            for item in data[:6]:
+                question = item.get("question") or "FAQ"
+                answer = item.get("answer") or ""
+                lines.append(f"- {question}\n  {answer}")
+            dispatcher.utter_message(text="Here are our FAQs:\n" + "\n".join(lines))
+        except Exception as exc:
+            logger.error("Failed to fetch FAQs: %s", exc)
+            dispatcher.utter_message(
+                text="I couldn't load the FAQs right now. Please try again later."
+            )
         return []
 
 
@@ -294,9 +319,7 @@ class ActionReturnPolicyLink(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
-        return_policy_url = f"{base}/shipping-returns" if base else "/shipping-returns"
-        dispatcher.utter_template("utter_return_policy_link", tracker, link=return_policy_url)
+        _send_shipping_returns_policy(dispatcher)
         return []
 
 
@@ -312,9 +335,76 @@ class ActionShippingInfoLink(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[EventType]:
-        base = os.getenv("FRONTEND_BASE_URL", "").rstrip("/")
-        shipping_url = f"{base}/shipping-returns" if base else "/shipping-returns"
-        dispatcher.utter_template("utter_shipping_info", tracker, link=shipping_url)
+        _send_shipping_returns_policy(dispatcher)
+        return []
+
+
+def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
+    url = f"{BACKEND_BASE_URL}/content/policies"
+    try:
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        data = resp.json().get("data", [])
+        items = [p for p in data if (p.get("slug") or "").lower() == "shipping-returns"]
+        if not items:
+            dispatcher.utter_message(text="Shipping & returns details are unavailable right now.")
+            return
+        lines = []
+        for item in items[:6]:
+            title = item.get("title") or "Shipping & Returns"
+            content = item.get("content") or ""
+            lines.append(f"- {title}\n  {content}")
+        dispatcher.utter_message(text="Shipping & Returns:\n" + "\n".join(lines))
+    except Exception as exc:
+        logger.error("Failed to fetch policies: %s", exc)
+        dispatcher.utter_message(
+            text="I couldn't load the shipping & returns policy right now. Please try again later."
+        )
+
+
+def _call_llm(dispatcher: CollectingDispatcher, endpoint: str, message: str) -> None:
+    try:
+        resp = requests.post(endpoint, json={"message": message}, timeout=18)
+        if resp.status_code >= 400:
+            dispatcher.utter_message(
+                text="I couldn't reach the assistant right now. Please try again."
+            )
+            return
+        data = resp.json().get("data") or {}
+        text = data.get("text") or "I'm not sure about that yet. Please try another question."
+        dispatcher.utter_message(text=text)
+    except Exception as exc:
+        logger.error("LLM call failed: %s", exc)
+        dispatcher.utter_message(
+            text="I couldn't reach the assistant right now. Please try again."
+        )
+
+
+class ActionLLMCompare(Action):
+    """Use LLM for product comparisons."""
+
+    def name(self) -> Text:
+        return "action_llm_compare"
+
+    def run(
+        self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
+    ) -> List[EventType]:
+        message = tracker.latest_message.get("text", "")
+        _call_llm(dispatcher, LLM_COMPARE_ENDPOINT, message)
+        return []
+
+
+class ActionLLMFallback(Action):
+    """Use LLM on NLU fallback for general product guidance."""
+
+    def name(self) -> Text:
+        return "action_llm_fallback"
+
+    def run(
+        self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
+    ) -> List[EventType]:
+        message = tracker.latest_message.get("text", "")
+        _call_llm(dispatcher, LLM_FALLBACK_ENDPOINT, message)
         return []
 
 
