@@ -6,4 +6,6 @@ export { default as ProductsList } from "./ProductsList";
 export { default as CartDrawer } from "../cart/CartDrawer";
 export { default as RasaWidget } from "./RasaWidget";
 export { default as FeaturedProducts } from "./FeaturedProducts";
+export { default as TrustStrip } from "./TrustStrip";
+export { default as SocialProof } from "./SocialProof";
 export { default as ProtectedRoute } from "./ProtectedRoute";

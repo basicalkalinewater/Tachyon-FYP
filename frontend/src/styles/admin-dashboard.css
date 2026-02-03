@@ -297,6 +297,15 @@
   min-height: 120px;
 }
 
+.inventory-meta {
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+
+.inventory-price {
+  font-size: 1.1rem;
+}
+
 .inventory-actions {
   display: flex;
   gap: 8px;

@@ -8,7 +8,6 @@ import "../styles/RasaWidget.css";
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
 // Support routes for customer widget
 const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs etc.
-const SUPPORT_GUEST_ESCALATE_URL = `${SUPPORT_BASE_URL}/guest/escalate`;
 const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
 const QUICK_REPLIES = [
   { title: "FAQs", payload: "FAQ" },
@@ -88,18 +87,7 @@ const RasaWidget = () => {
   const [csatFeedback, setCsatFeedback] = useState("");
   const [csatSubmitting, setCsatSubmitting] = useState(false);
   const [csatSubmitted, setCsatSubmitted] = useState(false);
-  const [showGuestForm, setShowGuestForm] = useState(false);
-  const [guestName, setGuestName] = useState("");
-  const [guestEmail, setGuestEmail] = useState("");
-  const [handoffMessage, setHandoffMessage] = useState("");
-  const [senderId] = useState(() => {
-    if (typeof window === "undefined") return "web-user";
-    const existing = localStorage.getItem("rasa_sender_id");
-    if (existing) return existing;
-    const generated = `web-${Math.random().toString(36).slice(2)}-${Date.now()}`;
-    localStorage.setItem("rasa_sender_id", generated);
-    return generated;
-  });
+  const senderId = currentUser?.id || null;
   const [hydrating, setHydrating] = useState(true);
 
   useEffect(() => {
@@ -208,6 +196,10 @@ const RasaWidget = () => {
 
   // Restore active support session after refresh (if any)
   useEffect(() => {
+    if (!senderId) {
+      setHydrating(false);
+      return;
+    }
     const restore = async () => {
       const storedSessionId = localStorage.getItem("support_session_id");
       if (!storedSessionId) {
@@ -242,6 +234,7 @@ const RasaWidget = () => {
   }, [senderId]);
 
   const fetchQueueStatus = async () => {
+    if (!senderId) return;
     try {
       const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
       if (res.status === 404) {
@@ -276,6 +269,10 @@ const RasaWidget = () => {
   }, [mode, senderId]);
 
   const sendToBot = async (text) => {
+    if (!senderId) {
+      appendMessage("bot", "Please login to use the chatbot.");
+      return;
+    }
     appendMessage("user", text);
     setInput("");
     setSending(true);
@@ -355,6 +352,10 @@ const RasaWidget = () => {
   };
 
   const startHandoff = async (initialText) => {
+    if (!senderId) {
+      appendMessage("bot", "Please login to use live chat.");
+      return;
+    }
     appendMessage("bot", "Connecting you to a live agent...");
     setAgentReady(false);
     setQueueInfo(null);
@@ -392,72 +393,17 @@ const RasaWidget = () => {
     }
   };
 
-  const startGuestHandoff = (initialText) => {
-    // If already logged in, bypass guest form and hand off directly
-    if (isLoggedIn) {
-      startHandoff(initialText || "I need a human agent");
-      return;
-    }
-    setHandoffMessage(initialText || "I need a human agent");
-    setShowGuestForm(true);
-  };
-
-  const submitGuestForm = async (e) => {
-    if (e) e.preventDefault();
-    if (!guestName.trim() || !guestEmail.trim()) {
-      appendMessage("bot", "Please enter your name and email to connect with an agent.");
-      return;
-    }
-    setSending(true);
-    try {
-      const res = await fetch(SUPPORT_GUEST_ESCALATE_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          full_name: guestName.trim(),
-          email: guestEmail.trim(),
-          sender_id: senderId,
-          last_message: handoffMessage || "Need a human agent",
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.data?.session_id) {
-        throw new Error(data?.error || "Could not start a ticket");
-      }
-      const newSessionId = data.data.session_id;
-      const ticket = data.data.ticket_number;
-      setSessionId(newSessionId);
-      localStorage.setItem("support_session_id", newSessionId);
-      setAgentReady(true);
-      setMode("agent");
-      setShowGuestForm(false);
-      appendMessage("bot", `Ticket ${ticket || newSessionId} created.`);
-      appendMessage("bot", "Connecting you to a live agent...");
-      fetchQueueStatus();
-    } catch (err) {
-      appendMessage("bot", err.message || "Could not start a ticket right now.");
-      setMode("bot");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const cancelGuestForm = () => {
-    setShowGuestForm(false);
-    setGuestName("");
-    setGuestEmail("");
-    setMode("bot");
-    localStorage.removeItem("support_session_id");
-    appendMessage("bot", "No problem—I’ll stay with the bot. Ask me anything!");
-  };
-
   const sendMessage = async (text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    if (!isLoggedIn) {
+      appendMessage("bot", "Please login to use the chatbot.");
+      return;
+    }
     // If user explicitly asks for a human, trigger the same flow as the quick-reply handoff
     const wantsHuman = /\b(live agent|human agent|talk to (a )?human|talk to (an )?agent)\b/i.test(trimmed);
     if (wantsHuman) {
-      startGuestHandoff(trimmed);
+      startHandoff(trimmed);
       return;
     }
     if (mode === "agent" && sessionId) {
@@ -523,49 +469,20 @@ const RasaWidget = () => {
               </button>
             </div>
             <div className="chat-body">
-              {showGuestForm ? (
-                <div className="guest-form p-2">
-                  <h5 className="mb-2">Tell us how to reach you</h5>
-                  <div className="mb-2">
-                    <label className="form-label small mb-1" htmlFor="guest-name">Full name</label>
-                    <input
-                      id="guest-name"
-                      type="text"
-                      className="form-control form-control-sm"
-                      value={guestName}
-                      onChange={(e) => setGuestName(e.target.value)}
-                      placeholder="Jane Doe"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label small mb-1" htmlFor="guest-email">Email</label>
-                    <input
-                      id="guest-email"
-                      type="email"
-                      className="form-control form-control-sm"
-                      value={guestEmail}
-                      onChange={(e) => setGuestEmail(e.target.value)}
-                      placeholder="you@example.com"
-                    />
-                  </div>
-                  <div className="d-flex flex-column gap-2">
-                    <div className="d-flex gap-2">
-                      <button className="btn btn-primary btn-sm w-100" onClick={submitGuestForm} disabled={sending}>
-                        {sending ? "Starting..." : "Proceed"}
-                      </button>
-                      <button className="btn btn-outline-secondary btn-sm" type="button" onClick={cancelGuestForm}>
-                        Exit
-                      </button>
+              {!isLoggedIn ? (
+                <div className="p-3">
+                  <div className="alert alert-light border mb-0">
+                    <div className="fw-semibold mb-1">Login required</div>
+                    <div className="small text-muted mb-3">
+                      Please create an account or login to use the chatbot.
                     </div>
-                    {!isLoggedIn && (
-                      <button
-                        type="button"
-                        className="btn btn-link btn-sm text-start px-0"
-                        onClick={() => window.location.href = "/login"}
-                      >
-                        Already a member? Login here
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() => window.location.href = "/login"}
+                    >
+                      Login / Sign up
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -633,14 +550,14 @@ const RasaWidget = () => {
                 </>
               )}
             </div>
-            {!showGuestForm && mode === "agent" && !agentReady && (
+            {isLoggedIn && mode === "agent" && !agentReady && (
               <div className="px-3 py-2 text-muted small">
                 {queueInfo?.position
                   ? `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
                   : "Waiting for an agent to join. We'll notify you when they're ready."}
               </div>
             )}
-            {!showGuestForm && mode !== "agent" && (
+            {isLoggedIn && mode !== "agent" && (
               <div className="chat-quick-replies">
                 {QUICK_REPLIES.map((qr) => (
                   <button
@@ -668,7 +585,7 @@ const RasaWidget = () => {
                         return;
                       }
                       if (qr.payload === "__handoff__") {
-                        startGuestHandoff("I need to talk to a human agent");
+                        startHandoff("I need to talk to a human agent");
                       } else {
                         sendMessage(qr.payload);
                       }
@@ -680,7 +597,7 @@ const RasaWidget = () => {
                 ))}
               </div>
             )}
-            {!showGuestForm && (
+            {isLoggedIn && (
               <form className="chat-input" onSubmit={handleSubmit}>
               <input
                 type="text"

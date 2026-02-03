@@ -23,6 +23,8 @@ try:
     from .routes.customer import customer_bp, dashboard_bp
     from .routes.live_cust_support import live_cust_support_bp
     from .routes.promos import promos_bp
+    from .routes.product_categories import product_categories_bp, admin_product_categories_bp
+    from .routes.product_reviews import product_reviews_bp
     # Import other blueprints as needed
 except ImportError:
     from supabase_client import get_supabase
@@ -39,6 +41,8 @@ except ImportError:
     from routes.customer import customer_bp, dashboard_bp
     from routes.live_cust_support import live_cust_support_bp
     from routes.promos import promos_bp
+    from routes.product_categories import product_categories_bp, admin_product_categories_bp
+    from routes.product_reviews import product_reviews_bp
 
 def create_app() -> Flask:
     # 2. ENV LOADING (Force absolute path to avoid 500s from missing keys)
@@ -100,6 +104,8 @@ def create_app() -> Flask:
     app.register_blueprint(products_bp, url_prefix="/api/products")
     app.register_blueprint(carts_bp, url_prefix="/api/carts")
     app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
+    app.register_blueprint(product_categories_bp, url_prefix="/api/product-categories")
+    app.register_blueprint(product_reviews_bp, url_prefix="/api")
     
     # Admin Routes
     app.register_blueprint(stocks_bp, url_prefix="/api/admin/stocks")
@@ -110,6 +116,7 @@ def create_app() -> Flask:
     app.register_blueprint(admin_promotions_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_promos_bp, url_prefix="/api/admin")
     app.register_blueprint(admin_users_bp, url_prefix="/api/admin")
+    app.register_blueprint(admin_product_categories_bp, url_prefix="/api/admin")
 
     # Customer Dashboard & Profile
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")

@@ -4,15 +4,23 @@ import { useDispatch } from "react-redux";
 import toast from "react-hot-toast";
 import { addItem } from "../redux/cartSlice";
 import { fetchProducts } from "../api/products";
-import { formatCountdown, hasActivePromotion } from "../utils/promo";
+import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
 import "../styles/FeaturedProducts.css";
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
+const isBestseller = (item) =>
+  !!item?.isBestseller || Number(item?.ratingCount || 0) >= 1500;
+
+const formatRating = (item) => {
+  const avg = Number(item?.rating || 0);
+  const count = Number(item?.ratingCount || 0);
+  if (!count) return "";
+  return `${avg.toFixed(1)} (${count})`;
+};
 
 const FeaturedProducts = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(Date.now());
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -28,11 +36,6 @@ const FeaturedProducts = () => {
       }
     };
     loadProducts();
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
   }, []);
 
   const addProduct = (product) => {
@@ -76,13 +79,22 @@ const FeaturedProducts = () => {
                   </div>
                   <div className="card-body d-flex flex-column p-4">
                     <h5 className="card-title fw-bold mb-1 text-truncate" title={item.title}>{item.title}</h5>
+                    {isBestseller(item) && (
+                      <span className="badge bg-success text-white align-self-start mb-2">Bestseller</span>
+                    )}
                     <div className="mt-auto pt-3">
+                      {formatRating(item) && (
+                        <div className="small text-muted mb-2">
+                          <i className="fa fa-star text-warning me-1" />
+                          {formatRating(item)}
+                        </div>
+                      )}
                       <div className="d-flex align-items-center justify-content-between mb-3">
                         {(() => {
                           const price = Number(item.price || 0);
                           const original = Number(item.originalPrice ?? item.price ?? 0);
                           const showPromo = hasActivePromotion(item);
-                          const countdown = showPromo ? formatCountdown(item?.promotion?.expiresAt, now) : "";
+                          const badge = showPromo ? formatPromotionBadge(item) : "";
                           return (
                             <div className="d-flex flex-column">
                               {showPromo && (
@@ -91,9 +103,9 @@ const FeaturedProducts = () => {
                                 </span>
                               )}
                               <span className="fs-5 fw-bold text-primary">${price.toFixed(2)}</span>
-                              {showPromo && countdown && (
+                              {showPromo && badge && (
                                 <span className="badge bg-warning text-dark mt-1 align-self-start">
-                                  Ends in {countdown}
+                                  {badge}
                                 </span>
                               )}
                             </div>

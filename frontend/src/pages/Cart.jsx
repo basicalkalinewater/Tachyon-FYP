@@ -15,7 +15,7 @@ import {
   decreaseItem,
   removeItem,
 } from "../redux/cartSlice";
-import { formatCountdown, hasActivePromotion } from "../utils/promo";
+import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
 
 const Cart = () => {
   const items = useSelector(selectCartItems);
@@ -25,12 +25,6 @@ const Cart = () => {
   const status = useSelector(selectCartStatus);
   const error = useSelector(selectCartError);
   const dispatch = useDispatch();
-  const [now, setNow] = useState(Date.now());
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   if ((!items || items.length === 0) && status !== "loading") {
     return (
@@ -71,7 +65,7 @@ const Cart = () => {
                 const price = Number(item.price || 0);
                 const original = Number(item.originalPrice ?? item.price ?? 0);
                 const showPromo = hasActivePromotion(item);
-                const countdown = showPromo ? formatCountdown(item?.promotion?.expiresAt, now) : "";
+                const badge = showPromo ? formatPromotionBadge(item) : "";
                 return (
                   <div>
                     {showPromo && (
@@ -80,9 +74,9 @@ const Cart = () => {
                       </div>
                     )}
                     <div className="small text-muted">${price.toFixed(2)} each</div>
-                    {showPromo && countdown && (
+                    {showPromo && badge && (
                       <span className="badge bg-warning text-dark mt-1">
-                        Ends in {countdown}
+                        {badge}
                       </span>
                     )}
                   </div>

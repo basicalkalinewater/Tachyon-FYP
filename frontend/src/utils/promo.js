@@ -18,3 +18,13 @@ export const formatCountdown = (expiresAt, nowMs = Date.now()) => {
 
 export const hasActivePromotion = (item) =>
   !!(item?.promotion && item?.originalPrice && item?.price < item?.originalPrice);
+
+export const formatPromotionBadge = (item) => {
+  const promo = item?.promotion;
+  if (!promo) return "";
+  const type = promo.discountType;
+  const value = Number(promo.discountValue || 0);
+  if (type === "percent") return `${value}% off`;
+  if (type === "amount") return `$${value} off`;
+  return "";
+};

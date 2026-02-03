@@ -18,6 +18,8 @@ import {
   createPolicy,
   updatePolicy,
   deletePolicy,
+  getAnnouncement,
+  updateAnnouncement,
   listPromoCodes,
   createPromoCode,
   updatePromoCode,
@@ -31,14 +33,17 @@ import {
   updateStock
 } from "../api/admin";
 import { listProducts, createProduct, updateProduct, deleteProduct } from "../api/productManagement";
+import { listProductCategories, createProductCategory, deleteProductCategory } from "../api/categories";
 import { toast } from "react-hot-toast";
+import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
+import { formatCategoryLabel } from "../utils/category";
 import "../styles/admin-dashboard.css";
 
 const ADMIN_SECTIONS = [
   { id: "dashboard", label: "Overview", group: "Command Center" },
   { id: "inventory", label: "Inventory", group: "Management" },
   { id: "users", label: "Users", group: "Management" },
-  { id: "management", label: "Content", group: "Management" },
+  { id: "management", label: "Website Content", group: "Management" },
   { id: "businessinsights", label: "Business Insights", group: "Command Center" },
   { id: "promotions", label: "Promotions", group: "Management" },
   { id: "promos", label: "Promo Codes", group: "Management" },
@@ -74,13 +79,16 @@ const AdminDashboard = () => {
   const [profile, setProfile] = useState({ full_name: "", phone: "" });
   const [profileSaving, setProfileSaving] = useState(false);
   const [viewMode, setViewMode] = useState("dashboard"); // dashboard | inventory | profile | users | management | promos | promotions
-  const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies
+  const [managementTab, setManagementTab] = useState("faqs"); // faqs | policies | announcement
   const [faqItems, setFaqItems] = useState([]);
   const [policyItems, setPolicyItems] = useState([]);
   const [policySlugFilter, setPolicySlugFilter] = useState("");
   const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "" });
   const [policyForm, setPolicyForm] = useState({ id: null, title: "", tag: "", content: "" });
+  const [announcement, setAnnouncement] = useState({ id: null, message: "", link_url: "", link_label: "", enabled: true });
+  const [announcementLoading, setAnnouncementLoading] = useState(false);
+  const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
   const [showPolicyModal, setShowPolicyModal] = useState(false);
   const emptyPromoForm = {
@@ -154,9 +162,6 @@ const AdminDashboard = () => {
   const [adjustmentForm, setAdjustmentForm] = useState({ quantity: 0, reason: "" });
   const [adjustingThresholdId, setAdjustingThresholdId] = useState(null);
   const [thresholdValue, setThresholdValue] = useState(15);
-  const [customSpecOptions, setCustomSpecOptions] = useState({});
-  const [customSpecDrafts, setCustomSpecDrafts] = useState({});
-  const [customSpecValueDrafts, setCustomSpecValueDrafts] = useState({});
   const [isDeleting, setIsDeleting] = useState(null);
   const CATEGORY_TEMPLATES = {
   keyboard: { size: "", connection: "", switch_type: "" },
@@ -164,7 +169,10 @@ const AdminDashboard = () => {
   ssd: { interface: "", read_mb_s: "", write_mb_s: "", capacity_gb: "" },
   monitor: { panel_type: "", refresh_hz: "", resolution: "", screen_size_inches: "" },
   };
-  const [customCategory, setCustomCategory] = useState("");
+  const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(false);
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
   const [userSaving, setUserSaving] = useState(false);
   const [editUserForm, setEditUserForm] = useState(null);
   const [editUserSaving, setEditUserSaving] = useState(false);
@@ -304,11 +312,6 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-    load();
-    loadProfile();
-  }, [load, loadProfile]);
-
-  useEffect(() => {
     return () => {
       if (editImagePreview) {
         URL.revokeObjectURL(editImagePreview);
@@ -341,6 +344,46 @@ const AdminDashboard = () => {
       setPolicyLoading(false);
     }
   }, []);
+
+  const loadAnnouncement = useCallback(async () => {
+    setAnnouncementLoading(true);
+    try {
+      const res = await getAnnouncement();
+      const data = res?.data || res || {};
+      setAnnouncement({
+        id: data.id || null,
+        message: data.message || "",
+        link_url: data.link_url || "",
+        link_label: data.link_label || "",
+        enabled: data.enabled !== false,
+      });
+    } catch (err) {
+      toast.error(err.message || "Failed to load announcement");
+    } finally {
+      setAnnouncementLoading(false);
+    }
+  }, []);
+
+  const loadCategories = useCallback(async () => {
+    setCategoriesLoading(true);
+    try {
+      const res = await listProductCategories();
+      const list = res?.data || res || [];
+      setCategories(list);
+    } catch (err) {
+      console.error("Category Load Error:", err);
+      toast.error("Failed to load product categories");
+      setCategories([]);
+    } finally {
+      setCategoriesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    loadProfile();
+    loadCategories();
+  }, [load, loadProfile, loadCategories]);
 
   const loadInsightsHistory = useCallback(async () => {
     setInsightsHistoryLoading(true);
@@ -403,12 +446,46 @@ const AdminDashboard = () => {
     }
   }, [promotionFilters]);
 
+  const saveAnnouncement = async (e) => {
+    if (e) e.preventDefault();
+    if (!announcement.message.trim()) {
+      toast.error("Announcement message is required");
+      return;
+    }
+    setAnnouncementSaving(true);
+    try {
+      const res = await updateAnnouncement({
+        id: announcement.id,
+        message: announcement.message.trim(),
+        link_url: announcement.link_url.trim() || null,
+        link_label: announcement.link_label.trim() || null,
+        enabled: announcement.enabled,
+      });
+      const data = res?.data || res || {};
+      setAnnouncement({
+        id: data.id || announcement.id,
+        message: data.message || announcement.message,
+        link_url: data.link_url || announcement.link_url,
+        link_label: data.link_label || announcement.link_label,
+        enabled: data.enabled !== false,
+      });
+      window.dispatchEvent(new Event("announcement:updated"));
+      toast.success("Announcement updated");
+    } catch (err) {
+      toast.error(err.message || "Failed to update announcement");
+    } finally {
+      setAnnouncementSaving(false);
+    }
+  };
+
   useEffect(() => {
     if (viewMode === "management") {
       if (managementTab === "faqs") {
         loadFaqs();
       } else if (managementTab === "policies") {
         loadPolicies();
+      } else if (managementTab === "announcement") {
+        loadAnnouncement();
       }
     } else if (viewMode === "businessinsights") {
       loadInsightsHistory();
@@ -417,7 +494,7 @@ const AdminDashboard = () => {
     } else if (viewMode === "promotions") {
       loadPromotions();
     }
-  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadInsightsHistory, loadPromos, loadPromotions]);
+  }, [viewMode, managementTab, loadFaqs, loadPolicies, loadAnnouncement, loadInsightsHistory, loadPromos, loadPromotions]);
 
   const loadProducts = useCallback(async () => {
     setProductsLoading(true);
@@ -486,9 +563,7 @@ const AdminDashboard = () => {
   const handleCreateProduct = async (e) => {
     e.preventDefault();
 
-    const finalCategory = newProduct.category === "other" 
-      ? customCategory 
-      : newProduct.category;
+    const finalCategory = newProduct.category;
 
     const cleanedSpecs = {};
     Object.entries(newProduct.specs).forEach(([k, v]) => {
@@ -520,6 +595,59 @@ const AdminDashboard = () => {
     }
   };
 
+  const normalizeCategoryValue = (value) =>
+    String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+
+  const openNewCategoryModal = () => {
+    setNewCategoryName("");
+    setShowNewCategoryModal(true);
+  };
+
+  const closeNewCategoryModal = () => {
+    setShowNewCategoryModal(false);
+  };
+
+  const handleCreateCategory = (e) => {
+    e.preventDefault();
+    const normalized = normalizeCategoryValue(newCategoryName);
+    if (!normalized) {
+      toast.error("Please enter a category name.");
+      return;
+    }
+    createProductCategory({ name: newCategoryName.trim(), slug: normalized })
+      .then((res) => {
+        const created = res?.data || res;
+        if (created) {
+          setCategories((prev) => [...prev, created]);
+        } else {
+          loadCategories();
+        }
+        window.dispatchEvent(new Event("categories:updated"));
+        toast.success(`Category added: ${formatCategoryLabel(normalized)}`);
+        setNewCategoryName("");
+        setShowNewCategoryModal(false);
+      })
+      .catch((err) => {
+        toast.error(err.message || "Failed to create category");
+      });
+  };
+
+  const handleDeleteCategory = async (categoryId, label) => {
+    if (!window.confirm(`Delete category "${label}"? Products using this category must be updated first.`)) return;
+    try {
+      await deleteProductCategory(categoryId);
+      toast.success("Category removed");
+      setCategories((prev) => prev.filter((c) => c.id !== categoryId && c.slug !== categoryId));
+      window.dispatchEvent(new Event("categories:updated"));
+    } catch (err) {
+      toast.error(err.message || "Failed to delete category");
+    }
+  };
+
   const resetNewProductForm = () => {
     setNewProduct({
       title: "",
@@ -530,9 +658,6 @@ const AdminDashboard = () => {
       specs: {},
       imageFile: null,
     });
-    setCustomCategory("");
-    setCustomSpecDrafts({});
-    setCustomSpecValueDrafts({});
     setNewProductImageKey((prev) => prev + 1);
   };
 
@@ -557,63 +682,32 @@ const AdminDashboard = () => {
       category: cat,
       specs: { ...template }
     });
-    setCustomSpecDrafts({});
-    setCustomSpecValueDrafts({});
   };
 
   const addSpecField = () => {
-    setNewProduct(prev => ({
-      ...prev,
-      specs: { ...prev.specs, "": "" } // Adds an empty key-value pair
-    }));
-  };
-
-  const handleSpecKeySelect = (oldKey, selectedKey, rowIndex) => {
-    if (selectedKey === "__custom__") {
-      setCustomSpecDrafts((prev) => ({ ...prev, [rowIndex]: "" }));
-      return;
-    }
-    if (!selectedKey) return;
-    setCustomSpecDrafts((prev) => {
-      const next = { ...prev };
-      delete next[rowIndex];
-      return next;
+    setNewProduct((prev) => {
+      if (Object.prototype.hasOwnProperty.call(prev.specs, "")) return prev;
+      return {
+        ...prev,
+        specs: { ...prev.specs, "": "" }
+      };
     });
-    handleSpecKeyChange(oldKey, selectedKey);
-  };
-
-  const applyCustomSpecKey = (oldKey, rawKey, rowIndex) => {
-    const cleanedKey = String(rawKey || "").trim().replace(/\s+/g, "_");
-    if (!cleanedKey) {
-      toast.error("Please enter a spec name.");
-      return;
-    }
-    const existingKeys = Object.keys(newProduct.specs).filter((k) => k !== oldKey);
-    if (existingKeys.includes(cleanedKey)) {
-      toast.error("That spec already exists. Choose another.");
-      return;
-    }
-    const categoryKey = (newProduct.category || "").toLowerCase();
-    if (categoryKey) {
-      setCustomSpecOptions((prev) => {
-        const current = prev[categoryKey] || [];
-        if (current.includes(cleanedKey)) return prev;
-        return { ...prev, [categoryKey]: [...current, cleanedKey] };
-      });
-    }
-    setCustomSpecDrafts((prev) => {
-      const next = { ...prev };
-      delete next[rowIndex];
-      return next;
-    });
-    handleSpecKeyChange(oldKey, cleanedKey);
   };
 
   const handleSpecKeyChange = (oldKey, newKey) => {
+    const cleanedKey = String(newKey || "").trim().replace(/\s+/g, "_");
+    if (cleanedKey === "" && oldKey !== "" && newProduct.specs[""] !== undefined) {
+      toast.error("Please finish the existing empty spec before adding another.");
+      return;
+    }
+    if (cleanedKey && cleanedKey !== oldKey && newProduct.specs[cleanedKey] !== undefined) {
+      toast.error("That spec already exists. Choose another.");
+      return;
+    }
     const { [oldKey]: value, ...rest } = newProduct.specs;
-    setNewProduct(prev => ({
+    setNewProduct((prev) => ({
       ...prev,
-      specs: { ...rest, [newKey]: value }
+      specs: { ...rest, [cleanedKey]: value }
     }));
   };
 
@@ -624,37 +718,48 @@ const AdminDashboard = () => {
     }));
   };
 
-  const handleSpecValueSelect = (key, selectedValue, rowIndex) => {
-    if (selectedValue === "__custom__") {
-      setCustomSpecValueDrafts((prev) => ({ ...prev, [rowIndex]: "" }));
-      return;
-    }
-    setCustomSpecValueDrafts((prev) => {
-      const next = { ...prev };
-      delete next[rowIndex];
-      return next;
-    });
-    handleSpecValueChange(key, selectedValue);
-  };
-
-  const applyCustomSpecValue = (key, rawValue, rowIndex) => {
-    const cleanedValue = String(rawValue || "").trim();
-    if (!cleanedValue) {
-      toast.error("Please enter a spec value.");
-      return;
-    }
-    setCustomSpecValueDrafts((prev) => {
-      const next = { ...prev };
-      delete next[rowIndex];
-      return next;
-    });
-    handleSpecValueChange(key, cleanedValue);
-  };
-
   const removeSpecField = (key) => {
     const updatedSpecs = { ...newProduct.specs };
     delete updatedSpecs[key];
     setNewProduct(prev => ({ ...prev, specs: updatedSpecs }));
+  };
+
+  const addEditSpecField = () => {
+    setEditProductForm((prev) => {
+      if (!prev) return prev;
+      if (Object.prototype.hasOwnProperty.call(prev.specs || {}, "")) return prev;
+      return { ...prev, specs: { ...(prev.specs || {}), "": "" } };
+    });
+  };
+
+  const handleEditSpecKeyChange = (oldKey, newKey) => {
+    const cleanedKey = String(newKey || "").trim().replace(/\s+/g, "_");
+    setEditProductForm((prev) => {
+      if (!prev) return prev;
+      const specs = { ...(prev.specs || {}) };
+      if (cleanedKey && cleanedKey !== oldKey && specs[cleanedKey] !== undefined) {
+        toast.error("That spec already exists. Choose another.");
+        return prev;
+      }
+      const { [oldKey]: value, ...rest } = specs;
+      return { ...prev, specs: { ...rest, [cleanedKey]: value } };
+    });
+  };
+
+  const handleEditSpecValueChange = (key, value) => {
+    setEditProductForm((prev) => {
+      if (!prev) return prev;
+      return { ...prev, specs: { ...(prev.specs || {}), [key]: value } };
+    });
+  };
+
+  const removeEditSpecField = (key) => {
+    setEditProductForm((prev) => {
+      if (!prev) return prev;
+      const updatedSpecs = { ...(prev.specs || {}) };
+      delete updatedSpecs[key];
+      return { ...prev, specs: updatedSpecs };
+    });
   };
 
   const handleProfileChange = (e) => {
@@ -1192,28 +1297,44 @@ const handleStockSubmit = async (productId) => {
   }, [trend]);
 
   const promotionCategories = useMemo(() => {
-    const cats = (products || [])
-      .map((p) => p.category)
+    const cats = (categories || [])
+      .map((c) => c?.slug || c?.name)
       .filter((c) => !!c);
     return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b));
-  }, [products]);
+  }, [categories]);
 
   const inventoryCategories = useMemo(() => {
-    const cats = (products || [])
-      .map((p) => p.category)
+    const cats = (categories || [])
+      .map((c) => c?.slug || c?.name)
       .filter((c) => !!c);
     return Array.from(new Set(cats)).sort((a, b) => a.localeCompare(b));
-  }, [products]);
+  }, [categories]);
+
+  const productCategoryOptions = useMemo(() => {
+    const base = Object.keys(CATEGORY_TEMPLATES || {});
+    const combined = [...base, ...(inventoryCategories || [])];
+    return Array.from(new Set(combined)).sort((a, b) => a.localeCompare(b));
+  }, [inventoryCategories]);
 
   const promotionProductMap = useMemo(() => {
     return new Map((products || []).map((p) => [p.id, p.title]));
   }, [products]);
 
+  const categoryLabelMap = useMemo(() => {
+    const entries = (categories || []).map((c) => {
+      const key = c?.slug || c?.name;
+      const label = c?.name || formatCategoryLabel(key);
+      return [key, label];
+    });
+    return new Map(entries);
+  }, [categories]);
+
+  const getCategoryLabel = (value) =>
+    categoryLabelMap.get(value) || formatCategoryLabel(value);
+
   const newProductCategoryKey = (newProduct.category || "").toLowerCase();
   const newProductTemplate = CATEGORY_TEMPLATES[newProductCategoryKey] || null;
   const newProductTemplateKeys = newProductTemplate ? Object.keys(newProductTemplate) : [];
-  const newProductCustomKeys = customSpecOptions[newProductCategoryKey] || [];
-  const newProductAvailableKeys = Array.from(new Set([...newProductTemplateKeys, ...newProductCustomKeys]));
 
   const newProductValueOptions = useMemo(() => {
     if (!newProductCategoryKey) return {};
@@ -1238,6 +1359,14 @@ const handleStockSubmit = async (productId) => {
       Object.entries(map).map(([k, set]) => [k, Array.from(set).sort((a, b) => a.localeCompare(b))])
     );
   }, [products, newProductCategoryKey]);
+
+  const newProductAvailableKeys = useMemo(() => {
+    if (!newProductCategoryKey) return newProductTemplateKeys;
+    const keysFromValues = Object.keys(newProductValueOptions || {});
+    return Array.from(new Set([...newProductTemplateKeys, ...keysFromValues])).sort((a, b) =>
+      a.localeCompare(b)
+    );
+  }, [newProductCategoryKey, newProductTemplateKeys, newProductValueOptions]);
 
   const editImageSrc = editProductForm?.image || "/assets/placeholder.jpg";
   const isAnyModalOpen = !!(
@@ -1305,19 +1434,19 @@ const handleStockSubmit = async (productId) => {
           <span className="muted small">Overall satisfaction</span>
         </div>
         <div className="admin-card metric">
-          <p className="muted">Avg Rating</p>
+          <p className="muted">Avg. Rating</p>
           <div className="metric-value">{Number(summary.avg_rating ?? 0).toFixed(2)}</div>
           <span className="muted small">5-point scale</span>
         </div>
         <div className="admin-card metric">
           <p className="muted">Responses</p>
           <div className="metric-value">{summary.responses ?? 0}</div>
-          <span className="muted small">Collected in the window</span>
+          <span className="muted small">Collected</span>
         </div>
         <div className="admin-card metric">
-          <p className="muted">Peak day</p>
+          <p className="muted">Peak Day</p>
           <div className="metric-value">
-            {bestTrendPoint?.csat_pct ? `${Math.round(bestTrendPoint.csat_pct)}%` : "—"}
+            {bestTrendPoint?.csat_pct ? `${Math.round(bestTrendPoint.csat_pct)}%` : "-"}
           </div>
           <span className="muted small">
             {bestTrendPoint?.day
@@ -1327,8 +1456,52 @@ const handleStockSubmit = async (productId) => {
         </div>
       </section>
 
-        <section className="admin-grid">
-        <div className="admin-card wide">
+      <section className="admin-grid">
+        <div className="admin-card">
+          <div className="card-header">
+            <div>
+              <p className="eyebrow">Business insights</p>
+              <h4>Sales performance</h4>
+            </div>
+            <div className="insight-controls">
+              <label className="muted tiny" htmlFor="insight-month">Month</label>
+              <select
+                id="insight-month"
+                className="form-select form-select-sm"
+                value={insightMonth}
+                onChange={(e) => setInsightMonth(e.target.value)}
+              >
+                {overviewMonthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <ul className="insight-list">
+            <li>
+              <p className="muted tiny mb-1">Best-selling product (month)</p>
+              <div className="insight-value">
+                <strong>{insights.bestMonth?.name || "N/A"}</strong>
+                <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
+              </div>
+            </li>
+            <li>
+              <p className="muted tiny mb-1">Worst-selling product (month)</p>
+              <div className="insight-value">
+                <strong>{insights.worstMonth?.name || "N/A"}</strong>
+                <span className="muted tiny">{insights.worstMonth ? `${insights.worstMonth.quantity} sold` : "No sales yet"}</span>
+              </div>
+            </li>
+            <li>
+              <p className="muted tiny mb-1">Total sales today</p>
+              <div className="insight-value">
+                <strong>{currencyFormatter.format(insights.totalSalesToday || 0)}</strong>
+                <span className="muted tiny">{insights.ordersToday} orders today</span>
+              </div>
+            </li>
+          </ul>
+        </div>
+        <div className="admin-card">
           <div className="card-header">
             <div>
               <p className="eyebrow">Voice of customer</p>
@@ -1421,1787 +1594,388 @@ const handleStockSubmit = async (productId) => {
     </section>
   );
 
-const renderManagement = () => (
-  <section className="admin-grid">
-    <div className="admin-card wide">
-      <div className="card-header">
-        <div>
-            <p className="eyebrow">Management</p>
-            <h4>Tools & settings</h4>
-          </div>
-        </div>
-        <div className="d-flex gap-2 mb-3 flex-wrap align-items-center">
-          <button
-            type="button"
-            className={`btn ${managementTab === "faqs" ? "btn-primary-saas" : "btn-outline-saas"}`}
-            onClick={() => setManagementTab("faqs")}
-          >
-            FAQs
-          </button>
-          <button
-            type="button"
-            className={`btn ${managementTab === "policies" ? "btn-primary-saas" : "btn-outline-saas"}`}
-            onClick={() => setManagementTab("policies")}
-          >
-            Policies
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary-saas"
-            onClick={() => {
-              if (managementTab === "faqs") {
-                setFaqForm({ id: null, question: "", answer: "" });
-                setShowFaqModal(true);
-              } else {
-                setPolicyForm({ id: null, title: "", tag: "", content: "" });
-                setShowPolicyModal(true);
-              }
-            }}
-          >
-            {managementTab === "faqs" ? "Create FAQ" : "Create Policy"}
-          </button>
-        </div>
-        {managementTab === "faqs" && (
-          <div className="admin-grid">
-            <div className="admin-card wide">
-              <div className="card-header">
-                <div>
-                  <p className="eyebrow">Existing FAQs</p>
-                  <h4>Manage entries</h4>
-                </div>
-              </div>
-              {faqLoading ? (
-                <p className="muted mb-0">Loading FAQs...</p>
-              ) : faqItems.length === 0 ? (
-                <p className="muted mb-0">No FAQs yet.</p>
-              ) : (
-                <div className="table-responsive management-scroll">
-                  <table className="dashboard-table">
-                    <thead>
-                      <tr>
-                        <th>Question</th>
-                        <th>Answer</th>
-                        <th className="text-end" style={{ width: 160 }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {faqItems.map((item) => (
-                        <tr key={item.id}>
-                          <td className="fw-semibold">{item.question}</td>
-                          <td style={{ whiteSpace: "pre-wrap" }}>{item.answer}</td>
-                          <td className="text-end">
-                            <div className="d-flex gap-2 justify-content-end">
-                              <button
-                                type="button"
-                                className="btn btn-outline-saas btn-sm"
-                                onClick={() => {
-                                  setFaqForm(item);
-                                  setShowFaqModal(true);
-                                }}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={async () => {
-                                  try {
-                                    await deleteFaq(item.id);
-                                    toast.success("FAQ removed");
-                                    await loadFaqs();
-                                  } catch (err) {
-                                    toast.error(err.message || "Failed to remove FAQ");
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+  const renderManagement = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+              <p className="eyebrow">Management</p>
+              <h4>Tools & settings</h4>
             </div>
           </div>
-        )}
-        {managementTab === "policies" && (
-          <div className="admin-grid">
-            <div className="admin-card wide">
+          <div className="d-flex gap-2 mb-3 flex-wrap align-items-center">
+            <button
+              type="button"
+              className={`btn ${managementTab === "faqs" ? "btn-primary-saas" : "btn-outline-saas"}`}
+              onClick={() => setManagementTab("faqs")}
+            >
+              FAQs
+            </button>
+            <button
+              type="button"
+              className={`btn ${managementTab === "policies" ? "btn-primary-saas" : "btn-outline-saas"}`}
+              onClick={() => setManagementTab("policies")}
+            >
+              Policies
+            </button>
+            <button
+              type="button"
+              className={`btn ${managementTab === "announcement" ? "btn-primary-saas" : "btn-outline-saas"}`}
+              onClick={() => setManagementTab("announcement")}
+            >
+              Promotional Banner
+            </button>
+            {managementTab !== "announcement" && (
+              <button
+                type="button"
+                className="btn btn-primary-saas"
+                onClick={() => {
+                  if (managementTab === "faqs") {
+                    setFaqForm({ id: null, question: "", answer: "" });
+                    setShowFaqModal(true);
+                  } else if (managementTab === "policies") {
+                    setPolicyForm({ id: null, title: "", tag: "", content: "" });
+                    setShowPolicyModal(true);
+                  }
+                }}
+              >
+                {managementTab === "faqs" ? "Create FAQ" : "Create Policy"}
+              </button>
+            )}
+          </div>
+          {managementTab === "faqs" && (
+            <div className="admin-grid">
+              <div className="admin-card wide">
                 <div className="card-header">
                   <div>
-                    <p className="eyebrow">Existing policies</p>
-                    <h4>Manage documents</h4>
+                    <p className="eyebrow">Existing FAQs</p>
+                    <h4>Manage entries</h4>
                   </div>
                 </div>
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="policy-slug-filter">Filter by tag</label>
-                  <input
-                    id="policy-slug-filter"
-                    type="text"
-                    className="form-control"
-                    value={policySlugFilter}
-                    onChange={(e) => setPolicySlugFilter(e.target.value)}
-                    placeholder="e.g. privacy, terms, shipping-returns"
-                  />
-                </div>
-                {policyLoading ? (
-                  <p className="muted mb-0">Loading policies...</p>
-                ) : policyItems.length === 0 ? (
-                  <p className="muted mb-0">No policies yet.</p>
+                {faqLoading ? (
+                  <p className="muted mb-0">Loading FAQs...</p>
+                ) : faqItems.length === 0 ? (
+                  <p className="muted mb-0">No FAQs yet.</p>
                 ) : (
                   <div className="table-responsive management-scroll">
                     <table className="dashboard-table">
                       <thead>
                         <tr>
-                          <th>Title</th>
-                          <th>Tag</th>
-                          <th>Content</th>
+                          <th>Question</th>
+                          <th>Answer</th>
                           <th className="text-end" style={{ width: 160 }}>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {policyItems
-                          .filter((item) => {
-                            if (!policySlugFilter.trim()) return true;
-                            return (item.slug || "")
-                              .toLowerCase()
-                              .includes(policySlugFilter.trim().toLowerCase());
-                          })
-                          .map((item) => (
+                        {faqItems.map((item) => (
                           <tr key={item.id}>
-                            <td className="fw-semibold">{item.title}</td>
-                            <td>{item.slug || "-"}</td>
-                            <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
+                            <td className="fw-semibold">{item.question}</td>
+                            <td style={{ whiteSpace: "pre-wrap" }}>{item.answer}</td>
                             <td className="text-end">
                               <div className="d-flex gap-2 justify-content-end">
                                 <button
-                                type="button"
-                                className="btn btn-outline-saas btn-sm"
-                                onClick={() => {
-                                  setPolicyForm({ ...item, tag: item.slug || "" });
-                                  setShowPolicyModal(true);
-                                }}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={async () => {
-                                  try {
-                                    await deletePolicy(item.id);
-                                    toast.success("Policy removed");
-                                    await loadPolicies();
-                                  } catch (err) {
-                                    toast.error(err.message || "Failed to remove policy");
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-    </div>
-  </section>
-);
-
-const renderBusinessInsights = () => (
-  <section className="admin-grid">
-    <div className="admin-card">
-      <div className="card-header">
-        <div>
-          <p className="eyebrow">Business insights</p>
-          <h4>Sales performance</h4>
-        </div>
-        <div className="insight-controls">
-          <label className="muted tiny" htmlFor="insight-month">Month</label>
-          <select
-            id="insight-month"
-            className="form-select form-select-sm"
-            value={insightMonth}
-            onChange={(e) => setInsightMonth(e.target.value)}
-          >
-            {overviewMonthOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <ul className="insight-list">
-        <li>
-          <p className="muted tiny mb-1">Best-selling product (month)</p>
-          <div className="insight-value">
-            <strong>{insights.bestMonth?.name || "N/A"}</strong>
-            <span className="muted tiny">{insights.bestMonth ? `${insights.bestMonth.quantity} sold` : "No sales yet"}</span>
-          </div>
-        </li>
-        <li>
-          <p className="muted tiny mb-1">Worst-selling product (month)</p>
-          <div className="insight-value">
-            <strong>{insights.worstMonth?.name || "N/A"}</strong>
-            <span className="muted tiny">{insights.worstMonth ? `${insights.worstMonth.quantity} sold` : "No sales yet"}</span>
-          </div>
-        </li>
-        <li>
-          <p className="muted tiny mb-1">Total sales today</p>
-          <div className="insight-value">
-            <strong>{currencyFormatter.format(insights.totalSalesToday || 0)}</strong>
-            <span className="muted tiny">{insights.ordersToday} orders today</span>
-          </div>
-        </li>
-      </ul>
-    </div>
-    <div className="admin-card wide">
-      <div className="card-header">
-        <div>
-          <p className="eyebrow">Business insights</p>
-          <h4>Monthly best/worst history</h4>
-        </div>
-      </div>
-      <div className="d-flex gap-2 flex-wrap mb-3 align-items-end">
-        <div>
-          <label className="form-label" htmlFor="insights-year">Year</label>
-          <input
-            id="insights-year"
-            type="number"
-            className="form-control"
-            style={{ width: 140 }}
-            value={insightsHistoryFilters.year}
-            onChange={(e) =>
-              setInsightsHistoryFilters((p) => ({ ...p, year: e.target.value }))
-            }
-            placeholder="e.g. 2026"
-          />
-        </div>
-        <div>
-          <label className="form-label" htmlFor="insights-month">Month</label>
-          <select
-            id="insights-month"
-            className="form-select"
-            style={{ width: 180 }}
-            value={insightsHistoryFilters.month}
-            onChange={(e) =>
-              setInsightsHistoryFilters((p) => ({ ...p, month: e.target.value }))
-            }
-          >
-            {historyMonthOptions.map((opt) => (
-              <option key={opt.value || "all"} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          className="btn btn-primary-saas"
-          onClick={loadInsightsHistory}
-          disabled={insightsHistoryLoading}
-        >
-          {insightsHistoryLoading ? "Loading..." : "Refresh"}
-        </button>
-      </div>
-      <div className="results-count">{insightsHistory.length} results found</div>
-      <div className="table-responsive">
-        <table className="dashboard-table">
-          <thead>
-            <tr>
-              <th>Month</th>
-              <th>Best product</th>
-              <th>Worst product</th>
-              <th className="text-end">Sales</th>
-              <th className="text-end">Orders</th>
-            </tr>
-          </thead>
-          <tbody>
-            {insightsHistoryLoading ? (
-              <tr>
-                <td colSpan="5" className="text-center py-4 text-muted">
-                  Loading insights...
-                </td>
-              </tr>
-            ) : insightsHistory.length === 0 ? (
-              <tr>
-                <td colSpan="5" className="text-center py-4 text-muted">
-                  No insights found for this filter.
-                </td>
-              </tr>
-            ) : (
-              insightsHistory.map((row) => (
-                <tr key={`history-${row.year}-${row.month}`}>
-                  <td>{formatMonthYear(row.year, row.month)}</td>
-                  <td>
-                    {row.best_selling_product_month?.name || "N/A"}
-                    {row.best_selling_product_month?.quantity
-                      ? ` (${row.best_selling_product_month.quantity})`
-                      : ""}
-                  </td>
-                  <td>
-                    {row.worst_selling_product_month?.name || "N/A"}
-                    {row.worst_selling_product_month?.quantity
-                      ? ` (${row.worst_selling_product_month.quantity})`
-                      : ""}
-                  </td>
-                  <td className="text-end">
-                    {currencyFormatter.format(row.month_total_sales || 0)}
-                  </td>
-                  <td className="text-end">{row.month_orders || 0}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </section>
-);
-
-  const renderPromos = () => (
-    <section className="admin-grid">
-      <div className="admin-card wide">
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Promo codes</p>
-            <h4>Discount Rules</h4>
-          </div>
-        </div>
-        <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
-          <input
-            type="search"
-            className="form-control"
-            style={{ maxWidth: 220 }}
-            placeholder="Code contains"
-            value={promoFilters.q}
-            onChange={(e) => setPromoFilters((p) => ({ ...p, q: e.target.value }))}
-          />
-          <select
-            className="form-select"
-            style={{ maxWidth: 160 }}
-            value={promoFilters.active}
-            onChange={(e) => setPromoFilters((p) => ({ ...p, active: e.target.value }))}
-          >
-            <option value="all">Any status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-            <button className="btn btn-outline-saas" onClick={loadPromos} disabled={promoLoading}>
-              {promoLoading ? "Loading..." : "Refresh"}
-            </button>
-            <button type="button" className="btn btn-primary-saas" onClick={startCreatePromo}>
-              New Promo
-            </button>
-          </div>
-          <div className="results-count">{promoItems.length} results found</div>
-
-        <div className="admin-grid">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <p className="eyebrow">Existing promo codes</p>
-                <h4>Search & Manage</h4>
-              </div>
-            </div>
-            {promoLoading ? (
-              <p className="muted mb-0">Loading promo codes...</p>
-            ) : promoItems.length === 0 ? (
-              <p className="muted mb-0">No promo codes yet.</p>
-            ) : (
-              <div className="table-responsive management-scroll">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Code</th>
-                      <th>Discount</th>
-                      <th>Status</th>
-                      <th>Window</th>
-                      <th>Usage</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {promoItems.map((promo) => (
-                      <tr key={promo.id}>
-                        <td className="fw-semibold">{promo.code}</td>
-                        <td>
-                          {(() => {
-                            const discountType = promo.discount_type || promo.discountType;
-                            const discountValue = Number(promo.discount_value ?? promo.discountValue ?? 0);
-                            return discountType === "percent"
-                              ? `${discountValue}% off`
-                              : `$${discountValue.toFixed(2)} off`;
-                          })()}
-                        </td>
-                        <td>
-                          <span className={`badge rounded-pill ${promo.active ? "bg-success" : "bg-secondary"}`}>
-                            {promo.active ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td className="small text-muted">
-                          {describeWindow(promo.starts_at || promo.startsAt, promo.expires_at || promo.expiresAt)}
-                        </td>
-                        <td className="small">
-                          {(() => {
-                            const used = Number(promo.times_redeemed ?? promo.timesRedeemed ?? 0);
-                            const max = promo.max_uses ?? promo.maxUses;
-                            const hasMax = max !== null && max !== undefined && max !== "";
-                            const maxNum = hasMax ? Number(max) : null;
-                            const remaining = hasMax && Number.isFinite(maxNum) ? Math.max(maxNum - used, 0) : null;
-                            return (
-                              <>
-                                {used.toLocaleString()}
-                                {hasMax && Number.isFinite(maxNum) ? (
-                                  <>
-                                    {" "}
-                                    / {maxNum.toLocaleString()} used
-                                    <span className="ms-2 text-muted">
-                                      ({remaining?.toLocaleString()} left)
-                                    </span>
-                                  </>
-                                ) : (
-                                  <span className="ms-2 text-muted">(Unlimited)</span>
-                                )}
-                              </>
-                            );
-                          })()}
-                        </td>
-                        <td className="text-end">
-                          <div className="d-flex gap-2 justify-content-end">
-                            <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => startEditPromo(promo)}>
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-outline-danger btn-sm"
-                              onClick={async () => {
-                                const confirm = window.confirm(`Delete promo ${promo.code}?`);
-                                if (!confirm) return;
-                                try {
-                                  await deletePromoCode(promo.id);
-                                  toast.success("Promo removed");
-                                  await loadPromos();
-                                } catch (err) {
-                                  toast.error(err.message || "Failed to delete promo");
-                                }
-                              }}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-
-  const renderPromotions = () => (
-    <section className="admin-grid">
-      <div className="admin-card wide">
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Promotions</p>
-            <h4>Auto-applied Discounts</h4>
-          </div>
-        </div>
-        <div className="d-flex gap-2 flex-wrap mb-3 align-items-center">
-          <input
-            type="search"
-            className="form-control"
-            style={{ maxWidth: 220 }}
-            placeholder="Name or category"
-            value={promotionFilters.q}
-            onChange={(e) => setPromotionFilters((p) => ({ ...p, q: e.target.value }))}
-          />
-          <select
-            className="form-select"
-            style={{ maxWidth: 170 }}
-            value={promotionFilters.active}
-            onChange={(e) => setPromotionFilters((p) => ({ ...p, active: e.target.value }))}
-          >
-            <option value="all">Any status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <select
-            className="form-select"
-            style={{ maxWidth: 170 }}
-            value={promotionFilters.scope}
-            onChange={(e) => setPromotionFilters((p) => ({ ...p, scope: e.target.value }))}
-          >
-            <option value="all">Any scope</option>
-            <option value="product">Product</option>
-            <option value="category">Category</option>
-          </select>
-          <button className="btn btn-outline-saas" onClick={loadPromotions} disabled={promotionLoading}>
-            {promotionLoading ? "Loading..." : "Refresh"}
-          </button>
-          <button type="button" className="btn btn-primary-saas" onClick={startCreatePromotion}>
-            New Promotion
-          </button>
-        </div>
-        <div className="results-count">{promotionItems.length} results found</div>
-
-        <div className="admin-grid">
-          <div className="admin-card">
-            <div className="card-header">
-              <div>
-                <p className="eyebrow">Existing promotions</p>
-                <h4>Search & Manage</h4>
-              </div>
-            </div>
-            {promotionLoading ? (
-              <p className="muted mb-0">Loading promotions...</p>
-            ) : promotionItems.length === 0 ? (
-              <p className="muted mb-0">No promotions yet.</p>
-            ) : (
-              <div className="table-responsive management-scroll">
-                <table className="dashboard-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Target</th>
-                      <th>Discount</th>
-                      <th>Status</th>
-                      <th>Window</th>
-                      <th className="text-end">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {promotionItems.map((promotion) => {
-                      const scopeType = promotion.scope_type || promotion.scopeType;
-                      const discountType = promotion.discount_type || promotion.discountType;
-                      const discountValue = Number(promotion.discount_value ?? promotion.discountValue ?? 0);
-                      const productTitle = promotionProductMap.get(promotion.product_id || promotion.productId);
-                      const targetLabel =
-                        scopeType === "product"
-                          ? productTitle || "Product"
-                          : promotion.category || "Category";
-                      return (
-                        <tr key={promotion.id}>
-                          <td className="fw-semibold">{promotion.name || "Untitled"}</td>
-                          <td className="small">
-                            {scopeType === "product" ? "Product" : "Category"}: {targetLabel}
-                          </td>
-                          <td>
-                            {discountType === "percent"
-                              ? `${discountValue}% off`
-                              : `$${discountValue.toFixed(2)} off`}
-                          </td>
-                          <td>
-                            <span className={`badge rounded-pill ${promotion.active ? "bg-success" : "bg-secondary"}`}>
-                              {promotion.active ? "Active" : "Inactive"}
-                            </span>
-                          </td>
-                          <td className="small text-muted">
-                            {describeWindow(promotion.starts_at || promotion.startsAt, promotion.expires_at || promotion.expiresAt)}
-                          </td>
-                          <td className="text-end">
-                            <div className="d-flex gap-2 justify-content-end">
-                              <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => startEditPromotion(promotion)}>
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-outline-danger btn-sm"
-                                onClick={async () => {
-                                  const confirm = window.confirm(`Delete promotion ${promotion.name || "untitled"}?`);
-                                  if (!confirm) return;
-                                  try {
-                                    await deletePromotion(promotion.id);
-                                    toast.success("Promotion removed");
-                                    await loadPromotions();
-                                  } catch (err) {
-                                    toast.error(err.message || "Failed to delete promotion");
-                                  }
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-
-  const productCreateModal = showCreateProductForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create product"
-      onClick={closeCreateProductModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Product Management</p>
-            <h4>Create New Product</h4>
-          </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreateProductModal}>
-            Close
-          </button>
-        </div>
-        <form onSubmit={handleCreateProduct}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="small fw-bold">Product Title</label>
-              <input
-                type="text"
-                className="form-control"
-                value={newProduct.title}
-                onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="col-md-4">
-              <label className="small fw-bold">Brand</label>
-              <input
-                type="text"
-                className="form-control"
-                value={newProduct.Brand}
-                onChange={(e) => setNewProduct({ ...newProduct, Brand: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="col-md-4">
-              <label className="small fw-bold">Category</label>
-              <select
-                className="form-select"
-                value={newProduct.category}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                required
-              >
-                <option value="">Select...</option>
-                <option value="keyboard">Keyboard</option>
-                <option value="mouse">Mouse</option>
-                <option value="ssd">SSD</option>
-                <option value="monitor">Monitor</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-
-            {newProduct.category === "other" && (
-              <div className="col-md-6">
-                <label className="small fw-bold text-primary">Custom Category Name</label>
-                <input
-                  type="text"
-                  className="form-control border-primary"
-                  placeholder="e.g. Headphones"
-                  value={customCategory}
-                  onChange={(e) => setCustomCategory(e.target.value)}
-                  required
-                />
-              </div>
-            )}
-
-            <div className="col-md-4">
-              <label className="small fw-bold">Price ($)</label>
-              <input
-                type="number"
-                step="0.01"
-                className="form-control"
-                placeholder="0.00"
-                value={newProduct.price}
-                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                required
-              />
-            </div>
-
-            <div className="col-md-8">
-              <label className="small fw-bold text-success">Product Image (Upload)</label>
-              <input
-                key={newProductImageKey}
-                type="file"
-                className="form-control"
-                accept="image/*"
-                onChange={(e) => setNewProduct({ ...newProduct, imageFile: e.target.files[0] })}
-                required
-              />
-            </div>
-
-            <div className="col-md-12">
-              <label className="small fw-bold">Description</label>
-              <textarea
-                className="form-control"
-                rows="2"
-                placeholder="Enter product details..."
-                value={newProduct.description}
-                onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
-              />
-            </div>
-
-            <div className="col-md-12 mt-2">
-              <div className="d-flex justify-content-between align-items-center p-2 bg-dark text-white rounded-top">
-                <span className="small fw-bold">TECHNICAL SPECIFICATIONS</span>
-                {newProduct.category ? (
-                  <button type="button" className="btn btn-sm btn-light" onClick={addSpecField}>
-                    New Field
-                  </button>
-                ) : null}
-              </div>
-
-              <div className="p-3 border rounded-bottom bg-white">
-                {Object.entries(newProduct.specs).map(([key, value], index) => {
-                  const usedKeys = new Set(Object.keys(newProduct.specs));
-                  usedKeys.delete(key);
-                  const customDraft = customSpecDrafts[index];
-                  const selectValue = customDraft !== undefined ? "__custom__" : key;
-                  const showCustomInput = customDraft !== undefined;
-                  const valueOptions = key ? newProductValueOptions[key] || [] : [];
-                  const customValueDraft = customSpecValueDrafts[index];
-                  const normalizedValue = value === null || value === undefined ? "" : String(value);
-                  const valueSelectValue = customValueDraft !== undefined ? "__custom__" : normalizedValue;
-                  const showCustomValueInput = customValueDraft !== undefined;
-                  const hasValueOption = normalizedValue ? valueOptions.includes(normalizedValue) : false;
-                  return (
-                    <div className="row g-2 mb-2 align-items-center" key={index}>
-                      <div className="col-md-5">
-                        <select
-                          className="form-select"
-                          value={selectValue}
-                          onChange={(e) => handleSpecKeySelect(key, e.target.value, index)}
-                        >
-                          <option value="">Select spec</option>
-                          {key && !newProductAvailableKeys.includes(key) && (
-                            <option value={key}>{key.replace(/_/g, " ")}</option>
-                          )}
-                          {newProductAvailableKeys.map((availableKey) => (
-                            <option
-                              key={availableKey}
-                              value={availableKey}
-                              disabled={usedKeys.has(availableKey)}
-                            >
-                              {availableKey.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                          <option value="__custom__">Custom...</option>
-                        </select>
-                        {showCustomInput && (
-                          <div className="d-flex gap-2 mt-2">
-                            <input
-                              type="text"
-                              className="form-control form-control-sm"
-                              placeholder="Custom spec name"
-                              value={customSpecDrafts[index]}
-                              onChange={(e) =>
-                                setCustomSpecDrafts((prev) => ({ ...prev, [index]: e.target.value }))
-                              }
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-outline-saas btn-sm"
-                              onClick={() => applyCustomSpecKey(key, customSpecDrafts[index], index)}
-                            >
-                              Add
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-md-6">
-                        {key ? (
-                          <>
-                            <select
-                              className="form-select"
-                              value={valueSelectValue}
-                              onChange={(e) => handleSpecValueSelect(key, e.target.value, index)}
-                            >
-                              <option value="">Select value</option>
-                              {!hasValueOption && normalizedValue ? (
-                                <option value={normalizedValue}>{normalizedValue}</option>
-                              ) : null}
-                              {valueOptions.map((opt) => (
-                                <option key={opt} value={opt}>
-                                  {opt}
-                                </option>
-                              ))}
-                              <option value="__custom__">Custom...</option>
-                            </select>
-                            {showCustomValueInput && (
-                              <div className="d-flex gap-2 mt-2">
-                                <input
-                                  type="text"
-                                  className="form-control form-control-sm"
-                                  placeholder="Custom value"
-                                  value={customSpecValueDrafts[index]}
-                                  onChange={(e) =>
-                                    setCustomSpecValueDrafts((prev) => ({ ...prev, [index]: e.target.value }))
-                                  }
-                                />
-                                <button
                                   type="button"
                                   className="btn btn-outline-saas btn-sm"
-                                  onClick={() =>
-                                    applyCustomSpecValue(key, customSpecValueDrafts[index], index)
-                                  }
+                                  onClick={() => {
+                                    setFaqForm(item);
+                                    setShowFaqModal(true);
+                                  }}
                                 >
-                                  Add
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await deleteFaq(item.id);
+                                      toast.success("FAQ removed");
+                                      await loadFaqs();
+                                    } catch (err) {
+                                      toast.error(err.message || "Failed to remove FAQ");
+                                    }
+                                  }}
+                                >
+                                  Delete
                                 </button>
                               </div>
-                            )}
-                          </>
-                        ) : (
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
-                            placeholder="Select spec first"
-                            value={value}
-                            disabled
-                            onChange={() => {}}
-                          />
-                        )}
-                      </div>
-                      <div className="col-md-1 text-center">
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm text-danger p-0"
-                          onClick={() => removeSpecField(key)}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="col-md-12 mt-3 d-flex gap-3">
-              <button type="submit" className="btn btn-primary-saas px-5 shadow-sm">
-                Create Product
-              </button>
-              <button type="button" className="btn btn-outline-saas px-5" onClick={resetNewProductForm}>
-                Clear
-              </button>
+          )}
+          {managementTab === "policies" && (
+            <div className="admin-grid">
+              <div className="admin-card wide">
+                  <div className="card-header">
+                    <div>
+                      <p className="eyebrow">Existing policies</p>
+                      <h4>Manage documents</h4>
+                    </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label" htmlFor="policy-slug-filter">Filter by tag</label>
+                    <select
+                      id="policy-slug-filter"
+                      className="form-select"
+                      value={policySlugFilter}
+                      onChange={(e) => setPolicySlugFilter(e.target.value)}
+                    >
+                      <option value="">All tags</option>
+                      <option value="shipping-returns">Shipping-returns</option>
+                      <option value="privacy">Privacy</option>
+                      <option value="terms">Terms</option>
+                    </select>
+                  </div>
+                  {policyLoading ? (
+                    <p className="muted mb-0">Loading policies...</p>
+                  ) : policyItems.length === 0 ? (
+                    <p className="muted mb-0">No policies yet.</p>
+                  ) : (
+                    <div className="table-responsive management-scroll">
+                      <table className="dashboard-table">
+                        <thead>
+                          <tr>
+                            <th>Title</th>
+                            <th>Tag</th>
+                            <th>Content</th>
+                            <th className="text-end" style={{ width: 160 }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {policyItems
+                            .filter((item) => {
+                              if (!policySlugFilter.trim()) return true;
+                              return (item.slug || "")
+                                .toLowerCase()
+                                .includes(policySlugFilter.trim().toLowerCase());
+                            })
+                            .map((item) => (
+                            <tr key={item.id}>
+                              <td className="fw-semibold">{item.title}</td>
+                              <td>{item.slug || "-"}</td>
+                              <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
+                              <td className="text-end">
+                                <div className="d-flex gap-2 justify-content-end">
+                                  <button
+                                  type="button"
+                                  className="btn btn-outline-saas btn-sm"
+                                  onClick={() => {
+                                    setPolicyForm({ ...item, tag: item.slug || "" });
+                                    setShowPolicyModal(true);
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await deletePolicy(item.id);
+                                      toast.success("Policy removed");
+                                      await loadPolicies();
+                                    } catch (err) {
+                                      toast.error(err.message || "Failed to remove policy");
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const productEditModal = editProductForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit product"
-      onClick={closeEditProductModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Product Management</p>
-            <h4>Edit Product: {editProductForm.title}</h4>
-          </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditProductModal}>
-            Close
-          </button>
-        </div>
-
-        <form className="profile-form" onSubmit={handleEditProductSave}>
-          <div className="mb-3">
-            <label className="form-label">Product Title</label>
-            <input
-              type="text"
-              className="form-control"
-              value={editProductForm.title}
-              onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
-              required
-              placeholder="e.g. Mechanical Keyboard G-Pro"
-            />
-          </div>
-
-          <div className="row">
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Category</label>
-              <input
-                type="text"
-                className="form-control"
-                value={editProductForm.category}
-                onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
-                required
-              />
-            </div>
-            <div className="col-md-6 mb-3">
-              <label className="form-label">Price (USD)</label>
-              <input
-                type="number"
-                step="0.01"
-                className="form-control"
-                value={editProductForm.price}
-                onChange={(e) => setEditProductForm({ ...editProductForm, price: e.target.value })}
-                required
-              />
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className="form-label">Product Image</label>
-            <div className="card p-3 bg-light border-dashed">
-              <div className="d-flex align-items-center gap-4 flex-wrap">
-                <div className="text-center">
-                  <p className="small text-muted mb-1">Current Image</p>
-                  <img
-                    src={editImagePreview || editImageSrc}
-                    alt="Current"
-                    className="rounded border"
-                    style={{ width: "100px", height: "100px", objectFit: "cover", backgroundColor: "#fff" }}
-                    onError={(e) => {
-                      e.target.src = "/assets/placeholder.jpg";
-                    }}
-                  />
-                </div>
-
-                <div className="flex-grow-1">
-                  <label className="form-label small fw-bold">Upload New Image to Replace</label>
-                  <input
-                    type="file"
-                    className="form-control"
-                    accept="image/*"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        const file = e.target.files[0];
-                        setEditProductForm({
-                          ...editProductForm,
-                          newImageFile: file,
-                        });
-                        const previewUrl = URL.createObjectURL(file);
-                        setEditImagePreview((prev) => {
-                          if (prev) URL.revokeObjectURL(prev);
-                          return previewUrl;
-                        });
-                      }
-                    }}
-                  />
-                  <div className="form-text">
-                    Accepted formats: PNG, JPG, WEBP. Leave empty to keep the current image.
+          )}
+          {managementTab === "announcement" && (
+            <div className="admin-grid">
+              <div className="admin-card wide">
+                <div className="card-header">
+                  <div>
+                    <p className="eyebrow">Promotional Banner</p>
+                    <h4>Message above the navbar</h4>
                   </div>
                 </div>
+                {announcementLoading ? (
+                  <p className="muted mb-0">Loading announcement...</p>
+                ) : (
+                  <form className="profile-form" onSubmit={saveAnnouncement}>
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="announcement-message">Message</label>
+                      <input
+                        id="announcement-message"
+                        type="text"
+                        className="form-control"
+                        value={announcement.message}
+                        onChange={(e) => setAnnouncement((p) => ({ ...p, message: e.target.value }))}
+                        placeholder="New customers: Get 10% off your first order"
+                        required
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="announcement-link-label">Link label (optional)</label>
+                      <input
+                        id="announcement-link-label"
+                        type="text"
+                        className="form-control"
+                        value={announcement.link_label}
+                        onChange={(e) => setAnnouncement((p) => ({ ...p, link_label: e.target.value }))}
+                        placeholder="Sign up"
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label" htmlFor="announcement-link-url">Link URL (optional)</label>
+                      <input
+                        id="announcement-link-url"
+                        type="text"
+                        className="form-control"
+                        value={announcement.link_url}
+                        onChange={(e) => setAnnouncement((p) => ({ ...p, link_url: e.target.value }))}
+                        placeholder="/register"
+                      />
+                    </div>
+                    <div className="mb-3 form-check form-switch">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="announcement-enabled"
+                        checked={!!announcement.enabled}
+                        onChange={(e) => setAnnouncement((p) => ({ ...p, enabled: e.target.checked }))}
+                      />
+                      <label className="form-check-label" htmlFor="announcement-enabled">
+                        Enabled
+                      </label>
+                    </div>
+                    <button type="submit" className="btn btn-primary-saas" disabled={announcementSaving}>
+                      {announcementSaving ? "Saving..." : "Save banner"}
+                    </button>
+                  </form>
+                )}
               </div>
             </div>
-          </div>
-
-          <div className="d-flex gap-3 pt-2 border-top">
-            <button type="submit" className="btn btn-primary-saas px-4" disabled={editProductSaving}>
-              {editProductSaving ? (
-                <>
-                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                  Saving...
-                </>
-              ) : (
-                "Save Changes"
-              )}
-            </button>
-          </div>
-        </form>
+          )}
       </div>
-    </div>
+    </section>
   );
 
-  const promoCreateModal = showCreatePromoForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create new promo"
-      onClick={closeCreatePromoModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+  const renderBusinessInsights = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
         <div className="card-header">
           <div>
-            <p className="eyebrow">Create Promo</p>
-            <h4>New Promo Code</h4>
+            <p className="eyebrow">Business insights</p>
+            <h4>Monthly best/worst history</h4>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromoModal}>
-            Close
-          </button>
         </div>
-        <form className="profile-form" onSubmit={handlePromoSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-code">Code</label>
-              <input
-                id="promo-code"
-                type="text"
-                className="form-control"
-                value={promoForm.code}
-                onChange={(e) =>
-                  setPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
-                }
-                placeholder="SAVE10"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-type">Discount type</label>
-              <select
-                id="promo-type"
-                className="form-select"
-                value={promoForm.discountType}
-                onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
-              >
-                <option value="percent">Percent off</option>
-                <option value="amount">Amount off</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-value">Value</label>
-              <input
-                id="promo-value"
-                type="number"
-                min="0"
-                step="0.01"
-                className="form-control"
-                value={promoForm.discountValue}
-                onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
-                placeholder={promoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-description">Description</label>
-              <textarea
-                id="promo-description"
-                className="form-control"
-                rows="2"
-                value={promoForm.description}
-                onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
-                placeholder="Short description for admins/customers"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-max-uses">Max uses (optional)</label>
-              <input
-                id="promo-max-uses"
-                type="number"
-                min="0"
-                className="form-control"
-                value={promoForm.maxUses}
-                onChange={(e) => setPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
-                placeholder="Blank = unlimited"
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-starts">Starts at</label>
-              <input
-                id="promo-starts"
-                type="datetime-local"
-                className="form-control"
-                min={nowInputMin}
-                value={promoForm.startsAt}
-                onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-expires">Expires at</label>
-              <input
-                id="promo-expires"
-                type="datetime-local"
-                className="form-control"
-                min={promoForm.startsAt || nowInputMin}
-                value={promoForm.expiresAt}
-                onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label d-block">Status</label>
-              <div className="form-check form-switch">
-                <input
-                  id="promo-active"
-                  className="form-check-input"
-                  type="checkbox"
-                  checked={!!promoForm.active}
-                  onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))}
-                />
-                <label className="form-check-label" htmlFor="promo-active">
-                  {promoForm.active ? "Active" : "Inactive"}
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="d-flex gap-3 mt-3">
-            <button type="submit" className="btn btn-primary-saas">
-              Create Promo
-            </button>
-            <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
-              Clear
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const promoEditModal = editPromoForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit promo"
-      onClick={closeEditPromoModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
+        <div className="d-flex gap-2 flex-wrap mb-3 align-items-end">
           <div>
-            <p className="eyebrow">Edit promo</p>
-            <h4>{editPromoForm.code}</h4>
+            <label className="form-label" htmlFor="insights-year">Year</label>
+            <select
+              id="insights-year"
+              className="form-select"
+              style={{ width: 160 }}
+              value={insightsHistoryFilters.year}
+              onChange={(e) =>
+                setInsightsHistoryFilters((p) => ({ ...p, year: e.target.value }))
+              }
+            >
+              {Array.from({ length: 11 }, (_, idx) => 2026 - idx).map((year) => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
           </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromoModal}>
-            Close
-          </button>
-        </div>
-        <form className="profile-form" onSubmit={handlePromoUpdate}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-code-edit">Code</label>
-              <input
-                id="promo-code-edit"
-                type="text"
-                className="form-control"
-                value={editPromoForm.code}
-                onChange={(e) =>
-                  setEditPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
-                }
-                placeholder="SAVE10"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-type-edit">Discount type</label>
-              <select
-                id="promo-type-edit"
-                className="form-select"
-                value={editPromoForm.discountType}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountType: e.target.value }))}
-              >
-                <option value="percent">Percent off</option>
-                <option value="amount">Amount off</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-value-edit">Value</label>
-              <input
-                id="promo-value-edit"
-                type="number"
-                min="0"
-                step="0.01"
-                className="form-control"
-                value={editPromoForm.discountValue}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
-                placeholder={editPromoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-description-edit">Description</label>
-              <textarea
-                id="promo-description-edit"
-                className="form-control"
-                rows="2"
-                value={editPromoForm.description}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, description: e.target.value }))}
-                placeholder="Short description for admins/customers"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promo-max-uses-edit">Max uses (optional)</label>
-              <input
-                id="promo-max-uses-edit"
-                type="number"
-                min="0"
-                className="form-control"
-                value={editPromoForm.maxUses}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
-                placeholder="Blank = unlimited"
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
-              <input
-                id="promo-starts-edit"
-                type="datetime-local"
-                className="form-control"
-                min={nowInputMin}
-                value={editPromoForm.startsAt}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
-              <input
-                id="promo-expires-edit"
-                type="datetime-local"
-                className="form-control"
-                min={editPromoForm.startsAt || nowInputMin}
-                value={editPromoForm.expiresAt}
-                onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label d-block">Status</label>
-              <div className="form-check form-switch">
-                <input
-                  id="promo-active-edit"
-                  className="form-check-input"
-                  type="checkbox"
-                  checked={!!editPromoForm.active}
-                  onChange={(e) => setEditPromoForm((p) => ({ ...p, active: e.target.checked }))}
-                />
-                <label className="form-check-label" htmlFor="promo-active-edit">
-                  {editPromoForm.active ? "Active" : "Inactive"}
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="d-flex gap-3 mt-3">
-            <button type="submit" className="btn btn-primary-saas">
-              Save changes
-            </button>
-            <button type="button" className="btn btn-outline-saas" onClick={closeEditPromoModal}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const promotionCreateModal = showCreatePromotionForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Create new promotion"
-      onClick={closeCreatePromotionModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
           <div>
-            <p className="eyebrow">Create Promotion</p>
-            <h4>New auto-applied discount</h4>
-          </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromotionModal}>
-            Close
-          </button>
-        </div>
-        <form className="profile-form" onSubmit={handlePromotionSubmit}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-name">Name</label>
-              <input
-                id="promotion-name"
-                type="text"
-                className="form-control"
-                value={promotionForm.name}
-                onChange={(e) => setPromotionForm((p) => ({ ...p, name: e.target.value }))}
-                placeholder="Winter Flash Sale"
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-scope">Scope</label>
-              <select
-                id="promotion-scope"
-                className="form-select"
-                value={promotionForm.scopeType}
-                onChange={(e) =>
-                  setPromotionForm((p) => ({
-                    ...p,
-                    scopeType: e.target.value,
-                    productId: "",
-                    category: "",
-                  }))
-                }
-              >
-                <option value="product">Single product</option>
-                <option value="category">Category</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              {promotionForm.scopeType === "product" ? (
-                <>
-                  <label className="form-label" htmlFor="promotion-product">Product</label>
-                  <select
-                    id="promotion-product"
-                    className="form-select"
-                    value={promotionForm.productId}
-                    onChange={(e) => setPromotionForm((p) => ({ ...p, productId: e.target.value }))}
-                  >
-                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.title}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              ) : (
-                <>
-                  <label className="form-label" htmlFor="promotion-category">Category</label>
-                  <select
-                    id="promotion-category"
-                    className="form-select"
-                    value={promotionForm.category}
-                    onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  >
-                    <option value="">Select category</option>
-                    {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-type">Discount type</label>
-              <select
-                id="promotion-type"
-                className="form-select"
-                value={promotionForm.discountType}
-                onChange={(e) => setPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
-              >
-                <option value="percent">Percent off</option>
-                <option value="amount">Amount off</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-value">Value</label>
-              <input
-                id="promotion-value"
-                type="number"
-                step="0.01"
-                className="form-control"
-                value={promotionForm.discountValue}
-                onChange={(e) => setPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
-                placeholder={promotionForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promotion-starts">Starts at</label>
-              <input
-                id="promotion-starts"
-                type="datetime-local"
-                className="form-control"
-                min={nowInputMin}
-                value={promotionForm.startsAt}
-                onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promotion-expires">Expires at</label>
-              <input
-                id="promotion-expires"
-                type="datetime-local"
-                className="form-control"
-                min={promotionForm.startsAt || nowInputMin}
-                value={promotionForm.expiresAt}
-                onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-4 d-flex align-items-end">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="promotion-active"
-                  checked={!!promotionForm.active}
-                  onChange={(e) => setPromotionForm((p) => ({ ...p, active: e.target.checked }))}
-                />
-                <label className="form-check-label" htmlFor="promotion-active">
-                  {promotionForm.active ? "Active" : "Inactive"}
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="d-flex gap-3 mt-3">
-            <button type="submit" className="btn btn-primary-saas">
-              Create Promotion
-            </button>
-            <button type="button" className="btn btn-outline-saas" onClick={resetPromotionForm}>
-              Clear
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const promotionEditModal = editPromotionForm && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Edit promotion"
-      onClick={closeEditPromotionModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Edit promotion</p>
-            <h4>Update auto-applied discount</h4>
-          </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromotionModal}>
-            Close
-          </button>
-        </div>
-        <form className="profile-form" onSubmit={handlePromotionUpdate}>
-          <div className="row g-3">
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-name-edit">Name</label>
-              <input
-                id="promotion-name-edit"
-                type="text"
-                className="form-control"
-                value={editPromotionForm.name}
-                onChange={(e) => setEditPromotionForm((p) => ({ ...p, name: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-scope-edit">Scope</label>
-              <select
-                id="promotion-scope-edit"
-                className="form-select"
-                value={editPromotionForm.scopeType}
-                onChange={(e) =>
-                  setEditPromotionForm((p) => ({
-                    ...p,
-                    scopeType: e.target.value,
-                    productId: "",
-                    category: "",
-                  }))
-                }
-              >
-                <option value="product">Single product</option>
-                <option value="category">Category</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              {editPromotionForm.scopeType === "product" ? (
-                <>
-                  <label className="form-label" htmlFor="promotion-product-edit">Product</label>
-                  <select
-                    id="promotion-product-edit"
-                    className="form-select"
-                    value={editPromotionForm.productId}
-                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, productId: e.target.value }))}
-                  >
-                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.title}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              ) : (
-                <>
-                  <label className="form-label" htmlFor="promotion-category-edit">Category</label>
-                  <select
-                    id="promotion-category-edit"
-                    className="form-select"
-                    value={editPromotionForm.category}
-                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
-                  >
-                    <option value="">Select category</option>
-                    {promotionCategories.map((cat) => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </select>
-                </>
-              )}
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-type-edit">Discount type</label>
-              <select
-                id="promotion-type-edit"
-                className="form-select"
-                value={editPromotionForm.discountType}
-                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
-              >
-                <option value="percent">Percent off</option>
-                <option value="amount">Amount off</option>
-              </select>
-            </div>
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="promotion-value-edit">Value</label>
-              <input
-                id="promotion-value-edit"
-                type="number"
-                step="0.01"
-                className="form-control"
-                value={editPromotionForm.discountValue}
-                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promotion-starts-edit">Starts at</label>
-              <input
-                id="promotion-starts-edit"
-                type="datetime-local"
-                className="form-control"
-                min={nowInputMin}
-                value={editPromotionForm.startsAt}
-                onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-12">
-              <label className="form-label" htmlFor="promotion-expires-edit">Expires at</label>
-              <input
-                id="promotion-expires-edit"
-                type="datetime-local"
-                className="form-control"
-                min={editPromotionForm.startsAt || nowInputMin}
-                value={editPromotionForm.expiresAt}
-                onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
-              />
-            </div>
-            <div className="col-md-4 d-flex align-items-end">
-              <div className="form-check form-switch">
-                <input
-                  className="form-check-input"
-                  type="checkbox"
-                  id="promotion-active-edit"
-                  checked={!!editPromotionForm.active}
-                  onChange={(e) => setEditPromotionForm((p) => ({ ...p, active: e.target.checked }))}
-                />
-                <label className="form-check-label" htmlFor="promotion-active-edit">
-                  {editPromotionForm.active ? "Active" : "Inactive"}
-                </label>
-              </div>
-            </div>
-          </div>
-          <button type="submit" className="btn btn-primary-saas mt-3">
-            Save changes
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-
-  const faqModal = showFaqModal && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={faqForm.id ? "Edit FAQ" : "Create FAQ"}
-      onClick={closeFaqModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">FAQs</p>
-            <h4>{faqForm.id ? "Edit FAQ" : "Create FAQ"}</h4>
+            <label className="form-label" htmlFor="insights-month">Month</label>
+            <select
+              id="insights-month"
+              className="form-select"
+              style={{ width: 180 }}
+              value={insightsHistoryFilters.month}
+              onChange={(e) =>
+                setInsightsHistoryFilters((p) => ({ ...p, month: e.target.value }))
+              }
+            >
+              {historyMonthOptions.map((opt) => (
+                <option key={opt.value || "all"} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
           </div>
           <button
             type="button"
-            className="btn btn-outline-saas btn-sm"
-            onClick={closeFaqModal}
+            className="btn btn-primary-saas"
+            onClick={loadInsightsHistory}
+            disabled={insightsHistoryLoading}
           >
-            Close
+            {insightsHistoryLoading ? "Loading..." : "Refresh"}
           </button>
         </div>
-        <form
-          className="profile-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!faqForm.question.trim() || !faqForm.answer.trim()) return;
-            try {
-              if (faqForm.id) {
-                await updateFaq(faqForm.id, {
-                  question: faqForm.question.trim(),
-                  answer: faqForm.answer.trim(),
-                });
-                toast.success("FAQ updated");
-              } else {
-                await createFaq({
-                  question: faqForm.question.trim(),
-                  answer: faqForm.answer.trim(),
-                });
-                toast.success("FAQ created");
-              }
-              setFaqForm({ id: null, question: "", answer: "" });
-              setShowFaqModal(false);
-              await loadFaqs();
-            } catch (err) {
-              toast.error(err.message || "Failed to save FAQ");
-            }
-          }}
-        >
-          <div className="mb-3">
-            <label className="form-label" htmlFor="faq-question">Question</label>
-            <input
-              id="faq-question"
-              type="text"
-              className="form-control"
-              value={faqForm.question}
-              onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
-              placeholder="Enter FAQ question"
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="faq-answer">Answer</label>
-            <textarea
-              id="faq-answer"
-              className="form-control"
-              rows="4"
-              value={faqForm.answer}
-              onChange={(e) => setFaqForm((p) => ({ ...p, answer: e.target.value }))}
-              placeholder="Enter answer"
-            />
-          </div>
-          <div className="d-flex gap-3">
-            <button type="submit" className="btn btn-primary-saas">
-              {faqForm.id ? "Update FAQ" : "Create FAQ"}
-            </button>
-            {!faqForm.id && (
-              <button
-                type="button"
-                className="btn btn-outline-saas"
-                onClick={() => setFaqForm({ id: null, question: "", answer: "" })}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const policyModal = showPolicyModal && (
-    <div
-      className="admin-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-label={policyForm.id ? "Edit policy" : "Create policy"}
-      onClick={closePolicyModal}
-    >
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Policies</p>
-            <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
-          </div>
-          <button
-            type="button"
-            className="btn btn-outline-saas btn-sm"
-            onClick={closePolicyModal}
-          >
-            Close
-          </button>
+        <div className="results-count">{insightsHistory.length} results found</div>
+        <div className="table-responsive">
+          <table className="dashboard-table">
+            <thead>
+              <tr>
+                <th>Month</th>
+                <th>Best product</th>
+                <th>Worst product</th>
+                <th className="text-end">Sales</th>
+                <th className="text-end">Orders</th>
+              </tr>
+            </thead>
+            <tbody>
+              {insightsHistoryLoading ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4 text-muted">
+                    Loading insights...
+                  </td>
+                </tr>
+              ) : insightsHistory.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4 text-muted">
+                    No insights found for this filter.
+                  </td>
+                </tr>
+              ) : (
+                insightsHistory.map((row) => (
+                  <tr key={`history-${row.year}-${row.month}`}>
+                    <td>{formatMonthYear(row.year, row.month)}</td>
+                    <td>
+                      {row.best_selling_product_month?.name || "N/A"}
+                      {row.best_selling_product_month?.quantity
+                        ? ` (${row.best_selling_product_month.quantity})`
+                        : ""}
+                    </td>
+                    <td>
+                      {row.worst_selling_product_month?.name || "N/A"}
+                      {row.worst_selling_product_month?.quantity
+                        ? ` (${row.worst_selling_product_month.quantity})`
+                        : ""}
+                    </td>
+                    <td className="text-end">{currencyFormatter.format(row.month_total_sales || 0)}</td>
+                    <td className="text-end">{row.month_orders || 0}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-        <form
-          className="profile-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (!policyForm.title.trim() || !policyForm.content.trim()) return;
-            try {
-              if (policyForm.id) {
-                await updatePolicy(policyForm.id, {
-                  title: policyForm.title.trim(),
-                  slug: policyForm.tag.trim() || null,
-                  content: policyForm.content.trim(),
-                });
-                toast.success("Policy updated");
-              } else {
-                await createPolicy({
-                  title: policyForm.title.trim(),
-                  slug: policyForm.tag.trim() || null,
-                  content: policyForm.content.trim(),
-                });
-                toast.success("Policy created");
-              }
-              setPolicyForm({ id: null, title: "", tag: "", content: "" });
-              setShowPolicyModal(false);
-              await loadPolicies();
-            } catch (err) {
-              toast.error(err.message || "Failed to save policy");
-            }
-          }}
-        >
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-title">Title</label>
-            <input
-              id="policy-title"
-              type="text"
-              className="form-control"
-              value={policyForm.title}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
-              placeholder="Policy title"
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-tag">Tag</label>
-            <input
-              id="policy-tag"
-              type="text"
-              className="form-control"
-              value={policyForm.tag}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, tag: e.target.value }))}
-              placeholder="privacy | terms | shipping-returns"
-            />
-            <div className="muted tiny mt-1">
-              Used for public pages. You can reuse the same tag on multiple policies.
-            </div>
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-content">Content</label>
-            <textarea
-              id="policy-content"
-              className="form-control"
-              rows="6"
-              value={policyForm.content}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
-              placeholder="Policy content"
-            />
-          </div>
-          <div className="d-flex gap-3">
-            <button type="submit" className="btn btn-primary-saas">
-              {policyForm.id ? "Update policy" : "Create policy"}
-            </button>
-            {!policyForm.id && (
-              <button
-                type="button"
-                className="btn btn-outline-saas"
-                onClick={() => setPolicyForm({ id: null, title: "", tag: "", content: "" })}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </form>
       </div>
-    </div>
+    </section>
   );
 
-  const renderUsers = () => (
+const renderUsers = () => (
     <section className="admin-grid users-grid">
       <div className="admin-card wide">
         <div className="card-header">
@@ -3576,7 +2350,7 @@ const renderInventory = () => (
             <option value="">All categories</option>
             {inventoryCategories.map((cat) => (
               <option key={cat} value={cat}>
-                {cat}
+                {getCategoryLabel(cat)}
               </option>
             ))}
           </select>
@@ -3592,6 +2366,13 @@ const renderInventory = () => (
             disabled={productsLoading || stocksLoading}
           >
             {productsLoading || stocksLoading ? "Loading..." : "Refresh"}
+          </button>
+
+          <button
+            className="btn btn-outline-saas"
+            onClick={openNewCategoryModal}
+          >
+            New Category
           </button>
 
           <button
@@ -3655,12 +2436,35 @@ const renderInventory = () => (
                       }}
                     />
                     <h5 className="inventory-title">{product.title}</h5>
-                    <span className="badge bg-light text-dark border">{product.category}</span>
+                    <span className="badge bg-light text-dark border">
+                      {getCategoryLabel(product.category)}
+                    </span>
                   </div>
                   <div className="inventory-info">
                     <div className="muted tiny inventory-meta">
-                      <code className="small">#{product.id.toString().slice(0, 8)}</code>{" "}
-                      • {currencyFormatter.format(product.price)}
+                      <code className="small">#{product.id.toString().slice(0, 8)}</code>
+                    </div>
+                    <div className="inventory-meta">
+                      {hasActivePromotion(product) ? (
+                        <>
+                          <span className="text-decoration-line-through me-1">
+                            {currencyFormatter.format(product.originalPrice)}
+                          </span>
+                          <span className="inventory-price fw-bold text-primary">
+                            {currencyFormatter.format(product.price)}
+                          </span>
+                          {(() => {
+                            const badge = formatPromotionBadge(product);
+                            return badge ? (
+                              <span className="badge bg-warning text-dark ms-2">
+                                {badge}
+                              </span>
+                            ) : null;
+                          })()}
+                        </>
+                      ) : (
+                        <span className="inventory-price">{currencyFormatter.format(product.price)}</span>
+                      )}
                     </div>
                     <div className="inventory-actions">
                       <button
@@ -3786,6 +2590,1000 @@ const renderInventory = () => (
   </section>
 );
 
+  const productCreateModal = showCreateProductForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeCreateProductModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Product Management</p>
+            <h4>Create New Product</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreateProductModal}>
+            Close
+          </button>
+        </div>
+        <form onSubmit={handleCreateProduct}>
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label className="small fw-bold">Product Title</label>
+              <input
+                type="text"
+                className="form-control"
+                value={newProduct.title}
+                onChange={(e) => setNewProduct({ ...newProduct, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="small fw-bold">Brand</label>
+              <input
+                type="text"
+                className="form-control"
+                value={newProduct.Brand}
+                onChange={(e) => setNewProduct({ ...newProduct, Brand: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="small fw-bold">Price ($)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="small fw-bold">Category</label>
+              <select
+                className="form-select"
+                value={newProduct.category}
+                onChange={(e) => handleCategoryChange(e.target.value)}
+                required
+              >
+                <option value="">Select...</option>
+                {productCategoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {getCategoryLabel(cat)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-6">
+              <label className="small fw-bold">Product Image</label>
+              <input
+                key={newProductImageKey}
+                type="file"
+                className="form-control"
+                accept="image/*"
+                onChange={(e) => setNewProduct({ ...newProduct, imageFile: e.target.files[0] })}
+                required
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="small fw-bold">Description</label>
+              <textarea
+                className="form-control"
+                rows="2"
+                value={newProduct.description}
+                onChange={(e) => setNewProduct({ ...newProduct, description: e.target.value })}
+              />
+            </div>
+            <div className="col-md-12">
+              <div className="d-flex justify-content-between align-items-center">
+                <label className="small fw-bold mb-0">Technical specifications</label>
+                <button type="button" className="btn btn-outline-saas btn-sm" onClick={addSpecField}>
+                  Add spec
+                </button>
+              </div>
+              <div className="mt-2 d-flex flex-column gap-2">
+                {Object.entries(newProduct.specs).length === 0 && (
+                  <p className="small text-muted mb-0">No specs yet.</p>
+                )}
+                {Object.entries(newProduct.specs).map(([key, value], idx) => (
+                  <div className="row g-2 align-items-end" key={`spec-${idx}`}>
+                    <div className="col-md-4">
+                      <label className="small text-muted">Spec</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={key}
+                        onChange={(e) => handleSpecKeyChange(key, e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="small text-muted">Value</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={value ?? ""}
+                        onChange={(e) => handleSpecValueChange(key, e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm w-100"
+                        onClick={() => removeSpecField(key)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-4">
+            <button type="submit" className="btn btn-primary-saas">Create product</button>
+            <button type="button" className="btn btn-outline-saas" onClick={closeCreateProductModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const newCategoryModal = showNewCategoryModal && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeNewCategoryModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Product categories</p>
+            <h4>New category</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeNewCategoryModal}>
+            Close
+          </button>
+        </div>
+        <form onSubmit={handleCreateCategory}>
+          <div className="mb-3">
+            <label className="form-label">Category name</label>
+            <input
+              type="text"
+              className="form-control"
+              value={newCategoryName}
+              onChange={(e) => setNewCategoryName(e.target.value)}
+              placeholder="e.g. Headphones"
+              required
+            />
+          </div>
+          <div className="d-flex gap-3">
+            <button type="submit" className="btn btn-primary-saas">Add category</button>
+            <button type="button" className="btn btn-outline-saas" onClick={closeNewCategoryModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const productEditModal = editProductForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeEditProductModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Product Management</p>
+            <h4>Edit Product: {editProductForm.title}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditProductModal}>
+            Close
+          </button>
+        </div>
+
+        <form className="profile-form" onSubmit={handleEditProductSave}>
+          <div className="row g-3">
+            <div className="col-md-6">
+              <label className="form-label">Product Title</label>
+              <input
+                type="text"
+                className="form-control"
+                value={editProductForm.title}
+                onChange={(e) => setEditProductForm({ ...editProductForm, title: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Category</label>
+              <select
+                className="form-select"
+                value={editProductForm.category || ""}
+                onChange={(e) => setEditProductForm({ ...editProductForm, category: e.target.value })}
+                required
+              >
+                <option value="">Select...</option>
+                {productCategoryOptions.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {getCategoryLabel(cat)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-3">
+              <label className="form-label">Price (USD)</label>
+              <input
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={editProductForm.price}
+                onChange={(e) => setEditProductForm({ ...editProductForm, price: e.target.value })}
+                required
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label">Brand</label>
+              <input
+                type="text"
+                className="form-control"
+                value={editProductForm.Brand || ""}
+                onChange={(e) => setEditProductForm({ ...editProductForm, Brand: e.target.value })}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label">Description</label>
+              <input
+                type="text"
+                className="form-control"
+                value={editProductForm.description || ""}
+                onChange={(e) => setEditProductForm({ ...editProductForm, description: e.target.value })}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label">Product Image</label>
+              <div className="card p-3 bg-light border-dashed">
+                <div className="d-flex align-items-center gap-4 flex-wrap">
+                  <div className="text-center">
+                    <p className="small text-muted mb-1">Current Image</p>
+                    <img
+                      src={editImagePreview || editImageSrc}
+                      alt="Current"
+                      className="rounded border"
+                      style={{ width: "100px", height: "100px", objectFit: "cover", backgroundColor: "#fff" }}
+                      onError={(e) => {
+                        e.target.src = "/assets/placeholder.jpg";
+                      }}
+                    />
+                  </div>
+                  <div className="flex-grow-1">
+                    <label className="form-label small fw-bold">Upload New Image</label>
+                    <input
+                      type="file"
+                      className="form-control"
+                      accept="image/*"
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          const file = e.target.files[0];
+                          setEditProductForm({
+                            ...editProductForm,
+                            newImageFile: file,
+                          });
+                          const previewUrl = URL.createObjectURL(file);
+                          setEditImagePreview((prev) => {
+                            if (prev) URL.revokeObjectURL(prev);
+                            return previewUrl;
+                          });
+                        }
+                      }}
+                    />
+                    <div className="form-text">Leave empty to keep the current image.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="d-flex gap-3 pt-3">
+            <button type="submit" className="btn btn-primary-saas px-4" disabled={editProductSaving}>
+              {editProductSaving ? "Saving..." : "Save changes"}
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={closeEditProductModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const faqModal = showFaqModal && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeFaqModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">FAQs</p>
+            <h4>{faqForm.id ? "Edit FAQ" : "Create FAQ"}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeFaqModal}>
+            Close
+          </button>
+        </div>
+        <form
+          className="profile-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              if (faqForm.id) {
+                await updateFaq(faqForm.id, faqForm);
+                toast.success("FAQ updated");
+              } else {
+                await createFaq(faqForm);
+                toast.success("FAQ created");
+              }
+              setFaqForm({ id: null, question: "", answer: "" });
+              setShowFaqModal(false);
+              await loadFaqs();
+            } catch (err) {
+              toast.error(err.message || "Failed to save FAQ");
+            }
+          }}
+        >
+          <div className="mb-3">
+            <label className="form-label" htmlFor="faq-question">Question</label>
+            <input
+              id="faq-question"
+              type="text"
+              className="form-control"
+              value={faqForm.question}
+              onChange={(e) => setFaqForm((p) => ({ ...p, question: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="faq-answer">Answer</label>
+            <textarea
+              id="faq-answer"
+              className="form-control"
+              rows="4"
+              value={faqForm.answer}
+              onChange={(e) => setFaqForm((p) => ({ ...p, answer: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="d-flex gap-3">
+            <button type="submit" className="btn btn-primary-saas">
+              {faqForm.id ? "Update" : "Create"}
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={closeFaqModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const policyModal = showPolicyModal && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closePolicyModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Policies</p>
+            <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closePolicyModal}>
+            Close
+          </button>
+        </div>
+        <form
+          className="profile-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const payload = {
+              title: policyForm.title,
+              tag: policyForm.tag,
+              content: policyForm.content,
+            };
+            try {
+              if (policyForm.id) {
+                await updatePolicy(policyForm.id, payload);
+                toast.success("Policy updated");
+              } else {
+                await createPolicy(payload);
+                toast.success("Policy created");
+              }
+              setPolicyForm({ id: null, title: "", tag: "", content: "" });
+              setShowPolicyModal(false);
+              await loadPolicies();
+            } catch (err) {
+              toast.error(err.message || "Failed to save policy");
+            }
+          }}
+        >
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-title">Title</label>
+            <input
+              id="policy-title"
+              type="text"
+              className="form-control"
+              value={policyForm.title}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-tag">Tag</label>
+            <select
+              id="policy-tag"
+              className="form-select"
+              value={policyForm.tag}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, tag: e.target.value }))}
+              required
+            >
+              <option value="">Select tag</option>
+              <option value="shipping-returns">Shipping-returns</option>
+              <option value="privacy">Privacy</option>
+              <option value="terms">Terms</option>
+            </select>
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="policy-content">Content</label>
+            <textarea
+              id="policy-content"
+              className="form-control"
+              rows="5"
+              value={policyForm.content}
+              onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="d-flex gap-3">
+            <button type="submit" className="btn btn-primary-saas">
+              {policyForm.id ? "Update" : "Create"}
+            </button>
+            <button type="button" className="btn btn-outline-saas" onClick={closePolicyModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promoCreateModal = showCreatePromoForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeCreatePromoModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Create Promo</p>
+            <h4>New Promo Code</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromoModal}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromoSubmit}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-code">Code</label>
+              <input
+                id="promo-code"
+                type="text"
+                className="form-control"
+                value={promoForm.code}
+                onChange={(e) =>
+                  setPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
+                }
+                placeholder="SAVE10"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-type">Discount type</label>
+              <select
+                id="promo-type"
+                className="form-select"
+                value={promoForm.discountType}
+                onChange={(e) => setPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-value">Value</label>
+              <input
+                id="promo-value"
+                type="number"
+                min="0"
+                step="0.01"
+                className="form-control"
+                value={promoForm.discountValue}
+                onChange={(e) => setPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+                placeholder={promoForm.discountType === "percent" ? "10 = 10%" : "5 = $5"}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-description">Description</label>
+              <textarea
+                id="promo-description"
+                className="form-control"
+                rows="2"
+                value={promoForm.description}
+                onChange={(e) => setPromoForm((p) => ({ ...p, description: e.target.value }))}
+                placeholder="Short description for admins/customers"
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-max-uses">Max uses (optional)</label>
+              <input
+                id="promo-max-uses"
+                type="number"
+                min="0"
+                className="form-control"
+                value={promoForm.maxUses}
+                onChange={(e) => setPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+                placeholder="Blank = unlimited"
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-starts">Starts at</label>
+              <input
+                id="promo-starts"
+                type="datetime-local"
+                className="form-control"
+                min={nowInputMin}
+                value={promoForm.startsAt}
+                onChange={(e) => setPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-expires">Expires at</label>
+              <input
+                id="promo-expires"
+                type="datetime-local"
+                className="form-control"
+                min={promoForm.startsAt || nowInputMin}
+                value={promoForm.expiresAt}
+                onChange={(e) => setPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label d-block">Status</label>
+              <div className="form-check form-switch">
+                <input
+                  id="promo-active"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={!!promoForm.active}
+                  onChange={(e) => setPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promo-active">
+                  {promoForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">Create Promo</button>
+            <button type="button" className="btn btn-outline-saas" onClick={resetPromoForm}>
+              Clear
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promoEditModal = editPromoForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeEditPromoModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Edit promo</p>
+            <h4>{editPromoForm.code}</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromoModal}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromoUpdate}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-code-edit">Code</label>
+              <input
+                id="promo-code-edit"
+                type="text"
+                className="form-control"
+                value={editPromoForm.code}
+                onChange={(e) =>
+                  setEditPromoForm((p) => ({ ...p, code: sanitizePromoCode(e.target.value) }))
+                }
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-type-edit">Discount type</label>
+              <select
+                id="promo-type-edit"
+                className="form-select"
+                value={editPromoForm.discountType}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-value-edit">Value</label>
+              <input
+                id="promo-value-edit"
+                type="number"
+                min="0"
+                step="0.01"
+                className="form-control"
+                value={editPromoForm.discountValue}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, discountValue: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-description-edit">Description</label>
+              <textarea
+                id="promo-description-edit"
+                className="form-control"
+                rows="2"
+                value={editPromoForm.description}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, description: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promo-max-uses-edit">Max uses (optional)</label>
+              <input
+                id="promo-max-uses-edit"
+                type="number"
+                min="0"
+                className="form-control"
+                value={editPromoForm.maxUses}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, maxUses: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-starts-edit">Starts at</label>
+              <input
+                id="promo-starts-edit"
+                type="datetime-local"
+                className="form-control"
+                min={nowInputMin}
+                value={editPromoForm.startsAt}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promo-expires-edit">Expires at</label>
+              <input
+                id="promo-expires-edit"
+                type="datetime-local"
+                className="form-control"
+                min={editPromoForm.startsAt || nowInputMin}
+                value={editPromoForm.expiresAt}
+                onChange={(e) => setEditPromoForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label d-block">Status</label>
+              <div className="form-check form-switch">
+                <input
+                  id="promo-active-edit"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={!!editPromoForm.active}
+                  onChange={(e) => setEditPromoForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promo-active-edit">
+                  {editPromoForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">Save changes</button>
+            <button type="button" className="btn btn-outline-saas" onClick={closeEditPromoModal}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promotionCreateModal = showCreatePromotionForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeCreatePromotionModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Create Promotion</p>
+            <h4>New auto-applied discount</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeCreatePromotionModal}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromotionSubmit}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-name">Name</label>
+              <input
+                id="promotion-name"
+                type="text"
+                className="form-control"
+                value={promotionForm.name}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-scope">Scope</label>
+              <select
+                id="promotion-scope"
+                className="form-select"
+                value={promotionForm.scopeType}
+                onChange={(e) =>
+                  setPromotionForm((p) => ({
+                    ...p,
+                    scopeType: e.target.value,
+                    productId: "",
+                    category: "",
+                  }))
+                }
+              >
+                <option value="product">Single product</option>
+                <option value="category">Category</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              {promotionForm.scopeType === "product" ? (
+                <>
+                  <label className="form-label" htmlFor="promotion-product">Product</label>
+                  <select
+                    id="promotion-product"
+                    className="form-select"
+                    value={promotionForm.productId}
+                    onChange={(e) => setPromotionForm((p) => ({ ...p, productId: e.target.value }))}
+                  >
+                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.title}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="form-label" htmlFor="promotion-category">Category</label>
+                  <select
+                    id="promotion-category"
+                    className="form-select"
+                    value={promotionForm.category}
+                    onChange={(e) => setPromotionForm((p) => ({ ...p, category: e.target.value }))}
+                  >
+                    <option value="">Select category</option>
+                    {promotionCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-type">Discount type</label>
+              <select
+                id="promotion-type"
+                className="form-select"
+                value={promotionForm.discountType}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-value">Value</label>
+              <input
+                id="promotion-value"
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={promotionForm.discountValue}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promotion-starts">Starts at</label>
+              <input
+                id="promotion-starts"
+                type="datetime-local"
+                className="form-control"
+                min={nowInputMin}
+                value={promotionForm.startsAt}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promotion-expires">Expires at</label>
+              <input
+                id="promotion-expires"
+                type="datetime-local"
+                className="form-control"
+                min={promotionForm.startsAt || nowInputMin}
+                value={promotionForm.expiresAt}
+                onChange={(e) => setPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4 d-flex align-items-end">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="promotion-active"
+                  checked={!!promotionForm.active}
+                  onChange={(e) => setPromotionForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promotion-active">
+                  {promotionForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <div className="d-flex gap-3 mt-3">
+            <button type="submit" className="btn btn-primary-saas">Create Promotion</button>
+            <button type="button" className="btn btn-outline-saas" onClick={resetPromotionForm}>
+              Clear
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+
+  const promotionEditModal = editPromotionForm && (
+    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeEditPromotionModal}>
+      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Edit promotion</p>
+            <h4>Update auto-applied discount</h4>
+          </div>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closeEditPromotionModal}>
+            Close
+          </button>
+        </div>
+        <form className="profile-form" onSubmit={handlePromotionUpdate}>
+          <div className="row g-3">
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-name-edit">Name</label>
+              <input
+                id="promotion-name-edit"
+                type="text"
+                className="form-control"
+                value={editPromotionForm.name}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, name: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-scope-edit">Scope</label>
+              <select
+                id="promotion-scope-edit"
+                className="form-select"
+                value={editPromotionForm.scopeType}
+                onChange={(e) =>
+                  setEditPromotionForm((p) => ({
+                    ...p,
+                    scopeType: e.target.value,
+                    productId: "",
+                    category: "",
+                  }))
+                }
+              >
+                <option value="product">Single product</option>
+                <option value="category">Category</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              {editPromotionForm.scopeType === "product" ? (
+                <>
+                  <label className="form-label" htmlFor="promotion-product-edit">Product</label>
+                  <select
+                    id="promotion-product-edit"
+                    className="form-select"
+                    value={editPromotionForm.productId}
+                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, productId: e.target.value }))}
+                  >
+                    <option value="">{productsLoading ? "Loading products..." : "Select product"}</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.title}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <>
+                  <label className="form-label" htmlFor="promotion-category-edit">Category</label>
+                  <select
+                    id="promotion-category-edit"
+                    className="form-select"
+                    value={editPromotionForm.category}
+                    onChange={(e) => setEditPromotionForm((p) => ({ ...p, category: e.target.value }))}
+                  >
+                    <option value="">Select category</option>
+                    {promotionCategories.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-type-edit">Discount type</label>
+              <select
+                id="promotion-type-edit"
+                className="form-select"
+                value={editPromotionForm.discountType}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountType: e.target.value }))}
+              >
+                <option value="percent">Percent off</option>
+                <option value="amount">Amount off</option>
+              </select>
+            </div>
+            <div className="col-md-4">
+              <label className="form-label" htmlFor="promotion-value-edit">Value</label>
+              <input
+                id="promotion-value-edit"
+                type="number"
+                step="0.01"
+                className="form-control"
+                value={editPromotionForm.discountValue}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, discountValue: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promotion-starts-edit">Starts at</label>
+              <input
+                id="promotion-starts-edit"
+                type="datetime-local"
+                className="form-control"
+                min={nowInputMin}
+                value={editPromotionForm.startsAt}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, startsAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-12">
+              <label className="form-label" htmlFor="promotion-expires-edit">Expires at</label>
+              <input
+                id="promotion-expires-edit"
+                type="datetime-local"
+                className="form-control"
+                min={editPromotionForm.startsAt || nowInputMin}
+                value={editPromotionForm.expiresAt}
+                onChange={(e) => setEditPromotionForm((p) => ({ ...p, expiresAt: e.target.value }))}
+              />
+            </div>
+            <div className="col-md-4 d-flex align-items-end">
+              <div className="form-check form-switch">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  id="promotion-active-edit"
+                  checked={!!editPromotionForm.active}
+                  onChange={(e) => setEditPromotionForm((p) => ({ ...p, active: e.target.checked }))}
+                />
+                <label className="form-check-label" htmlFor="promotion-active-edit">
+                  {editPromotionForm.active ? "Active" : "Inactive"}
+                </label>
+              </div>
+            </div>
+          </div>
+          <button type="submit" className="btn btn-primary-saas mt-3">Save changes</button>
+        </form>
+      </div>
+    </div>
+  );
+
   // MAIN RETURN
   return (
     <div className="admin-dashboard-page">
@@ -3831,7 +3629,7 @@ const renderInventory = () => (
                   <span className="hero-chip">Last 30 days</span>
                 </h1>
                 <p className="muted">
-                  Monitor CSAT, spot risky trends, and review verbatim feedback.
+                  Monitor CSAT and Business Insights
                 </p>
                 <div className="hero-actions">
                   {viewMode === "dashboard" && (
@@ -3865,6 +3663,7 @@ const renderInventory = () => (
         </div>
       </div>
       {productCreateModal}
+      {newCategoryModal}
       {productEditModal}
       {faqModal}
       {policyModal}

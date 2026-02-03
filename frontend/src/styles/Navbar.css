@@ -13,6 +13,37 @@
   box-shadow: var(--shadow-md);
 }
 
+.tachyon-nav-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}
+
+.tachyon-nav-wrap .tachyon-nav {
+  margin-top: 0;
+}
+
+.announcement-bar {
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  color: #fff;
+  font-size: 0.9rem;
+  padding: 8px 0;
+}
+
+.announcement-text {
+  font-weight: 600;
+}
+
+.announcement-link {
+  color: #fff;
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.announcement-link:hover {
+  color: #e0f2fe;
+}
+
 .tachyon-nav.nav-resting {
   background: transparent;
   box-shadow: none;
@@ -84,6 +115,13 @@
   color: var(--text-main) !important;
   background: rgba(99, 102, 241, 0.12);
   box-shadow: 0 10px 24px -18px rgba(99, 102, 241, 0.4);
+}
+
+
+.tachyon-nav .dropdown-menu .dropdown-item:active,
+.tachyon-nav .dropdown-menu .dropdown-item.active {
+  background: transparent;
+  color: inherit;
 }
 
 .theme-dark .nav-pill-group .nav-link:hover,

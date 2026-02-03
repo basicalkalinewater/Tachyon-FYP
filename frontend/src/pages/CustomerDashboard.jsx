@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useCallback, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
 
@@ -15,6 +16,7 @@ import {
   logoutRequest,
 } from "../api/auth";
 import { logout, selectCurrentUser, setUserDetails } from "../redux/authSlice";
+import { listMyReviews } from "../api/reviews";
 
 import "../styles/dashboard.css";
 
@@ -349,7 +351,7 @@ const PaymentsSection = ({
           )}
         </>
       )}
-      {error && <p className="text-danger small mt-3">{error}</p>}
+      {error && rows.length === 0 && <p className="text-danger small mt-3">{error}</p>}
     </section>
   );
 };
@@ -575,15 +577,16 @@ const AddressesSection = ({
           )}
         </>
       )}
-      {error && <p className="text-danger small mt-3">{error}</p>}
+      {error && rows.length === 0 && <p className="text-danger small mt-3">{error}</p>}
     </section>
   );
 };
 
-const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress }) => {
+const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress, myReviews }) => {
   const { list, filter, onFilterChange } = orders;
   const isInitial = list === null;
   const rows = list || [];
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
   const formattedDefaultAddress = defaultAddress
     ? `${defaultAddress.line1}${defaultAddress.line2 ? ", " + defaultAddress.line2 : ""}, ${defaultAddress.postalCode}`
     : "Shipping Address";
@@ -640,22 +643,42 @@ const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress })
                 <div className="text-end">
                   <div className="small text-muted">Order #{order.orderId}</div>
                   <div className="small">
-                    <button className="btn btn-link p-0 me-2">View order details</button>
+                    <button
+                      className="btn btn-link p-0 me-2"
+                      onClick={() =>
+                        setExpandedOrderId((prev) => (prev === order.orderId ? null : order.orderId))
+                      }
+                    >
+                      {expandedOrderId === order.orderId ? "Hide order details" : "View order details"}
+                    </button>
                     <button className="btn btn-link p-0">Receipt</button>
                   </div>
                 </div>
               </div>
 
+{expandedOrderId === order.orderId && (
               <div className="mt-3 d-flex flex-column flex-lg-row justify-content-between gap-3 align-items-start">
                 <div className="flex-grow-1">
-                  {order.items.map((item) => (
-                    <div key={`${order.orderId}-${item.name}`} className="mb-2">
-                      <div className="fw-semibold">{item.name}</div>
-                      <div className="small text-muted">
-                        Qty {item.qty} • {currencyFormatter.format(item.price)}
+                  {order.items.map((item) => {
+                    const delivered = String(order.status || "").toLowerCase() === "delivered";
+                    const productId = item.productId || item.product_id;
+                    const reviewCount = (myReviews || []).filter((r) => r.product_id === productId).length;
+                    const productHref = productId ? `/product/${productId}/review` : "/products";
+                    return (
+                      <div key={`${order.orderId}-${item.name}`} className="mb-2">
+                        <div className="fw-semibold">{item.name}</div>
+                        <div className="small text-muted">
+                          Qty {item.qty} · {currencyFormatter.format(item.price)}
+                        </div>
+                        {delivered && productId && (
+                          <a className="btn btn-link p-0 small" href={productHref}>
+                            {reviewCount > 0 ? "Leave another review" : "Leave a review"}
+                          </a>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+
                   <div className="small text-muted">
                     Status: <span className={`badge status-badge status-${normalizeStatus(order.status)}`}>{order.status}</span>
                   </div>
@@ -677,6 +700,7 @@ const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress })
                   })()}
                 </div>
               </div>
+            )}
             </div>
           ))}
           {rows.length === 0 && (
@@ -728,7 +752,12 @@ const RmasSection = ({ rmas, loading, error }) => {
 const CustomerDashboard = () => {
   const dispatch = useDispatch();
   const user = useSelector(selectCurrentUser);
-  const [activeSection, setActiveSection] = useState(DASHBOARD_SECTIONS[0].id);
+  const { section } = useParams();
+  const navigate = useNavigate();
+  const sectionIds = useMemo(() => new Set(DASHBOARD_SECTIONS.map((item) => item.id)), []);
+  const [activeSection, setActiveSection] = useState(
+    section && sectionIds.has(section) ? section : DASHBOARD_SECTIONS[0].id
+  );
 
   const [profileData, setProfileData] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -746,6 +775,7 @@ const CustomerDashboard = () => {
   const [orderFilter, setOrderFilter] = useState("all");
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState(null);
+  const [myReviews, setMyReviews] = useState([]);
 
   const [rmasData, setRmasData] = useState(null);
   const [rmasLoading, setRmasLoading] = useState(false);
@@ -861,6 +891,16 @@ const CustomerDashboard = () => {
         }
       };
 
+      const loadMyReviews = async () => {
+        try {
+          const res = await listMyReviews();
+          const list = res?.data || res || [];
+          setMyReviews(list);
+        } catch {
+          setMyReviews([]);
+        }
+      };
+
       const loadRmas = async () => {
         setRmasLoading(true);
         setRmasError(null);
@@ -883,7 +923,8 @@ const CustomerDashboard = () => {
         case "shipping":
           return loadShipping();
         case "orders":
-          return loadOrders();
+          await loadOrders();
+          return loadMyReviews();
         case "rmas":
           return loadRmas();
         default:
@@ -896,6 +937,20 @@ const CustomerDashboard = () => {
   useEffect(() => {
     loadSection("profile").catch(() => {});
   }, [loadSection]);
+
+  useEffect(() => {
+    if (!section) {
+      navigate("/dashboard/customer/profile", { replace: true });
+      return;
+    }
+    if (!sectionIds.has(section)) {
+      navigate("/dashboard/customer/profile", { replace: true });
+      return;
+    }
+    if (section !== activeSection) {
+      setActiveSection(section);
+    }
+  }, [section, sectionIds, navigate, activeSection]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -1224,6 +1279,7 @@ const CustomerDashboard = () => {
             error={ordersError}
             nextDelivery={nextDelivery}
             defaultAddress={shippingAddresses.find((a) => a.isDefault) || shippingAddresses[0]}
+            myReviews={myReviews}
           />
         );
       case "rmas":
@@ -1261,14 +1317,13 @@ const CustomerDashboard = () => {
               <p className="text-muted text-uppercase small fw-semibold mb-2">{group}</p>
               <nav className="dashboard-nav">
                 {items.map((section) => (
-                  <button
+                  <Link
                     key={section.id}
-                    type="button"
+                    to={`/dashboard/customer/${section.id}`}
                     className={`sidebar-link ${activeSection === section.id ? "active" : ""}`}
-                    onClick={() => setActiveSection(section.id)}
                   >
                     {section.label}
-                  </button>
+                  </Link>
                 ))}
               </nav>
             </div>

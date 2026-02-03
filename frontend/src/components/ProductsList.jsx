@@ -2,7 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProducts } from "../api/products";
-import { formatCountdown, hasActivePromotion } from "../utils/promo";
+import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
+import { formatCategoryLabel } from "../utils/category";
 
 import Skeleton from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
@@ -17,7 +18,6 @@ const ProductsList = () => {
   const [loading, setLoading] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [specFilters, setSpecFilters] = useState({});
-  const [now, setNow] = useState(Date.now());
   const location = useLocation();
 
   const dispatch = useDispatch();
@@ -30,7 +30,13 @@ const ProductsList = () => {
         setData(products);
         setFilter(products);
         setCategories(
-          Array.from(new Set(products.map((item) => item.category).filter(Boolean)))
+          Array.from(
+            new Set(
+              products
+                .map((item) => item.category)
+                .filter((cat) => cat && cat !== "uncategorized")
+            )
+          )
         );
       } catch (err) {
         console.error("Failed to load products", err);
@@ -40,11 +46,6 @@ const ProductsList = () => {
     };
 
     getProducts();
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
@@ -140,6 +141,15 @@ const ProductsList = () => {
   };
 
   const specOptions = selectedCategory ? getSpecOptions(selectedCategory) : {};
+  const isBestseller = (product) =>
+    !!product?.isBestseller || Number(product?.ratingCount || 0) >= 1500;
+
+  const formatRating = (product) => {
+    const avg = Number(product?.rating || 0);
+    const count = Number(product?.ratingCount || 0);
+    if (!count) return "";
+    return `${avg.toFixed(1)} (${count})`;
+  };
 
   const Loading = () => {
     return (
@@ -166,19 +176,15 @@ const ProductsList = () => {
           >
             All
           </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              className={`btn btn-sm m-2 ${selectedCategory === cat ? "btn-primary-saas" : "btn-outline-saas"}`}
-              onClick={() => filterProduct(cat)}
-            >
-              {cat === "ssd"
-                ? "NVMe SSD"
-                : cat
-                  ? cat.charAt(0).toUpperCase() + cat.slice(1)
-                  : ""}
-            </button>
-          ))}
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  className={`btn btn-sm m-2 ${selectedCategory === cat ? "btn-primary-saas" : "btn-outline-saas"}`}
+                  onClick={() => filterProduct(cat)}
+                >
+                  {formatCategoryLabel(cat)}
+                </button>
+              ))}
         </div>
 
         {selectedCategory && Object.keys(specOptions).length > 0 && (
@@ -227,15 +233,26 @@ const ProductsList = () => {
                 </div>
                 <div className="card-body d-flex flex-column p-4">
                   <h5 className="card-title fw-bold mb-1 text-truncate" title={product.title}>{product.title}</h5>
-                  <p className="text-muted small mb-3 text-capitalize">{product.category}</p>
+                  {product.category !== "uncategorized" && (
+                    <p className="text-muted small mb-3">{formatCategoryLabel(product.category)}</p>
+                  )}
+                  {isBestseller(product) && (
+                    <span className="badge bg-success text-white align-self-start mb-2">Bestseller</span>
+                  )}
 
                   <div className="mt-auto">
+                    {formatRating(product) && (
+                      <div className="small text-muted mb-2">
+                        <i className="fa fa-star text-warning me-1" />
+                        {formatRating(product)}
+                      </div>
+                    )}
                     <div className="d-flex align-items-center justify-content-between mb-3">
                       {(() => {
                         const price = Number(product.price || 0);
                         const original = Number(product.originalPrice ?? product.price ?? 0);
                         const showPromo = hasActivePromotion(product);
-                        const countdown = showPromo ? formatCountdown(product?.promotion?.expiresAt, now) : "";
+                        const badge = showPromo ? formatPromotionBadge(product) : "";
                         return (
                           <div className="d-flex flex-column">
                             {showPromo && (
@@ -244,9 +261,9 @@ const ProductsList = () => {
                               </span>
                             )}
                             <span className="fs-5 fw-bold text-primary">${price.toFixed(2)}</span>
-                            {showPromo && countdown && (
+                            {showPromo && badge && (
                               <span className="badge bg-warning text-dark mt-1 align-self-start">
-                                Ends in {countdown}
+                                {badge}
                               </span>
                             )}
                           </div>

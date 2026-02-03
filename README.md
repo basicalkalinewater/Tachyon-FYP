@@ -74,6 +74,7 @@ This runs the backend with Gunicorn and WebSocket support locally. The frontend 
 ```bash
 cd frontend
 npm install
+npm install axios
 npm run dev   # http://localhost:3000
 ```
 
@@ -151,7 +152,6 @@ admin@example.com / admin123
 ```
 - Customer dashboards: manage profile, shipping addresses, saved payment methods, view order history and RMAs.
 - Support dashboard: ticket queue/claim/resolve, ticket metadata, live chat, CSAT summary/responses, and workload stats.
-
 
 
 

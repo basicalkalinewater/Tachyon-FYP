@@ -1,10 +1,12 @@
-import { HomeHero, FeaturedProducts } from "../components";
+import { HomeHero, FeaturedProducts, TrustStrip, SocialProof } from "../components";
 
 function Home() {
   return (
     <>
       <HomeHero />
+      <TrustStrip />
       <FeaturedProducts />
+      <SocialProof />
     </>
   );
 }

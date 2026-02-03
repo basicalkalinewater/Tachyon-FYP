@@ -10,6 +10,29 @@ def list_policies(supabase) -> List[Dict]:
     res = supabase.table("policies").select("*").order("sort_order").order("created_at", desc=True).execute()
     return res.data or []
 
+def get_announcement(supabase) -> Dict:
+    res = (
+        supabase.table("announcement_banner")
+        .select("*")
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return (res.data or [{}])[0]
+
+def upsert_announcement(supabase, payload: Dict) -> Dict:
+    announcement_id = payload.get("id")
+    body = {
+        "message": payload.get("message") or "",
+        "link_url": payload.get("link_url") or None,
+        "link_label": payload.get("link_label") or None,
+        "enabled": bool(payload.get("enabled", True)),
+    }
+    if announcement_id:
+        res = supabase.table("announcement_banner").update(body).eq("id", announcement_id).execute()
+        return (res.data or [{}])[0]
+    res = supabase.table("announcement_banner").insert(body).execute()
+    return (res.data or [{}])[0]
 
 def search_faqs(supabase, query: str, limit: int = 3) -> List[Dict]:
     if not query:

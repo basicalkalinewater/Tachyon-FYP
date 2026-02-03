@@ -9,8 +9,8 @@ const buildQuery = (params = {}) =>
     .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join("&");
 
-export const listProducts = () => request("/products/?include_promotions=false");
-export const getProduct = (id) => request(`/products/${id}?include_promotions=false`);
+export const listProducts = () => request("/products/?include_promotions=true");
+export const getProduct = (id) => request(`/products/${id}?include_promotions=true`);
 
 export const createProduct = async (formData) => {
   const response = await axios.post(API_BASE_URL, formData, {
@@ -30,10 +30,10 @@ export const deleteProduct = (id) =>
   request(`/products/${id}`, { method: "DELETE" });
 
 export const searchProductsByTitle = (title) => 
-  request(`/products/title/${encodeURIComponent(title)}?include_promotions=false`);
+  request(`/products/title/${encodeURIComponent(title)}?include_promotions=true`);
 
 export const filterProductsByCategory = (category) => 
-  request(`/products/category/${encodeURIComponent(category)}?include_promotions=false`);
+  request(`/products/category/${encodeURIComponent(category)}?include_promotions=true`);
 
 export const filterProductsByPrice = (min, max) => 
-  request(`/products/price-range?${buildQuery({ min_price: min, max_price: max, include_promotions: false })}`);
+  request(`/products/price-range?${buildQuery({ min_price: min, max_price: max, include_promotions: true })}`);

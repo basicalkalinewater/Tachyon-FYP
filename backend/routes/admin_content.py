@@ -100,3 +100,29 @@ def delete_policy(policy_id):
     supabase = current_app.config["SUPABASE"]
     data = content_service.delete_policy(supabase, policy_id)
     return _ok(data)
+
+
+@admin_content_bp.get("/announcement")
+@require_session(allowed_roles=["admin"])
+def get_announcement():
+    supabase = current_app.config["SUPABASE"]
+    data = content_service.get_announcement(supabase)
+    return _ok(data)
+
+
+@admin_content_bp.put("/announcement")
+@require_session(allowed_roles=["admin"])
+def upsert_announcement():
+    supabase = current_app.config["SUPABASE"]
+    body = request.get_json(force=True, silent=True) or {}
+    payload = {
+        "id": body.get("id"),
+        "message": (body.get("message") or "").strip(),
+        "link_url": (body.get("link_url") or "").strip() or None,
+        "link_label": (body.get("link_label") or "").strip() or None,
+        "enabled": bool(body.get("enabled", True)),
+    }
+    if not payload["message"]:
+        return jsonify({"error": "message is required"}), 400
+    data = content_service.upsert_announcement(supabase, payload)
+    return _ok(data)

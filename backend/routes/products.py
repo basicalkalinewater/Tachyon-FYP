@@ -20,6 +20,25 @@ FRONTEND_ASSETS_PATH = os.path.join(project_root, "frontend", "public", "assets"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
+def _normalize_category_slug(value):
+    raw = re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip("-")
+    return raw
+
+def _ensure_category_exists(supabase, category):
+    slug = _normalize_category_slug(category)
+    if not slug:
+        return None, "Invalid category"
+    res = (
+        supabase.table("product_category")
+        .select("slug")
+        .eq("slug", slug)
+        .limit(1)
+        .execute()
+    )
+    if not res.data:
+        return None, f"Unknown category '{category}'. Create it first."
+    return slug, None
+
 def _is_truthy(value):
     if value is None:
         return False
@@ -38,17 +57,15 @@ def safe_category_folder(category):
         return "mouse"
     if raw in {"other", "others"}:
         return "others"
-    if raw in {"keyboard", "mouse", "monitor", "ssd"}:
-        return raw
-    return "uncategorized"
+    return raw
 
 
 def _image_folder_warning(category, category_folder):
     if not category:
         return None
-    if category_folder != "uncategorized":
-        return None
-    return f"Image saved to 'uncategorized' because category '{category}' is not a supported image folder."
+    if category_folder == "uncategorized":
+        return f"Image saved to 'uncategorized' because category '{category}' could not be normalized."
+    return None
 
 @products_bp.route("/", methods=["GET", "POST"])
 def handle_products_collection():
@@ -75,6 +92,12 @@ def handle_products_collection():
                 val = form.get(field)
                 if val is not None and val != "":
                     payload[field] = float(val) if field == "price" else val
+
+            if "category" in payload:
+                normalized, error = _ensure_category_exists(supabase, payload.get("category"))
+                if error:
+                    return jsonify({"error": error}), 400
+                payload["category"] = normalized
 
             # Specs JSON
             if form.get("specs"):
@@ -132,6 +155,12 @@ def handle_product_by_id(product_id):
                 val = request.form.get(field)
                 if val is not None:
                     update_payload[field] = float(val) if field == "price" else val
+
+            if "category" in update_payload:
+                normalized, error = _ensure_category_exists(supabase, update_payload.get("category"))
+                if error:
+                    return jsonify({"error": error}), 400
+                update_payload["category"] = normalized
             
             if request.form.get("specs"):
                 update_payload["specs"] = json.loads(request.form.get("specs"))

@@ -348,7 +348,7 @@ const CustomerSupportDashboard = () => {
 
     const token = getSessionToken();
       if (!token) {
-        toast.error("Please log in to access session details.");
+        toast.error("Please login to access session details.");
         return;
       }
     setSelectedSessionId(sessionId);

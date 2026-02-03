@@ -30,3 +30,10 @@ def public_policies():
     supabase = current_app.config["SUPABASE"]
     data = content_service.list_policies(supabase)
     return _ok(data)
+
+
+@content_bp.get("/announcement")
+def public_announcement():
+    supabase = current_app.config["SUPABASE"]
+    data = content_service.get_announcement(supabase)
+    return _ok(data)

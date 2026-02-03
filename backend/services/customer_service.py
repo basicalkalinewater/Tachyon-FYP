@@ -51,7 +51,31 @@ def fetch_customer_orders(supabase, user_id: str) -> List[Dict[str, Any]]:
         .order("placed_at", desc=True)
         .execute()
     )
-    return [map_order(row) for row in res.data or []]
+    rows = res.data or []
+    missing_names = set()
+    for row in rows:
+        for item in row.get("customer_order_item") or []:
+            if not item.get("product_id"):
+                name = item.get("product_name")
+                if name:
+                    missing_names.add(name)
+
+    if missing_names:
+        products_res = (
+            supabase.table("products")
+            .select("id, title")
+            .in_("title", list(missing_names))
+            .execute()
+        )
+        lookup = {row.get("title"): row.get("id") for row in (products_res.data or [])}
+        for row in rows:
+            for item in row.get("customer_order_item") or []:
+                if not item.get("product_id"):
+                    name = item.get("product_name")
+                    if name and name in lookup:
+                        item["product_id"] = lookup[name]
+
+    return [map_order(row) for row in rows]
 
 
 def fetch_customer_rmas(supabase, user_id: str) -> List[Dict[str, Any]]:

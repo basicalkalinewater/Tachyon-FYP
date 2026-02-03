@@ -122,22 +122,6 @@ body.cart-open .chat-widget {
   gap: 6px;
 }
 
-.guest-form {
-  background: var(--bg-card);
-  border: 1px solid var(--border-light);
-  border-radius: 12px;
-}
-
-.guest-form .form-control {
-  width: 100%;
-  background: var(--bg-card);
-  color: var(--text-main);
-  border: 1px solid var(--border-light);
-}
-
-.guest-form .form-label {
-  color: var(--text-muted, #475569);
-}
 
 .chat-message {
   display: flex;

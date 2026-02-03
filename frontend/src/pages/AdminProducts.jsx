@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatCategoryLabel } from "../utils/category";
 import { 
   listProducts, deleteProduct, createProduct, updateProduct,
   searchProductsByTitle, filterProductsByCategory, filterProductsByPrice 
@@ -169,7 +170,9 @@ export default function AdminProducts() {
               <tr key={p.id} className="border-b hover:bg-gray-50 transition">
                 <td className="p-4">
                    <div className="font-medium text-gray-800">{p.title}</div>
-                   <div className="text-xs text-gray-400 font-mono">{p.category}</div>
+                  <div className="text-xs text-gray-400 font-mono">
+                    {formatCategoryLabel(p.category)}
+                  </div>
                 </td>
                 <td className="p-4 text-gray-700 font-semibold">${p.price}</td>
                 <td className="p-4 text-right space-x-4">

@@ -2,10 +2,11 @@ import React, { useEffect, useState } from "react";
 import Skeleton from "react-loading-skeleton";
 import { Link, useParams } from "react-router-dom";
 import Marquee from "react-fast-marquee";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProductById, fetchProducts } from "../api/products";
-import { formatCountdown, hasActivePromotion } from "../utils/promo";
+import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
+import { formatCategoryLabel } from "../utils/category";
 import InnerImageZoom from "react-inner-image-zoom";
 import "react-inner-image-zoom/lib/InnerImageZoom/styles.css";
 import "../styles/Product.css";
@@ -16,8 +17,6 @@ const Product = () => {
   const [similarProducts, setSimilarProducts] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loading2, setLoading2] = useState(false);
-  const [now, setNow] = useState(Date.now());
-
   const dispatch = useDispatch();
 
   const addProduct = (product) => {
@@ -51,11 +50,6 @@ const Product = () => {
     };
     getProduct();
   }, [id]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   const Loading = () => {
     return (
@@ -123,16 +117,24 @@ const Product = () => {
               </div>
             </div>
             <div className="col-md-6 col-md-6 py-5">
-              <h4 className="text-uppercase text-primary fw-bold small mb-2">{product.category}</h4>
+              {product.category !== "uncategorized" && (
+                <h4 className="text-uppercase text-primary fw-bold small mb-2">
+                  {formatCategoryLabel(product.category)}
+                </h4>
+              )}
               <h1 className="display-5 fw-bold mb-3">{product.title}</h1>
               <p className="lead mb-4">
-                {product.rating} <i className="fa fa-star text-warning"></i>
+                {Number(product.rating || 0).toFixed(1)}{" "}
+                <i className="fa fa-star text-warning"></i>{" "}
+                <span className="small text-muted">
+                  ({Number(product.ratingCount || 0)} reviews)
+                </span>
               </p>
               {(() => {
                 const price = Number(product.price || 0);
                 const original = Number(product.originalPrice ?? product.price ?? 0);
                 const showPromo = hasActivePromotion(product);
-                const countdown = showPromo ? formatCountdown(product?.promotion?.expiresAt, now) : "";
+                const badge = showPromo ? formatPromotionBadge(product) : "";
                 return (
                   <div className="mb-4">
                     {showPromo && (
@@ -143,9 +145,9 @@ const Product = () => {
                     <h3 className="display-6 fw-bold text-primary mb-2">
                       ${price.toFixed(2)}
                     </h3>
-                    {showPromo && countdown && (
+                    {showPromo && badge && (
                       <span className="badge bg-warning text-dark">
-                        Ends in {countdown}
+                        {badge}
                       </span>
                     )}
                   </div>

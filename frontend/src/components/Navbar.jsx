@@ -1,13 +1,16 @@
 // src/components/Navbar.jsx
 
 import React, { useEffect, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
 
 import CartDrawer from "../cart/CartDrawer";
 import { selectCartCount } from "../redux/cartSlice";
 import { logout, selectCurrentUser } from "../redux/authSlice";
 import { logoutRequest } from "../api/auth";
+import { listProductCategories } from "../api/categories";
+import { fetchAnnouncement } from "../api/content";
+import { formatCategoryLabel } from "../utils/category";
 import { toast } from "react-hot-toast";
 
 import "../styles/Navbar.css";
@@ -15,8 +18,12 @@ import "../styles/Navbar.css";
 const Navbar = () => {
   const [isScrolled, setIsScrolled] = useState(() => (typeof window !== "undefined" ? window.scrollY > 20 : false));
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [isProductsOpen, setIsProductsOpen] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState(null);
   const [theme, setTheme] = useState(() => localStorage.getItem("theme") || "dark");
   const dispatch = useDispatch();
+  const location = useLocation();
 
   const cartCount = useSelector(selectCartCount);
   const currentUser = useSelector(selectCurrentUser);
@@ -36,6 +43,11 @@ const Navbar = () => {
     (currentUser?.fullName && currentUser.fullName.trim()) ||
     currentUser?.email?.split("@")[0] ||
     "Account";
+
+  const [productCategories, setProductCategories] = useState([
+    { label: "All Products", value: "" },
+  ]);
+
 
   useEffect(() => {
     const handleScroll = () => {
@@ -59,6 +71,61 @@ const Navbar = () => {
     document.body.classList.toggle("cart-open", isCartOpen);
   }, [isCartOpen]);
 
+  useEffect(() => {
+    let isMounted = true;
+    const loadCategories = async () => {
+      try {
+        const res = await listProductCategories();
+        const list = res?.data || res || [];
+        const mapped = list
+          .map((c) => {
+            const value = c?.slug || c?.name;
+            if (!value) return null;
+            return { value, label: c?.name || formatCategoryLabel(value) };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.label.localeCompare(b.label));
+        if (isMounted) {
+          setProductCategories([{ label: "All Products", value: "" }, ...mapped]);
+        }
+      } catch (err) {
+        console.error("Failed to load categories", err);
+      }
+    };
+    loadCategories();
+    const handleCategoriesUpdated = () => loadCategories();
+    window.addEventListener("categories:updated", handleCategoriesUpdated);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("categories:updated", handleCategoriesUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadAnnouncement = async () => {
+      try {
+        const res = await fetchAnnouncement();
+        const data = res?.data || res;
+        if (isMounted) setAnnouncement(data || null);
+      } catch {
+        if (isMounted) setAnnouncement(null);
+      }
+    };
+    loadAnnouncement();
+    const handleAnnouncementUpdated = () => loadAnnouncement();
+    window.addEventListener("announcement:updated", handleAnnouncementUpdated);
+    return () => {
+      isMounted = false;
+      window.removeEventListener("announcement:updated", handleAnnouncementUpdated);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsProductsOpen(false);
+    setIsAboutOpen(false);
+  }, [location.pathname, location.search]);
+
   const toggleTheme = () => {
     setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
@@ -78,13 +145,26 @@ const Navbar = () => {
 
   return (
     <>
-      <nav
-        className={`navbar navbar-expand-lg sticky-top tachyon-nav ${
-          isScrolled ? "glass-panel nav-elevated" : "nav-resting"
-        }`}
-        style={{ transition: "all 0.3s ease" }}
-      >
-        <div className="container">
+      <div className="tachyon-nav-wrap">
+        {announcement?.enabled && announcement?.message && (
+          <div className="announcement-bar">
+            <div className="container d-flex align-items-center justify-content-center gap-2">
+              <span className="announcement-text">{announcement.message}</span>
+              {announcement.link_url && announcement.link_label && (
+                <a className="announcement-link" href={announcement.link_url}>
+                  {announcement.link_label}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+        <nav
+          className={`navbar navbar-expand-lg sticky-top tachyon-nav ${
+            isScrolled ? "glass-panel nav-elevated" : "nav-resting"
+          }`}
+          style={{ transition: "all 0.3s ease" }}
+        >
+          <div className="container">
           {/* Brand */}
           {disableHomeNav ? (
             <div
@@ -130,16 +210,82 @@ const Navbar = () => {
                   </NavLink>
                 </li>
 
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/products">
+                <li
+                  className={`nav-item dropdown ${isProductsOpen ? "show" : ""}`}
+                  onMouseEnter={() => setIsProductsOpen(true)}
+                  onMouseLeave={() => setIsProductsOpen(false)}
+                >
+                  <button
+                    className="nav-link dropdown-toggle"
+                    id="productsDropdown"
+                    aria-expanded={isProductsOpen}
+                    type="button"
+                    onClick={() => setIsProductsOpen((prev) => !prev)}
+                  >
                     Products
-                  </NavLink>
+                  </button>
+                  <ul
+                    className={`dropdown-menu ${isProductsOpen ? "show" : ""}`}
+                    aria-labelledby="productsDropdown"
+                  >
+                    {productCategories.map((cat) => (
+                      <li key={cat.value || "all"}>
+                        <NavLink
+                          className="dropdown-item"
+                          to={cat.value ? `/products?cat=${encodeURIComponent(cat.value)}` : "/products"}
+                          onClick={() => setIsProductsOpen(false)}
+                        >
+                          {cat.label}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
 
-                <li className="nav-item">
-                  <NavLink className="nav-link" to="/about">
+                <li
+                  className={`nav-item dropdown ${isAboutOpen ? "show" : ""}`}
+                  onMouseEnter={() => setIsAboutOpen(true)}
+                  onMouseLeave={() => setIsAboutOpen(false)}
+                >
+                  <button
+                    className="nav-link dropdown-toggle"
+                    id="aboutDropdown"
+                    aria-expanded={isAboutOpen}
+                    type="button"
+                    onClick={() => setIsAboutOpen((prev) => !prev)}
+                  >
                     About
-                  </NavLink>
+                  </button>
+                  <ul
+                    className={`dropdown-menu ${isAboutOpen ? "show" : ""}`}
+                    aria-labelledby="aboutDropdown"
+                  >
+                    <li>
+                      <NavLink className="dropdown-item" to="/faq" onClick={() => setIsAboutOpen(false)}>
+                        FAQs
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink className="dropdown-item" to="/privacy" onClick={() => setIsAboutOpen(false)}>
+                        Privacy
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink className="dropdown-item" to="/terms" onClick={() => setIsAboutOpen(false)}>
+                        Terms
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink className="dropdown-item" to="/accessibility" onClick={() => setIsAboutOpen(false)}>
+                        Accessibility
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink className="dropdown-item" to="/contact" onClick={() => setIsAboutOpen(false)}>
+                        Contact us
+                      </NavLink>
+                    </li>
+                  </ul>
                 </li>
               </ul>
             )}
@@ -148,7 +294,7 @@ const Navbar = () => {
             <div className="d-flex align-items-center gap-3 nav-actions ms-auto">
               {!currentUser && (
                 <NavLink className="nav-link fw-medium" to="/login">
-                  Log in
+                  Login
                 </NavLink>
               )}
 
@@ -283,7 +429,8 @@ const Navbar = () => {
             </div>
           </div>
         </div>
-      </nav>
+        </nav>
+      </div>
       {/* Cart Drawer component */}
       {!isSupport && <CartDrawer isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />}
     </>

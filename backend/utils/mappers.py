@@ -8,6 +8,9 @@ def map_product(row):
         "image": row.get("image_url"), # This is the path like /assets/products/filename.jpg
         "category": row.get("category"),
         "specs": row.get("specs") or {},
+        "rating": float(row.get("rating_avg") or row.get("rating") or 0),
+        "ratingCount": int(row.get("rating_count") or 0),
+        "isBestseller": bool(row.get("is_bestseller") or False),
     }
 
 
@@ -47,6 +50,7 @@ def map_order(row):
         "items": [
             {
                 "name": item.get("product_name"),
+                "productId": item.get("product_id"),
                 "qty": item.get("quantity", 1),
                 "price": float(item.get("unit_price", 0)),
             }

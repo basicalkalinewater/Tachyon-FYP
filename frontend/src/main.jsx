@@ -25,6 +25,7 @@ import {
   Privacy,
   Terms,
   Accessibility,
+  ProductReview,
   CustomerDashboard,
   CustomerSupportDashboard,
   AdminDashboard,
@@ -72,6 +73,8 @@ root.render(
                 <Route path="/accessibility" element={<Accessibility />} />
                 <Route element={<ProtectedRoute allowedRoles={["customer"]} />}>
                   <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+                  <Route path="/dashboard/customer/:section" element={<CustomerDashboard />} />
+                  <Route path="/product/:id/review" element={<ProductReview />} />
                 </Route>
                 <Route element={<ProtectedRoute allowedRoles={["support"]} />}>
                   <Route path="/dashboard/customer-support" element={<CustomerSupportDashboard />} />

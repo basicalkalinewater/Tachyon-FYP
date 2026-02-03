@@ -45,3 +45,13 @@
   object-fit: contain;
   background: #fff;
 }
+
+.review-login-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.review-login-link:hover {
+  color: #1d4ed8;
+}

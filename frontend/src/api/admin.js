@@ -48,6 +48,9 @@ export const createPolicy = (body) => request(`/admin/policies`, { method: "POST
 export const updatePolicy = (id, body) => request(`/admin/policies/${id}`, { method: "PUT", body });
 export const deletePolicy = (id) => request(`/admin/policies/${id}`, { method: "DELETE" });
 
+export const getAnnouncement = () => request(`/admin/announcement`);
+export const updateAnnouncement = (body) => request(`/admin/announcement`, { method: "PUT", body });
+
 export const listPromoCodes = (params = {}) => {
   const qs = toQuery(params);
   return request(`/admin/promo-codes${qs ? `?${qs}` : ""}`);
