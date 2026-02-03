@@ -2014,6 +2014,265 @@ const handleStockSubmit = async (productId) => {
     </section>
   );
 
+  const formatDiscountLabel = (discountType, discountValue) => {
+    const numericValue = Number(discountValue);
+    if (!Number.isFinite(numericValue)) return "-";
+    if (discountType === "percent") return `${numericValue}%`;
+    return currencyFormatter.format(numericValue);
+  };
+
+  const formatPromoWindow = (item) =>
+    describeWindow(item?.starts_at || item?.startsAt, item?.expires_at || item?.expiresAt);
+
+  const renderPromos = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Promo codes</p>
+            <h4>Discount codes</h4>
+          </div>
+        </div>
+        <div className="d-flex gap-3 flex-wrap mb-3 align-items-center">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 240 }}
+            placeholder="Search code or description"
+            value={promoFilters.q}
+            onChange={(e) => setPromoFilters((p) => ({ ...p, q: e.target.value }))}
+          />
+          <select
+            className="form-select"
+            style={{ maxWidth: 160 }}
+            value={promoFilters.active}
+            onChange={(e) => setPromoFilters((p) => ({ ...p, active: e.target.value }))}
+          >
+            <option value="all">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <button className="btn btn-outline-saas" onClick={loadPromos} disabled={promoLoading}>
+            {promoLoading ? "Loading..." : "Refresh"}
+          </button>
+          <button className="btn btn-primary-saas" type="button" onClick={startCreatePromo}>
+            New promo
+          </button>
+        </div>
+        <div className="results-count">{promoItems.length} results found</div>
+        <div className="table-responsive">
+          <table className="dashboard-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Discount</th>
+                <th>Uses</th>
+                <th>Window</th>
+                <th>Status</th>
+                <th className="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {promoLoading ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-muted">
+                    Loading promo codes...
+                  </td>
+                </tr>
+              ) : promoItems.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-muted">
+                    No promo codes found.
+                  </td>
+                </tr>
+              ) : (
+                promoItems.map((promo) => {
+                  const isActive = promo.active ?? false;
+                  const maxUses = promo.max_uses ?? promo.maxUses;
+                  const timesRedeemed = promo.times_redeemed ?? promo.timesRedeemed ?? 0;
+                  const usesLabel =
+                    maxUses === null || maxUses === undefined || maxUses === ""
+                      ? `${timesRedeemed} / Unlimited`
+                      : `${timesRedeemed} / ${maxUses}`;
+                  const discountLabel = formatDiscountLabel(
+                    promo.discount_type || promo.discountType,
+                    promo.discount_value ?? promo.discountValue
+                  );
+                  return (
+                    <tr key={promo.id}>
+                      <td className="fw-semibold">{promo.code}</td>
+                      <td>{discountLabel}</td>
+                      <td>{usesLabel}</td>
+                      <td>{formatPromoWindow(promo)}</td>
+                      <td>
+                        <span className={`badge rounded-pill ${isActive ? "bg-success" : "bg-secondary"}`}>
+                          {isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="text-end">
+                        <div className="d-flex gap-2 justify-content-end">
+                          <button className="btn btn-outline-saas btn-sm" onClick={() => startEditPromo(promo)}>
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={async () => {
+                              const ok = window.confirm(`Delete promo code ${promo.code}?`);
+                              if (!ok) return;
+                              try {
+                                await deletePromoCode(promo.id);
+                                toast.success("Promo deleted");
+                                await loadPromos();
+                              } catch (err) {
+                                toast.error(err.message || "Failed to delete promo");
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+
+  const renderPromotions = () => (
+    <section className="admin-grid">
+      <div className="admin-card wide">
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Promotions</p>
+            <h4>Auto-applied discounts</h4>
+          </div>
+        </div>
+        <div className="d-flex gap-3 flex-wrap mb-3 align-items-center">
+          <input
+            type="search"
+            className="form-control"
+            style={{ maxWidth: 240 }}
+            placeholder="Search name or category"
+            value={promotionFilters.q}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, q: e.target.value }))}
+          />
+          <select
+            className="form-select"
+            style={{ maxWidth: 160 }}
+            value={promotionFilters.active}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, active: e.target.value }))}
+          >
+            <option value="all">All status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select
+            className="form-select"
+            style={{ maxWidth: 180 }}
+            value={promotionFilters.scope}
+            onChange={(e) => setPromotionFilters((p) => ({ ...p, scope: e.target.value }))}
+          >
+            <option value="all">All scopes</option>
+            <option value="product">Product</option>
+            <option value="category">Category</option>
+          </select>
+          <button className="btn btn-outline-saas" onClick={loadPromotions} disabled={promotionLoading}>
+            {promotionLoading ? "Loading..." : "Refresh"}
+          </button>
+          <button className="btn btn-primary-saas" type="button" onClick={startCreatePromotion}>
+            New promotion
+          </button>
+        </div>
+        <div className="results-count">{promotionItems.length} results found</div>
+        <div className="table-responsive">
+          <table className="dashboard-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Scope</th>
+                <th>Discount</th>
+                <th>Window</th>
+                <th>Status</th>
+                <th className="text-end">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {promotionLoading ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-muted">
+                    Loading promotions...
+                  </td>
+                </tr>
+              ) : promotionItems.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="text-center py-4 text-muted">
+                    No promotions found.
+                  </td>
+                </tr>
+              ) : (
+                promotionItems.map((promotion) => {
+                  const scopeType = promotion.scope_type || promotion.scopeType || "product";
+                  const isActive = promotion.active ?? false;
+                  const discountLabel = formatDiscountLabel(
+                    promotion.discount_type || promotion.discountType,
+                    promotion.discount_value ?? promotion.discountValue
+                  );
+                  const productId = promotion.product_id || promotion.productId;
+                  const category = promotion.category || "";
+                  const scopeLabel =
+                    scopeType === "product"
+                      ? `Product: ${promotionProductMap.get(productId) || productId || "-"}`
+                      : `Category: ${getCategoryLabel(category) || category || "-"}`;
+                  return (
+                    <tr key={promotion.id}>
+                      <td className="fw-semibold">{promotion.name || "Untitled"}</td>
+                      <td>{scopeLabel}</td>
+                      <td>{discountLabel}</td>
+                      <td>{formatPromoWindow(promotion)}</td>
+                      <td>
+                        <span className={`badge rounded-pill ${isActive ? "bg-success" : "bg-secondary"}`}>
+                          {isActive ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td className="text-end">
+                        <div className="d-flex gap-2 justify-content-end">
+                          <button className="btn btn-outline-saas btn-sm" onClick={() => startEditPromotion(promotion)}>
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-outline-danger btn-sm"
+                            onClick={async () => {
+                              const ok = window.confirm(`Delete promotion ${promotion.name || "this promotion"}?`);
+                              if (!ok) return;
+                              try {
+                                await deletePromotion(promotion.id);
+                                toast.success("Promotion deleted");
+                                await loadPromotions();
+                              } catch (err) {
+                                toast.error(err.message || "Failed to delete promotion");
+                              }
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  );
+
 const renderUsers = () => (
     <section className="admin-grid users-grid">
       <div className="admin-card wide">

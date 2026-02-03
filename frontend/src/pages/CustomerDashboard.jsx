@@ -1291,6 +1291,8 @@ const CustomerDashboard = () => {
 
   const displayName = profile.fullName?.trim() || user?.fullName || user?.email || "Customer";
   const displayEmail = profile.email || user?.email || "";
+  const activeSectionLabel =
+    DASHBOARD_SECTIONS.find((sectionItem) => sectionItem.id === activeSection)?.label || "Account";
   const handleLogout = async () => {
     try {
       await logoutRequest();
@@ -1333,7 +1335,19 @@ const CustomerDashboard = () => {
           </button>
         </aside>
 
-        <main className="dashboard-content">{renderActiveSection()}</main>
+        <main className="dashboard-content">
+          <section className="dashboard-hero">
+            <div>
+              <p className="eyebrow">Tachyon Account</p>
+              <h1>
+                Welcome{displayName ? `, ${displayName}` : ""}{" "}
+                <span className="dashboard-hero-chip">{activeSectionLabel}</span>
+              </h1>
+              <p className="text-muted">Manage your profile, orders, and payments in one place.</p>
+            </div>
+          </section>
+          {renderActiveSection()}
+        </main>
       </div>
     </div>
   );
