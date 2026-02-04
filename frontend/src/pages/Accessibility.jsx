@@ -1,18 +1,49 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { fetchPolicies } from "../api/content";
 
 const Accessibility = () => {
+  const [policies, setPolicies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const res = await fetchPolicies();
+        const list = res.data || res || [];
+        const matches = list.filter((item) => item.slug === "accessibility");
+        if (mounted) setPolicies(matches);
+      } catch (err) {
+        if (mounted) setError(err.message || "Failed to load policy");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="container py-5">
       <h2 className="mb-4">Accessibility Statement</h2>
-      <p className="text-muted">
-        We’re committed to making our site usable by everyone. If you experience issues, please let us know so we can improve.
-      </p>
-      <ul className="text-muted">
-        <li>We follow best practices for semantic HTML, keyboard navigation, and color contrast.</li>
-        <li>We aim to provide alt text for meaningful images and labels for form fields.</li>
-        <li>If you need assistance or alternative formats, contact our support team.</li>
-        <li>We review accessibility on an ongoing basis and welcome your feedback.</li>
-      </ul>
+      {loading && <p className="text-muted">Loading policy...</p>}
+      {error && !loading && <p className="text-muted">{error}</p>}
+      {!loading && !error && policies.length === 0 && (
+        <p className="text-muted">No policy published yet.</p>
+      )}
+      {!loading &&
+        !error &&
+        policies.map((item) => (
+          <div className="mb-4" key={item.id}>
+            <div
+              className="text-muted"
+              dangerouslySetInnerHTML={{ __html: item.content || "" }}
+            />
+          </div>
+        ))}
     </div>
   );
 };

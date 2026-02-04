@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, List, Text, Optional
 
+import html
 import requests
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
@@ -30,6 +31,8 @@ except Exception as exc:
 
 # Service base URLs (use env to avoid localhost in prod)
 BACKEND_BASE_URL = os.getenv("BACKEND_BASE_URL", "http://localhost:4000").rstrip("/")
+BACKEND_API_BASE_URL = os.getenv("BACKEND_API_BASE_URL", f"{BACKEND_BASE_URL}/api").rstrip("/")
+PRODUCTS_API_URL = os.getenv("PRODUCTS_API_URL", f"{BACKEND_API_BASE_URL}/products").rstrip("/")
 FRONTEND_BASE_URL = os.getenv("FRONTEND_BASE_URL", "http://localhost:3000").rstrip("/")
 
 SUPABASE_BASE_URL = os.getenv("SUPABASE_URL") or ""
@@ -54,6 +57,118 @@ HEADERS = {
     "Content-Type": "application/json",
     "Prefer": "return=representation",
 }
+
+
+def _extract_price(item: Dict[Text, Any]) -> Optional[float]:
+    for key in ("price", "unit_price", "unitPrice", "originalPrice", "original_price", "discount_price"):
+        if key in item and item.get(key) is not None:
+            raw = item.get(key)
+            if isinstance(raw, str):
+                cleaned = re.sub(r"[^\d.]+", "", raw)
+                try:
+                    return float(cleaned)
+                except (TypeError, ValueError):
+                    return None
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _format_price(value: Optional[float]) -> Text:
+    if value is None:
+        return "N/A"
+    return f"{value:.2f}"
+
+def _is_product_related(text: Text) -> bool:
+    if not text:
+        return False
+    keywords = {
+        "product",
+        "products",
+        "keyboard",
+        "keyboards",
+        "mouse",
+        "mice",
+        "monitor",
+        "monitors",
+        "ssd",
+        "ssds",
+        "headphone",
+        "headphones",
+        "laptop",
+        "laptops",
+        "speaker",
+        "speakers",
+        "price",
+        "budget",
+        "under",
+        "below",
+        "brand",
+        "wireless",
+        "wired",
+        "bluetooth",
+        "rgb",
+    }
+    lowered = text.lower()
+    return any(word in lowered for word in keywords)
+
+
+def _normalize_brand(value: Optional[Text]) -> Optional[Text]:
+    if not value:
+        return None
+    cleaned = re.sub(r"[^a-z0-9&\-\s]+", "", str(value).lower()).strip()
+    if not cleaned:
+        return None
+    stopwords = {
+        "product",
+        "products",
+        "item",
+        "items",
+        "keyboard",
+        "keyboards",
+        "mouse",
+        "mice",
+        "monitor",
+        "monitors",
+        "ssd",
+        "ssds",
+        "headphone",
+        "headphones",
+        "laptop",
+        "laptops",
+        "speaker",
+        "speakers",
+    }
+    if cleaned in stopwords:
+        return None
+    tokens = cleaned.split()
+    if len(tokens) > 3:
+        tokens = tokens[:3]
+    return " ".join(tokens)
+
+
+def _fetch_products() -> Optional[List[Dict[Text, Any]]]:
+    if PRODUCTS_API_URL:
+        try:
+            resp = requests.get(PRODUCTS_API_URL, timeout=8)
+            if resp.status_code == 200:
+                return resp.json()
+        except Exception as exc:
+            logger.error("Failed to fetch products from API: %s", exc)
+    if not SUPABASE_PRODUCTS_URL or not SUPABASE_KEY:
+        return None
+    try:
+        resp = requests.get(SUPABASE_PRODUCTS_URL, headers=HEADERS, timeout=8)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        data = data.get("data") if isinstance(data, dict) and "data" in data else data
+        return data if isinstance(data, list) else None
+    except Exception as exc:
+        logger.error("Failed to fetch products from Supabase: %s", exc)
+        return None
 
 CSAT_ENDPOINT = os.getenv(
     "CSAT_WEBHOOK_URL",
@@ -84,19 +199,8 @@ class ActionFetchProductsWithFilters(Action):
         product_specs_text = tracker.get_slot("product_specs")
         product_brand = tracker.get_slot("product_brand")
 
-        if not SUPABASE_PRODUCTS_URL or not SUPABASE_KEY:
-            dispatcher.utter_message(
-                text="Product search is unavailable right now (missing Supabase configuration)."
-            )
-            return [
-                SlotSet("product_category", None),
-                SlotSet("product_price", None),
-                SlotSet("product_specs", None),
-                SlotSet("product_brand", None),
-            ]
-
         category_key = product_category.lower() if product_category else None
-        brand_key = product_brand.lower() if product_brand else None
+        brand_key = _normalize_brand(product_brand)
 
         lower, upper = 0, float("inf")
         if product_price:
@@ -115,10 +219,10 @@ class ActionFetchProductsWithFilters(Action):
                 product_specs_key_value = {}
 
         try:
-            response = requests.get(SUPABASE_PRODUCTS_URL, headers=HEADERS)
-            if response.status_code != 200:
+            data = _fetch_products()
+            if not data:
                 dispatcher.utter_message(
-                    text=f"Failed to fetch products: {response.status_code}"
+                    text="Product search is unavailable right now."
                 )
                 return [
                     SlotSet("product_category", None),
@@ -126,9 +230,6 @@ class ActionFetchProductsWithFilters(Action):
                     SlotSet("product_specs", None),
                     SlotSet("product_brand", None),
                 ]
-
-            data = response.json()
-            data = data.get("data") if isinstance(data, dict) and "data" in data else data
 
             if not isinstance(data, list) or len(data) == 0:
                 dispatcher.utter_message(text="No products found in the database.")
@@ -145,13 +246,12 @@ class ActionFetchProductsWithFilters(Action):
                 if category_key and category_key not in category:
                     continue
 
-                brand = str(item.get("Brand") or "").lower()
+                brand = str(item.get("Brand") or item.get("brand") or "").lower()
                 if brand_key and brand_key not in brand:
                     continue
 
-                try:
-                    price = float(item.get("price") or 0)
-                except (ValueError, TypeError):
+                price = _extract_price(item)
+                if price is None:
                     continue
 
                 if product_price and not (lower <= price <= upper):
@@ -160,6 +260,45 @@ class ActionFetchProductsWithFilters(Action):
                 filtered_products.append(item)
 
             if not filtered_products:
+                # Fallback: if brand filter is too strict, surface top items in the category
+                if brand_key and category_key:
+                    relaxed = []
+                    for item in data:
+                        category = str(item.get("category") or "").lower()
+                        if category_key and category_key not in category:
+                            continue
+                        relaxed.append(item)
+                    if relaxed:
+                        frontend_base = FRONTEND_BASE_URL
+                        product_links = []
+                        for item in relaxed[:5]:
+                            title = (item.get("title") or item.get("name") or item.get("product_name") or "").strip()
+                            product_id = item.get("id")
+                            if not title and not product_id:
+                                continue
+                            if not title:
+                                title = "Unnamed product"
+                            price = _format_price(_extract_price(item))
+                            stock = item.get("quantity_available", 0)
+                            stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
+                            if product_id:
+                                url = f"{frontend_base}/product/{product_id}"
+                                product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
+                            else:
+                                product_links.append(f"- {title} - ${price}{stock_msg}")
+                        dispatcher.utter_message(
+                            text=(
+                                f"I couldn't find {product_category} from {product_brand}. "
+                                f"Here are some popular {product_category} instead:\n"
+                                + "\n".join(product_links)
+                            )
+                        )
+                        return [
+                            SlotSet("product_category", None),
+                            SlotSet("product_price", None),
+                            SlotSet("product_specs", None),
+                            SlotSet("product_brand", None),
+                        ]
                 parts = []
                 if product_category:
                     parts.append(f"category '{product_category}'")
@@ -188,9 +327,13 @@ class ActionFetchProductsWithFilters(Action):
             frontend_base = FRONTEND_BASE_URL
             product_links = []
             for item in filtered_products:
-                title = item.get("title", "Unnamed product")
+                title = (item.get("title") or item.get("name") or item.get("product_name") or "").strip()
                 product_id = item.get("id")
-                price = item.get("price", "N/A")
+                if not title and not product_id:
+                    continue
+                if not title:
+                    title = "Unnamed product"
+                price = _format_price(_extract_price(item))
                 stock = item.get("quantity_available", 0)
                 stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
 
@@ -229,22 +372,13 @@ class ActionFetchAllProducts(Action):
     ) -> List[EventType]:
         dispatcher.utter_message(text="Fetching all available products...")
 
-        if not SUPABASE_PRODUCTS_URL or not SUPABASE_KEY:
-            dispatcher.utter_message(
-                text="Product search is unavailable right now (missing Supabase configuration)."
-            )
-            return []
-
         try:
-            response = requests.get(SUPABASE_PRODUCTS_URL, headers=HEADERS)
-            if response.status_code != 200:
+            data = _fetch_products()
+            if not data:
                 dispatcher.utter_message(
-                    text=f"Failed to fetch products: {response.status_code}"
+                    text="Product search is unavailable right now."
                 )
                 return []
-
-            data = response.json()
-            data = data.get("data") if isinstance(data, dict) and "data" in data else data
 
             if not isinstance(data, list) or len(data) == 0:
                 dispatcher.utter_message(text="The database currently contains no products.")
@@ -254,9 +388,13 @@ class ActionFetchAllProducts(Action):
             product_links = []
 
             for item in data:
-                title = item.get("title", "Unnamed product")
+                title = (item.get("title") or item.get("name") or item.get("product_name") or "").strip()
                 product_id = item.get("id")
-                price = item.get("price", "N/A")
+                if not title and not product_id:
+                    continue
+                if not title:
+                    title = "Unnamed product"
+                price = _format_price(_extract_price(item))
                 stock = item.get("quantity_available", 0)
                 stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
 
@@ -288,7 +426,7 @@ class ActionSendFAQLink(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        url = f"{BACKEND_BASE_URL}/content/faqs"
+        url = f"{BACKEND_API_BASE_URL}/content/faqs"
         try:
             resp = requests.get(url, timeout=5)
             resp.raise_for_status()
@@ -340,7 +478,7 @@ class ActionShippingInfoLink(Action):
 
 
 def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
-    url = f"{BACKEND_BASE_URL}/content/policies"
+    url = f"{BACKEND_API_BASE_URL}/content/policies"
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
@@ -352,7 +490,7 @@ def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
         lines = []
         for item in items[:6]:
             title = item.get("title") or "Shipping & Returns"
-            content = item.get("content") or ""
+            content = _strip_html(item.get("content") or "")
             lines.append(f"- {title}\n  {content}")
         dispatcher.utter_message(text="Shipping & Returns:\n" + "\n".join(lines))
     except Exception as exc:
@@ -360,6 +498,13 @@ def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
         dispatcher.utter_message(
             text="I couldn't load the shipping & returns policy right now. Please try again later."
         )
+
+
+def _strip_html(value: str) -> str:
+    if not value:
+        return ""
+    text = re.sub(r"<[^>]+>", "", value)
+    return html.unescape(text).strip()
 
 
 def _call_llm(dispatcher: CollectingDispatcher, endpoint: str, message: str) -> None:
@@ -404,6 +549,11 @@ class ActionLLMFallback(Action):
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
         message = tracker.latest_message.get("text", "")
+        if not _is_product_related(message):
+            dispatcher.utter_message(
+                text="I can help with products, shipping & returns, or FAQs. Which one do you need?"
+            )
+            return []
         _call_llm(dispatcher, LLM_FALLBACK_ENDPOINT, message)
         return []
 
@@ -472,6 +622,27 @@ class ValidateProductFilterForm(FormValidationAction):
     def name(self) -> Text:
         return "validate_product_filter_form"
 
+    CATEGORY_ALIASES = {
+        "keyboards": "keyboard",
+        "keybaord": "keyboard",
+        "mice": "mouse",
+        "mous": "mouse",
+        "monitors": "monitor",
+        "moniter": "monitor",
+        "ssds": "ssd",
+        "speakers": "speaker",
+        "laptops": "laptop",
+    }
+    ALLOWED_CATEGORIES = {
+        "keyboard",
+        "mouse",
+        "monitor",
+        "ssd",
+        "headphones",
+        "laptop",
+        "speaker",
+    }
+
     @staticmethod
     def _clean(value: Any) -> Optional[Text]:
         if value is None:
@@ -492,7 +663,14 @@ class ValidateProductFilterForm(FormValidationAction):
         if not cleaned:
             dispatcher.utter_message(text="Tell me which category you want (e.g., monitor, ssd, keyboard).")
             return {"product_category": None}
-        return {"product_category": cleaned}
+        normalized = cleaned.lower()
+        normalized = self.CATEGORY_ALIASES.get(normalized, normalized)
+        if normalized not in self.ALLOWED_CATEGORIES:
+            dispatcher.utter_message(
+                text="I can help with keyboard, mouse, monitor, ssd, headphones, laptop, or speaker. Which category?"
+            )
+            return {"product_category": None}
+        return {"product_category": normalized}
 
     def validate_product_price(
         self,

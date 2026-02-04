@@ -1,4 +1,14 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
+import { EditorContent, useEditor } from "@tiptap/react";
+import { Extension } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import Underline from "@tiptap/extension-underline";
+import Highlight from "@tiptap/extension-highlight";
+import TextAlign from "@tiptap/extension-text-align";
+import TiptapLink from "@tiptap/extension-link";
+import { TextStyle } from "@tiptap/extension-text-style";
+import Color from "@tiptap/extension-color";
+import FontFamily from "@tiptap/extension-font-family";
 import { Link, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchCsatSummary, fetchCsatResponses } from "../api/support";
@@ -16,9 +26,7 @@ import {
   updateFaq,
   deleteFaq,
   listPolicies,
-  createPolicy,
   updatePolicy,
-  deletePolicy,
   getAnnouncement,
   updateAnnouncement,
   listPromoCodes,
@@ -61,6 +69,37 @@ const GROUPED_ADMIN_SECTIONS = ADMIN_SECTIONS.reduce((groups, section) => {
   return groups;
 }, []);
 
+const FontSize = Extension.create({
+  name: "fontSize",
+  addGlobalAttributes() {
+    return [
+      {
+        types: ["textStyle"],
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element) => element.style.fontSize || null,
+            renderHTML: (attributes) =>
+              attributes.fontSize ? { style: `font-size: ${attributes.fontSize}` } : {},
+          },
+        },
+      },
+    ];
+  },
+  addCommands() {
+    return {
+      setFontSize:
+        (size) =>
+        ({ chain }) =>
+          chain().setMark("textStyle", { fontSize: size }).run(),
+      unsetFontSize:
+        () =>
+        ({ chain }) =>
+          chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
+    };
+  },
+});
+
 const AdminDashboard = () => {
   const [csat, setCsat] = useState({ summary: {}, trend: [], verbatim: [] });
   const [insights, setInsights] = useState({ bestMonth: null, worstMonth: null, totalSalesToday: 0, ordersToday: 0 });
@@ -90,12 +129,10 @@ const AdminDashboard = () => {
   const [policyItems, setPolicyItems] = useState([]);
   const [promoItems, setPromoItems] = useState([]);
   const [faqForm, setFaqForm] = useState({ id: null, question: "", answer: "", sort_order: 1 });
-  const [policyForm, setPolicyForm] = useState({ id: null, title: "", tag: "", content: "", sort_order: 1 });
   const [announcement, setAnnouncement] = useState({ id: null, message: "", link_url: "", link_label: "", enabled: true });
   const [announcementLoading, setAnnouncementLoading] = useState(false);
   const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [showFaqModal, setShowFaqModal] = useState(false);
-  const [showPolicyModal, setShowPolicyModal] = useState(false);
   const emptyPromoForm = {
     id: null,
     code: "",
@@ -132,6 +169,27 @@ const AdminDashboard = () => {
   const [promoFilters, setPromoFilters] = useState({ q: "", active: "all" });
   const [promotionLoading, setPromotionLoading] = useState(false);
   const [promotionFilters, setPromotionFilters] = useState({ q: "", active: "all", scope: "all" });
+  const [editingPolicyId, setEditingPolicyId] = useState(null);
+  const [editingPolicyContent, setEditingPolicyContent] = useState("");
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+  const [editingPolicyMeta, setEditingPolicyMeta] = useState({ id: null, title: "", slug: "" });
+  const policyEditor = useEditor({
+    extensions: [
+      StarterKit,
+      Underline,
+      Highlight,
+      TiptapLink.configure({ openOnClick: false }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+      TextStyle,
+      Color,
+      FontFamily,
+      FontSize,
+    ],
+    content: "",
+    onUpdate: ({ editor }) => {
+      setEditingPolicyContent(editor.getHTML());
+    },
+  });
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userFilters, setUserFilters] = useState({ email: "", role: "" });
@@ -270,6 +328,20 @@ const AdminDashboard = () => {
     if (end) return `Until ${fmt(end)}`;
     return "No expiry window";
   };
+
+  useEffect(() => {
+    if (!policyEditor || !editingPolicyId) return;
+    policyEditor.commands.setContent(editingPolicyContent || "", false);
+  }, [policyEditor, editingPolicyId]);
+
+  const policyLabelFor = useCallback((slug) => {
+    const key = String(slug || "").toLowerCase();
+    if (key === "shipping-returns") return "Shipping & Returns";
+    if (key === "privacy") return "Privacy";
+    if (key === "terms") return "Terms";
+    if (key === "accessibility") return "Accessibility";
+    return "Policy";
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -986,7 +1058,6 @@ const handleStockSubmit = async (productId) => {
   };
 
   const resetFaqForm = () => setFaqForm({ id: null, question: "", answer: "" });
-  const resetPolicyForm = () => setPolicyForm({ id: null, title: "", tag: "", content: "" });
   const resetPromoForm = () => setPromoForm(emptyPromoForm);
   const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
   const isValidPromoCode = (value) => /^[A-Za-z0-9]+$/.test(value);
@@ -1011,10 +1082,6 @@ const handleStockSubmit = async (productId) => {
   const closeFaqModal = () => {
     setShowFaqModal(false);
     resetFaqForm();
-  };
-  const closePolicyModal = () => {
-    setShowPolicyModal(false);
-    resetPolicyForm();
   };
   const closeCreateUserModal = () => {
     if (userSaving) return;
@@ -1402,7 +1469,6 @@ const handleStockSubmit = async (productId) => {
     editPromotionForm ||
     showCreateForm ||
     showFaqModal ||
-    showPolicyModal ||
     editUserForm
   );
 
@@ -1733,12 +1799,6 @@ const handleStockSubmit = async (productId) => {
         {managementTab === "policies" && (
           <div className="admin-grid">
             <div className="admin-card wide">
-                <div className="card-header">
-                  <div>
-                    <p className="eyebrow">Existing policies</p>
-                    <h4>Manage documents</h4>
-                  </div>
-                </div>
                 {policyLoading ? (
                   <p className="muted mb-0">Loading policies...</p>
                 ) : policyItems.length === 0 ? (
@@ -1749,85 +1809,51 @@ const handleStockSubmit = async (productId) => {
                       { slug: "shipping-returns", label: "Shipping & Returns" },
                       { slug: "privacy", label: "Privacy" },
                       { slug: "terms", label: "Terms" },
+                      { slug: "accessibility", label: "Accessibility" },
                     ].map((group) => {
                       const items = policyItems
                         .filter((item) => String(item.slug || "").toLowerCase() === group.slug)
                         .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
                       return (
-                        <div key={group.slug} className="admin-card">
+                  <div key={group.slug} className="admin-card policy-card">
                           <div className="card-header">
                             <div>
                               <p className="eyebrow">Policies</p>
                               <h4>{group.label}</h4>
                             </div>
-                            <button
-                              type="button"
-                              className="btn btn-primary-saas btn-sm"
-                              onClick={() => {
-                                setPolicyForm({ id: null, title: "", tag: group.slug, content: "", sort_order: 1 });
-                                setShowPolicyModal(true);
-                              }}
-                            >
-                              New
-                            </button>
+                            <div className="text-muted small">Edit the policy text and press Update.</div>
                           </div>
                           {items.length === 0 ? (
-                            <p className="muted mb-0">No policies yet.</p>
+                            <p className="muted mb-0">No policies found.</p>
                           ) : (
-                            <div className="table-responsive">
-                              <table className="dashboard-table">
-                                <thead>
-                                  <tr>
-                                    <th style={{ width: 90 }}>Order</th>
-                                    <th>Title</th>
-                                    <th>Content</th>
-                                    <th className="text-end" style={{ width: 160 }}>Actions</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {items.map((item) => (
-                                    <tr key={item.id}>
-                                      <td>{Number(item.sort_order ?? 0)}</td>
-                                      <td className="fw-semibold">{item.title}</td>
-                                      <td style={{ whiteSpace: "pre-wrap" }}>{item.content}</td>
-                                      <td className="text-end">
-                                        <div className="d-flex gap-2 justify-content-end">
-                                          <button
-                                            type="button"
-                                            className="btn btn-outline-saas btn-sm"
-                                            onClick={() => {
-                                              setPolicyForm({
-                                                ...item,
-                                                tag: item.slug || group.slug,
-                                                sort_order: Number(item.sort_order ?? 1),
-                                              });
-                                              setShowPolicyModal(true);
-                                            }}
-                                          >
-                                            Edit
-                                          </button>
-                                          <button
-                                            type="button"
-                                            className="btn btn-outline-danger btn-sm"
-                                            onClick={async () => {
-                                              try {
-                                                await deletePolicy(item.id);
-                                                toast.success("Policy removed");
-                                                await loadPolicies();
-                                              } catch (err) {
-                                                toast.error(err.message || "Failed to remove policy");
-                                              }
-                                            }}
-                                          >
-                                            Delete
-                                          </button>
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
+                            <div className="d-flex flex-column gap-3">
+                        {items.map((item) => (
+                          <div key={item.id} className="admin-card-soft p-3">
+                            <div className="d-flex justify-content-between align-items-center">
+                              <div />
+                              <button
+                                type="button"
+                                className="btn btn-outline-saas btn-sm"
+                                onClick={() => {
+                                  setEditingPolicyId(item.id);
+                                  setEditingPolicyContent(item.content || "");
+                                  setEditingPolicyMeta({
+                                    id: item.id,
+                                    title: item.title || "",
+                                    slug: item.slug || group.slug,
+                                  });
+                                  setShowPolicyModal(true);
+                                  requestAnimationFrame(() => {
+                                    policyEditor?.commands.setContent(item.content || "", false);
+                                  });
+                                }}
+                              >
+                                Edit
+                              </button>
                             </div>
+                          </div>
+                        ))}
+                      </div>
                           )}
                         </div>
                       );
@@ -3188,7 +3214,7 @@ const renderInventory = () => (
   );
 
   const faqModal = showFaqModal && (
-    <div className="admin-modal" role="dialog" aria-modal="true" onClick={closeFaqModal}>
+    <div className="admin-modal" role="dialog" aria-modal="true">
       <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
         <div className="card-header">
           <div>
@@ -3259,107 +3285,6 @@ const renderInventory = () => (
               {faqForm.id ? "Update" : "Create"}
             </button>
             <button type="button" className="btn btn-outline-saas" onClick={closeFaqModal}>
-              Cancel
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-
-  const policyModal = showPolicyModal && (
-    <div className="admin-modal" role="dialog" aria-modal="true">
-      <div className="admin-modal-card admin-card" onClick={(e) => e.stopPropagation()}>
-        <div className="card-header">
-          <div>
-            <p className="eyebrow">Policies</p>
-            <h4>{policyForm.id ? "Edit policy" : "Create policy"}</h4>
-          </div>
-          <button type="button" className="btn btn-outline-saas btn-sm" onClick={closePolicyModal}>
-            Close
-          </button>
-        </div>
-        <form
-          className="profile-form"
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const payload = {
-              title: policyForm.title,
-              slug: policyForm.tag,
-              content: policyForm.content,
-              sort_order: policyForm.sort_order,
-            };
-            try {
-              if (policyForm.id) {
-                await updatePolicy(policyForm.id, payload);
-                toast.success("Policy updated");
-              } else {
-                await createPolicy(payload);
-                toast.success("Policy created");
-              }
-              setPolicyForm({ id: null, title: "", tag: "", content: "", sort_order: 1 });
-              setShowPolicyModal(false);
-              await loadPolicies();
-            } catch (err) {
-              toast.error(err.message || "Failed to save policy");
-            }
-          }}
-        >
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-title">Title</label>
-            <input
-              id="policy-title"
-              type="text"
-              className="form-control"
-              value={policyForm.title}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, title: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-order">Sort order</label>
-            <input
-              id="policy-order"
-              type="number"
-              className="form-control"
-              value={policyForm.sort_order ?? 1}
-              onChange={(e) =>
-                setPolicyForm((p) => ({ ...p, sort_order: Number(e.target.value) || 1 }))
-              }
-              min="1"
-            />
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-tag">Tag</label>
-            <select
-              id="policy-tag"
-              className="form-select"
-              value={policyForm.tag}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, tag: e.target.value }))}
-              required
-            >
-              <option value="">Select tag</option>
-              <option value="shipping-returns">Shipping-returns</option>
-              <option value="privacy">Privacy</option>
-              <option value="terms">Terms</option>
-            </select>
-          </div>
-          <div className="mb-3">
-            <label className="form-label" htmlFor="policy-content">Content</label>
-            <textarea
-              id="policy-content"
-              className="form-control"
-              rows="5"
-              value={policyForm.content}
-              onChange={(e) => setPolicyForm((p) => ({ ...p, content: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="d-flex gap-3">
-            <button type="submit" className="btn btn-primary-saas">
-              {policyForm.id ? "Update" : "Create"}
-            </button>
-            <button type="button" className="btn btn-outline-saas" onClick={closePolicyModal}>
               Cancel
             </button>
           </div>
@@ -3608,6 +3533,209 @@ const renderInventory = () => (
             </button>
           </div>
         </form>
+      </div>
+    </div>
+  );
+
+  const policyModal = showPolicyModal && (
+    <div className="admin-modal" role="dialog" aria-modal="true">
+      <div className="admin-modal-card admin-card policy-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="card-header">
+          <div>
+            <p className="eyebrow">Policies</p>
+            <h4>{policyLabelFor(editingPolicyMeta.slug)}</h4>
+          </div>
+          <button
+            type="button"
+            className="btn btn-outline-saas btn-sm"
+            onClick={() => {
+              setShowPolicyModal(false);
+              setEditingPolicyId(null);
+              setEditingPolicyContent("");
+              setEditingPolicyMeta({ id: null, title: "", slug: "" });
+            }}
+          >
+            Close
+          </button>
+        </div>
+        <div className="d-flex flex-wrap gap-2 mt-2 align-items-center">
+          <select
+            className="form-select form-select-sm"
+            style={{ maxWidth: 180 }}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!policyEditor) return;
+              if (value === "paragraph") policyEditor.chain().focus().setParagraph().run();
+              if (value === "h1") policyEditor.chain().focus().toggleHeading({ level: 1 }).run();
+              if (value === "h2") policyEditor.chain().focus().toggleHeading({ level: 2 }).run();
+              if (value === "h3") policyEditor.chain().focus().toggleHeading({ level: 3 }).run();
+              if (value === "blockquote") policyEditor.chain().focus().toggleBlockquote().run();
+              e.target.value = "paragraph";
+            }}
+            defaultValue="paragraph"
+          >
+            <option value="paragraph">Paragraph</option>
+            <option value="h1">Heading 1</option>
+            <option value="h2">Heading 2</option>
+            <option value="h3">Heading 3</option>
+            <option value="blockquote">Quote</option>
+          </select>
+          <select
+            className="form-select form-select-sm"
+            style={{ maxWidth: 160 }}
+            onChange={(e) => {
+              if (!policyEditor) return;
+              const value = e.target.value;
+              if (value === "default") {
+                policyEditor.chain().focus().unsetFontFamily().run();
+              } else {
+                policyEditor.chain().focus().setFontFamily(value).run();
+              }
+            }}
+            defaultValue="default"
+          >
+            <option value="default">Font</option>
+            <option value="Arial">Arial</option>
+            <option value="Times New Roman">Times New Roman</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Verdana">Verdana</option>
+            <option value="Courier New">Courier New</option>
+          </select>
+          <select
+            className="form-select form-select-sm"
+            style={{ maxWidth: 120 }}
+            onChange={(e) => {
+              if (!policyEditor) return;
+              const value = e.target.value;
+              if (value === "default") {
+                policyEditor.chain().focus().unsetFontSize().run();
+              } else {
+                policyEditor.chain().focus().setFontSize(value).run();
+              }
+            }}
+            defaultValue="default"
+          >
+            <option value="default">Size</option>
+            <option value="12px">12</option>
+            <option value="14px">14</option>
+            <option value="16px">16</option>
+            <option value="18px">18</option>
+            <option value="20px">20</option>
+            <option value="24px">24</option>
+          </select>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleBold().run()}>
+            B
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleItalic().run()}>
+            I
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleUnderline().run()}>
+            U
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleStrike().run()}>
+            S
+          </button>
+          <input
+            type="color"
+            className="form-control form-control-sm"
+            title="Text color"
+            style={{ width: 40, padding: 2 }}
+            onChange={(e) => policyEditor?.chain().focus().setColor(e.target.value).run()}
+          />
+          <input
+            type="color"
+            className="form-control form-control-sm"
+            title="Highlight"
+            style={{ width: 40, padding: 2 }}
+            onChange={(e) => policyEditor?.chain().focus().toggleHighlight({ color: e.target.value }).run()}
+          />
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().setTextAlign("left").run()}>
+            ⬅
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().setTextAlign("center").run()}>
+            ⬍
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().setTextAlign("right").run()}>
+            ➡
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().setTextAlign("justify").run()}>
+            ☰
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleBulletList().run()}>
+            •
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleOrderedList().run()}>
+            1.
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleBlockquote().run()}>
+            “”
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().toggleCodeBlock().run()}>
+            {"</>"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-saas btn-sm"
+            onClick={() => {
+              if (!policyEditor) return;
+              const url = window.prompt("Enter link URL");
+              if (url === null) return;
+              if (!url) {
+                policyEditor.chain().focus().unsetLink().run();
+                return;
+              }
+              policyEditor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+            }}
+          >
+            🔗
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().setHorizontalRule().run()}>
+            ―
+          </button>
+          <button type="button" className="btn btn-outline-saas btn-sm" onClick={() => policyEditor?.chain().focus().unsetAllMarks().clearNodes().run()}>
+            Clear
+          </button>
+        </div>
+        <div className="policy-editor mt-3">
+          <EditorContent editor={policyEditor} />
+        </div>
+        <div className="d-flex gap-2 mt-3">
+          <button
+            type="button"
+            className="btn btn-primary-saas btn-sm"
+            onClick={async () => {
+              try {
+                await updatePolicy(editingPolicyMeta.id, {
+                  title: editingPolicyMeta.title,
+                  slug: editingPolicyMeta.slug,
+                  content: editingPolicyContent,
+                });
+                toast.success("Policy updated");
+                setShowPolicyModal(false);
+                setEditingPolicyId(null);
+                setEditingPolicyContent("");
+                setEditingPolicyMeta({ id: null, title: "", slug: "" });
+                await loadPolicies();
+              } catch (err) {
+                toast.error(err.message || "Failed to update policy");
+              }
+            }}
+          >
+            Update
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-saas btn-sm"
+            onClick={() => {
+              setShowPolicyModal(false);
+              setEditingPolicyId(null);
+              setEditingPolicyContent("");
+              setEditingPolicyMeta({ id: null, title: "", slug: "" });
+            }}
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -3990,8 +4118,8 @@ const renderInventory = () => (
       {newCategoryModal}
       {productEditModal}
       {faqModal}
-      {policyModal}
       {promoCreateModal}
+      {policyModal}
       {promoEditModal}
       {promotionCreateModal}
       {promotionEditModal}

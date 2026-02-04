@@ -199,6 +199,21 @@
   vertical-align: middle;
 }
 
+.policy-editor .ProseMirror {
+  min-height: 240px;
+  border: 1px solid var(--ad-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--ad-surface);
+  color: var(--ad-text);
+}
+
+.policy-editor .ProseMirror:focus {
+  outline: none;
+  border-color: var(--ad-accent);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
 .hero-actions {
   display: flex;
   gap: 10px;
@@ -252,6 +267,14 @@
   padding: 16px 18px;
   box-shadow: var(--ad-shadow);
   backdrop-filter: blur(10px);
+}
+
+.policy-card {
+  padding: 10px 14px;
+}
+
+.policy-card .card-header {
+  margin-bottom: 6px;
 }
 
 .inventory-card-top {
@@ -444,6 +467,10 @@
   max-width: 720px;
   max-height: calc(100vh - 64px);
   overflow: auto;
+}
+
+.admin-modal-card.policy-modal {
+  max-width: 1100px;
 }
 
 .admin-card.wide {

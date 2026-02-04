@@ -7,10 +7,12 @@ intents:
   - fetch_products_with_filters
   - product_compare
   - shipping_info
+  - faq
   - faq_link
   - return_policy_link
   - request_live_agent
   - restricted_request
+  - out_of_scope
   - nlu_fallback
 
 entities:
@@ -77,8 +79,16 @@ responses:
     - text: "I can help with that! Please click the link below to visit our dedicated FAQ page.\n[Frequently Asked Questions]({link})"
   utter_return_policy_link:
     - text: "You can read about our return policy here: [Return Policy Link]({link})"
+  utter_faq/returns:
+    - text: "Our return window is 30 days. Items must be unused and in original packaging."
+  utter_faq/shipping:
+    - text: "Standard processing is 1–3 business days, with delivery timelines shown at checkout."
+  utter_faq/warranty:
+    - text: "Warranty coverage depends on the brand and product. Check the product page or contact support."
   utter_restricted_request:
-    - text: "I can’t help with personal, order, or payment matters here. Please log in and contact support for assistance."
+    - text: "I can't help with personal, order, or payment matters here. Please log in and contact support for assistance."
+  utter_out_of_scope:
+    - text: "I'm here to help with product questions and store info. Try asking about products, shipping, or returns."
 
 forms:
   product_filter_form:
@@ -99,3 +109,4 @@ actions:
   - action_forward_to_agent
   - validate_product_filter_form
   - action_reset_handoff
+

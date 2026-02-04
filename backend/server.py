@@ -25,7 +25,7 @@ try:
     from .routes.promos import promos_bp
     from .routes.product_categories import product_categories_bp, admin_product_categories_bp
     from .routes.product_reviews import product_reviews_bp
-    from .routes.llm import llm_bp
+    from .routes.gemini_llm import llm_bp
     # Import other blueprints as needed
 except ImportError:
     from supabase_client import get_supabase
@@ -44,7 +44,7 @@ except ImportError:
     from routes.promos import promos_bp
     from routes.product_categories import product_categories_bp, admin_product_categories_bp
     from routes.product_reviews import product_reviews_bp
-    from routes.llm import llm_bp
+    from routes.gemini_llm import llm_bp
 
 def create_app() -> Flask:
     # 2. ENV LOADING (Force absolute path to avoid 500s from missing keys)

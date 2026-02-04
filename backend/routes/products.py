@@ -72,8 +72,13 @@ def handle_products_collection():
     supabase = current_app.config["SUPABASE"]
     if request.method == "GET":
         include_promotions = _is_truthy(request.args.get("include_promotions"))
-        res = supabase.table("products").select("*").order("id", desc=False).execute()
-        products = [map_product(r) for r in res.data or []]
+        products_res = supabase.table("products").select("*").order("id", desc=False).execute()
+        stock_res = supabase.table("product_stock_view").select("id,quantity_available").execute()
+        stock_map = {row.get("id"): row.get("quantity_available") for row in (stock_res.data or [])}
+        products = []
+        for row in products_res.data or []:
+            row["quantity_available"] = stock_map.get(row.get("id"))
+            products.append(map_product(row))
         if include_promotions:
             active_promos = promotion_service.list_active_promotions(supabase)
             products = [

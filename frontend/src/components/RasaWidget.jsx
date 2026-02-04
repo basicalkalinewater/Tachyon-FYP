@@ -101,11 +101,12 @@ const RasaWidget = () => {
     return () => observer.disconnect();
   }, []);
 
-  const appendMessage = (from, text, timestamp) => {
+  const appendMessage = (from, text, timestamp, typeOverride) => {
     const isCsat = isCsatPrompt(text);
+    const type = typeOverride || (isCsat ? "csat" : "text");
     setMessages((prev) => [
       ...prev,
-      { from, text, timestamp: timestamp || Date.now(), type: isCsat ? "csat" : "text" },
+      { from, text, timestamp: timestamp || Date.now(), type },
     ]);
   };
 
@@ -390,6 +391,7 @@ const RasaWidget = () => {
   const sendMessage = async (text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
+    closeFaqMenu();
     if (!isLoggedIn) {
       appendMessage("bot", "Please login to use the chatbot.");
       return;
@@ -445,7 +447,32 @@ const RasaWidget = () => {
       /\[([^\]]+)\]\(([^)]+)\)/g,
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
     );
-    return withLinks.replace(/\n/g, "<br />");
+    const withInline = withLinks
+      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    const lines = withInline.split("\n");
+    let html = "";
+    let inList = false;
+    for (const line of lines) {
+      const match = line.match(/^\s*[-*]\s+(.*)$/);
+      if (match) {
+        if (!inList) {
+          html += "<ul>";
+          inList = true;
+        }
+        html += `<li>${match[1]}</li>`;
+      } else {
+        if (inList) {
+          html += "</ul>";
+          inList = false;
+        }
+        html += line ? `${line}<br />` : "<br />";
+      }
+    }
+    if (inList) html += "</ul>";
+    return html;
   };
 
   return (
@@ -482,7 +509,7 @@ const RasaWidget = () => {
               ) : (
                 <>
                   {messages.map((msg, idx) => (
-                    <div key={idx} className={`chat-message ${msg.from}`}>
+                    <div key={idx} className={`chat-message ${msg.from} ${msg.type ? `type-${msg.type}` : ""}`}>
                       <div className="chat-message-bubble">
                         {msg.author && <div className="chat-author">{msg.author}</div>}
                         {msg.type === "csat" ? (
@@ -528,8 +555,10 @@ const RasaWidget = () => {
                                 className="btn btn-outline-primary btn-sm text-start"
                                 onClick={() => {
                                   closeFaqMenu();
-                                  appendMessage("bot", item.answer || "Here's the FAQ answer.");
-                                  appendMessage("bot", "View all FAQs: [FAQs](/faq)");
+                                  const questionText = (item.question || "FAQ").trim();
+                                  const answerText = (item.answer || "").trim() || "Here's the FAQ answer.";
+                                  appendMessage("bot", questionText, undefined, "faq");
+                                  appendMessage("bot", answerText);
                                 }}
                               >
                                 {item.question}

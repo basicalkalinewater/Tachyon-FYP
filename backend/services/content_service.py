@@ -19,6 +19,21 @@ def _normalize_policies_order(supabase, slug: str) -> None:
             supabase.table("policies").update({"sort_order": idx}).eq("id", row.get("id")).execute()
 
 
+def _normalize_faqs_order(supabase) -> None:
+    res = (
+        supabase.table("faqs")
+        .select("id, sort_order, created_at")
+        .order("sort_order")
+        .order("created_at")
+        .execute()
+    )
+    rows = res.data or []
+    for idx, row in enumerate(rows, start=1):
+        current = int(row.get("sort_order") or 0)
+        if current != idx:
+            supabase.table("faqs").update({"sort_order": idx}).eq("id", row.get("id")).execute()
+
+
 def list_faqs(supabase) -> List[Dict]:
     res = supabase.table("faqs").select("*").order("sort_order").order("created_at", desc=True).execute()
     return res.data or []
@@ -67,21 +82,35 @@ def search_faqs(supabase, query: str, limit: int = 3) -> List[Dict]:
 
 
 def create_faq(supabase, question: str, answer: str, sort_order: int = 0) -> Dict:
-    res = (
-        supabase.table("faqs")
-        .insert({"question": question, "answer": answer, "sort_order": sort_order})
-        .execute()
-    )
+    payload = {"question": question, "answer": answer}
+    if sort_order and sort_order > 0:
+        payload["sort_order"] = sort_order
+    else:
+        max_res = (
+            supabase.table("faqs")
+            .select("sort_order")
+            .order("sort_order", desc=True)
+            .limit(1)
+            .execute()
+        )
+        max_order = 0
+        if max_res.data:
+            max_order = int(max_res.data[0].get("sort_order") or 0)
+        payload["sort_order"] = max_order + 1
+    res = supabase.table("faqs").insert(payload).execute()
+    _normalize_faqs_order(supabase)
     return (res.data or [{}])[0]
 
 
 def update_faq(supabase, faq_id: str, updates: Dict) -> Dict:
     res = supabase.table("faqs").update(updates).eq("id", faq_id).execute()
+    _normalize_faqs_order(supabase)
     return (res.data or [{}])[0]
 
 
 def delete_faq(supabase, faq_id: str) -> Dict:
     res = supabase.table("faqs").delete().eq("id", faq_id).execute()
+    _normalize_faqs_order(supabase)
     return {"deleted": True, "id": faq_id} if res else {"deleted": False}
 
 

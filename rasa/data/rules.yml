@@ -23,6 +23,11 @@ rules:
       - intent: faq_link
       - action: action_faq_link
 
+  - rule: Answer FAQ
+    steps:
+      - intent: faq
+      - action: utter_faq
+
   - rule: Provide return policy link
     steps:
       - intent: return_policy_link
@@ -66,6 +71,10 @@ rules:
     steps:
       - intent: restricted_request
       - action: utter_restricted_request
+  - rule: Out of scope
+    steps:
+      - intent: out_of_scope
+      - action: utter_out_of_scope
 
   - rule: Fallback
     steps:

@@ -171,6 +171,11 @@ body.cart-open .chat-widget {
   color: #fff;
 }
 
+.chat-message.type-faq .chat-message-bubble {
+  background: #0b8cff;
+  color: #fff;
+}
+
 .chat-meta {
   font-size: 11px;
   color: #475569; /* readable in light mode */

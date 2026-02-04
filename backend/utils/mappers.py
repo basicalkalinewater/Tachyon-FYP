@@ -11,6 +11,7 @@ def map_product(row):
         "rating": float(row.get("rating_avg") or row.get("rating") or 0),
         "ratingCount": int(row.get("rating_count") or 0),
         "isBestseller": bool(row.get("is_bestseller") or False),
+        "quantity_available": row.get("quantity_available"),
     }
 
 

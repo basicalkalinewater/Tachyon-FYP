@@ -38,10 +38,10 @@ const ShippingReturns = () => {
         !error &&
         policies.map((item) => (
           <div className="mb-4" key={item.id}>
-            {item.title && <h5 className="mb-2">{item.title}</h5>}
-            <div className="text-muted" style={{ whiteSpace: "pre-line" }}>
-              {item.content}
-            </div>
+            <div
+              className="text-muted"
+              dangerouslySetInnerHTML={{ __html: item.content || "" }}
+            />
           </div>
         ))}
     </div>
