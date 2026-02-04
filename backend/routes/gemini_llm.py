@@ -1,5 +1,8 @@
 import os
 import re
+import time
+from collections import deque
+from threading import Lock
 from typing import Any, Dict, Optional
 
 import requests
@@ -53,6 +56,11 @@ JAILBREAK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("LLM_RATE_LIMIT_WINDOW", "60"))
+RATE_LIMIT_MAX_REQUESTS = int(os.getenv("LLM_RATE_LIMIT_MAX", "10"))
+_RATE_LIMIT_BUCKETS = {}
+_RATE_LIMIT_LOCK = Lock()
+
 
 def _ok(data: Optional[Dict[str, Any]] = None):
     return jsonify({"success": True, "data": data})
@@ -60,6 +68,28 @@ def _ok(data: Optional[Dict[str, Any]] = None):
 
 def _error(message: str, status: int = 400):
     return jsonify({"success": False, "error": message}), status
+
+
+def _get_client_ip() -> str:
+    forwarded = request.headers.get("X-Forwarded-For", "")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+def _rate_limited(key: str) -> bool:
+    now = time.monotonic()
+    with _RATE_LIMIT_LOCK:
+        bucket = _RATE_LIMIT_BUCKETS.get(key)
+        if bucket is None:
+            bucket = deque()
+            _RATE_LIMIT_BUCKETS[key] = bucket
+        window_start = now - RATE_LIMIT_WINDOW_SECONDS
+        while bucket and bucket[0] < window_start:
+            bucket.popleft()
+        if len(bucket) >= RATE_LIMIT_MAX_REQUESTS:
+            return True
+        bucket.append(now)
+    return False
 
 
 def _build_prompt(user_text: str, mode: str, catalog_context: str) -> str:
@@ -187,6 +217,10 @@ def _build_catalog_context() -> str:
 @llm_bp.post("/compare")
 def llm_compare():
     body = request.get_json(silent=True) or {}
+    user_id = (body.get("user_id") or body.get("sender_id") or "").strip()
+    key = f"user:{user_id}" if user_id else f"ip:{_get_client_ip()}"
+    if _rate_limited(key):
+        return _error("Rate limit exceeded. Please try again shortly.", status=429)
     message = (body.get("message") or "").strip()
     if not message:
         return _error("Message is required.")
@@ -214,6 +248,10 @@ def llm_compare():
 @llm_bp.post("/fallback")
 def llm_fallback():
     body = request.get_json(silent=True) or {}
+    user_id = (body.get("user_id") or body.get("sender_id") or "").strip()
+    key = f"user:{user_id}" if user_id else f"ip:{_get_client_ip()}"
+    if _rate_limited(key):
+        return _error("Rate limit exceeded. Please try again shortly.", status=429)
     message = (body.get("message") or "").strip()
     if not message:
         return _error("Message is required.")
