@@ -75,6 +75,7 @@ This runs the backend with Gunicorn and WebSocket support locally. The frontend 
 cd frontend
 npm install
 npm install axios
+npm install @tiptap/react @tiptap/core @tiptap/starter-kit @tiptap/extension-underline @tiptap/extension-highlight @tiptap/extension-text-align @tiptap/extension-link @tiptap/extension-text-style @tiptap/extension-color @tiptap/extension-font-family
 npm run dev   # http://localhost:3000
 ```
 
@@ -152,6 +153,5 @@ admin@example.com / admin123
 ```
 - Customer dashboards: manage profile, shipping addresses, saved payment methods, view order history and RMAs.
 - Support dashboard: ticket queue/claim/resolve, ticket metadata, live chat, CSAT summary/responses, and workload stats.
-
 
 
