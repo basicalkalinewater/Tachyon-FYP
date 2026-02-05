@@ -59,6 +59,10 @@ const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedba
   );
 };
 
+const buildDefaultMessages = () => ([
+  { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
+]);
+
 const RasaWidget = () => {
   const currentUser = useSelector(selectCurrentUser);
   const userRole = currentUser?.role;
@@ -66,9 +70,7 @@ const RasaWidget = () => {
   const isRestrictedRole = userRole === "admin" || userRole === "support";
 
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState([
-    { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
-  ]);
+  const [messages, setMessages] = useState(buildDefaultMessages);
   const [faqMenu, setFaqMenu] = useState({ open: false, loading: false, items: [] });
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -86,6 +88,8 @@ const RasaWidget = () => {
   const [csatSubmitting, setCsatSubmitting] = useState(false);
   const [csatSubmitted, setCsatSubmitted] = useState(false);
   const senderId = currentUser?.id || null;
+  const historyKey = senderId ? `chat_history:${senderId}` : null;
+  const hydratedRef = useRef(false);
   const [hydrating, setHydrating] = useState(true);
 
   useEffect(() => {
@@ -100,6 +104,39 @@ const RasaWidget = () => {
     observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
+  useEffect(() => {
+    hydratedRef.current = false;
+  }, [senderId]);
+
+  useEffect(() => {
+    if (!senderId) {
+      setMessages(buildDefaultMessages());
+      return;
+    }
+    if (!historyKey || hydratedRef.current) return;
+    try {
+      const raw = localStorage.getItem(historyKey);
+      if (raw) {
+        const stored = JSON.parse(raw);
+        if (Array.isArray(stored) && stored.length > 0) {
+          setMessages(stored);
+        }
+      }
+    } catch {
+      // ignore cache errors
+    }
+    hydratedRef.current = true;
+  }, [senderId, historyKey]);
+
+  useEffect(() => {
+    if (!senderId || !historyKey) return;
+    try {
+      const payload = messages.slice(-200);
+      localStorage.setItem(historyKey, JSON.stringify(payload));
+    } catch {
+      // ignore storage errors
+    }
+  }, [messages, senderId, historyKey]);
 
   const appendMessage = (from, text, timestamp, typeOverride) => {
     const isCsat = isCsatPrompt(text);
@@ -673,3 +710,10 @@ const RasaWidget = () => {
 };
 
 export default RasaWidget;
+
+
+
+
+
+
+
