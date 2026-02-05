@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import os
 import re
 from pathlib import Path
@@ -370,7 +370,7 @@ class ActionFetchAllProducts(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
-        dispatcher.utter_message(text="Fetching all available products...")
+        dispatcher.utter_message(text="Here are all the available products:")
 
         try:
             data = _fetch_products()
@@ -477,34 +477,59 @@ class ActionShippingInfoLink(Action):
         return []
 
 
-def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
+def _send_policy_summary(dispatcher: CollectingDispatcher, slug: str, title: str, link_path: str) -> None:
     url = f"{BACKEND_API_BASE_URL}/content/policies"
     try:
         resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         data = resp.json().get("data", [])
-        items = [p for p in data if (p.get("slug") or "").lower() == "shipping-returns"]
+        items = [p for p in data if (p.get("slug") or "").lower() == slug]
         if not items:
-            dispatcher.utter_message(text="Shipping & returns details are unavailable right now.")
+            dispatcher.utter_message(text=f"{title} details are unavailable right now.")
             return
-        lines = []
-        for item in items[:6]:
-            title = item.get("title") or "Shipping & Returns"
-            content = _strip_html(item.get("content") or "")
-            lines.append(f"- {title}\n  {content}")
-        dispatcher.utter_message(text="Shipping & Returns:\n" + "\n".join(lines))
+        item = items[0]
+        content = _strip_html(item.get("content") or "")
+        summary_lines = [line.strip() for line in content.split("\n") if line.strip()]
+        summary_lines = [re.sub(r"^[-*]\s*", "", line) for line in summary_lines]
+        summary_lines = summary_lines[:4]
+        summary = "\n".join(f"- {line}" for line in summary_lines) if summary_lines else ""
+        link = f"{FRONTEND_BASE_URL}{link_path}"
+        if summary:
+            dispatcher.utter_message(text=f"{title}:\n{summary}\n- Full policy: [View full policy]({link})")
+        else:
+            dispatcher.utter_message(text=f"{title} details are unavailable right now.\n- Full policy: [View full policy]({link})")
     except Exception as exc:
         logger.error("Failed to fetch policies: %s", exc)
         dispatcher.utter_message(
-            text="I couldn't load the shipping & returns policy right now. Please try again later."
+            text=f"I couldn't load the {title.lower()} right now. Please try again later."
         )
+
+
+def _send_shipping_returns_policy(dispatcher: CollectingDispatcher) -> None:
+    _send_policy_summary(
+        dispatcher,
+        slug="shipping-returns",
+        title="Shipping & Returns",
+        link_path="/shipping-returns",
+    )
 
 
 def _strip_html(value: str) -> str:
     if not value:
         return ""
-    text = re.sub(r"<[^>]+>", "", value)
-    return html.unescape(text).strip()
+    text = value
+    text = re.sub(r"(?i)</h[1-6]>", "\n", text)
+    text = re.sub(r"(?i)<h[1-6][^>]*>", "", text)
+    text = re.sub(r"(?i)<br\\s*/?>", "\n", text)
+    text = re.sub(r"(?i)</p>", "\n", text)
+    text = re.sub(r"(?i)<p[^>]*>", "", text)
+    text = re.sub(r"(?i)<li[^>]*>", "- ", text)
+    text = re.sub(r"(?i)</li>", "\n", text)
+    text = re.sub(r"(?i)</ul>|</ol>", "\n", text)
+    text = re.sub(r"<[^>]+>", "", text)
+    text = html.unescape(text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
 
 
 def _call_llm(dispatcher: CollectingDispatcher, endpoint: str, message: str) -> None:
@@ -713,3 +738,6 @@ class ActionResetHandoff(Action):
         domain: Dict[Text, Any],
     ) -> List[EventType]:
         return [SlotSet("handoff_active", False)]
+
+
+

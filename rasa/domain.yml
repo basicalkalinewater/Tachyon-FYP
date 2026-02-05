@@ -2,6 +2,7 @@ version: "3.1"
 
 intents:
   - greet
+  - thanks
   - goodbye
   - fetch_all_products
   - fetch_products_with_filters
@@ -63,6 +64,8 @@ slots:
 responses:
   utter_greet:
     - text: "Hello! How can I help you today?"
+  utter_thanks:
+    - text: "You're welcome! Anything else I can help with?"
   utter_goodbye:
     - text: "Goodbye! Have a nice day!"
   utter_shipping_info:

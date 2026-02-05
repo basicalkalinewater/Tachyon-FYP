@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+﻿import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../redux/authSlice";
 import { SUPPORT_BASE_URL } from "../api/client";
@@ -89,6 +89,7 @@ const RasaWidget = () => {
   const [csatSubmitted, setCsatSubmitted] = useState(false);
   const senderId = currentUser?.id || null;
   const historyKey = senderId ? `chat_history:${senderId}` : null;
+  const historyMetaKey = senderId ? `chat_history_meta:${senderId}` : null;
   const hydratedRef = useRef(false);
   const [hydrating, setHydrating] = useState(true);
 
@@ -104,16 +105,38 @@ const RasaWidget = () => {
     observer.observe(document.body, { attributes: true, attributeFilter: ["class"] });
     return () => observer.disconnect();
   }, []);
+
   useEffect(() => {
     hydratedRef.current = false;
   }, [senderId]);
 
   useEffect(() => {
     if (!senderId) {
+      if (historyKey) {
+        try {
+          localStorage.removeItem(historyKey);
+          if (historyMetaKey) localStorage.removeItem(historyMetaKey);
+        } catch {
+          // ignore storage errors
+        }
+      }
       setMessages(buildDefaultMessages());
       return;
     }
     if (!historyKey || hydratedRef.current) return;
+    try {
+      const metaRaw = historyMetaKey ? localStorage.getItem(historyMetaKey) : null;
+      if (metaRaw) {
+        const meta = JSON.parse(metaRaw);
+        const lastUpdated = meta?.lastUpdated;
+        if (lastUpdated && Date.now() - Number(lastUpdated) > 30 * 60 * 1000) {
+          localStorage.removeItem(historyKey);
+          if (historyMetaKey) localStorage.removeItem(historyMetaKey);
+        }
+      }
+    } catch {
+      // ignore meta errors
+    }
     try {
       const raw = localStorage.getItem(historyKey);
       if (raw) {
@@ -126,17 +149,20 @@ const RasaWidget = () => {
       // ignore cache errors
     }
     hydratedRef.current = true;
-  }, [senderId, historyKey]);
+  }, [senderId, historyKey, historyMetaKey]);
 
   useEffect(() => {
     if (!senderId || !historyKey) return;
     try {
       const payload = messages.slice(-200);
       localStorage.setItem(historyKey, JSON.stringify(payload));
+      if (historyMetaKey) {
+        localStorage.setItem(historyMetaKey, JSON.stringify({ lastUpdated: Date.now() }));
+      }
     } catch {
       // ignore storage errors
     }
-  }, [messages, senderId, historyKey]);
+  }, [messages, senderId, historyKey, historyMetaKey]);
 
   const appendMessage = (from, text, timestamp, typeOverride) => {
     const isCsat = isCsatPrompt(text);
@@ -613,7 +639,7 @@ const RasaWidget = () => {
             {isLoggedIn && mode === "agent" && !agentReady && (
               <div className="px-3 py-2 text-muted small">
                 {queueInfo?.position
-                  ? `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
+                  ★ `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
                   : "Waiting for an agent to join. We'll notify you when they're ready."}
               </div>
             )}
@@ -630,9 +656,10 @@ const RasaWidget = () => {
                       }
                       if (qr.payload === "__handoff__") {
                         startHandoff("I need to talk to a human agent");
-                      } else {
-                        sendMessage(qr.payload);
+                        return;
                       }
+                      closeFaqMenu();
+                      sendToBot(qr.payload);
                     }}
                     disabled={sending}
                   >
@@ -647,8 +674,8 @@ const RasaWidget = () => {
                 type="text"
                 placeholder={
                   mode === "agent"
-                    ? agentReady
-                      ? "Message the agent..."
+                    ★ agentReady
+                      ★ "Message the agent..."
                       : "Connecting to an agent..."
                     : "Type a message..."
                 }
@@ -710,10 +737,4 @@ const RasaWidget = () => {
 };
 
 export default RasaWidget;
-
-
-
-
-
-
 

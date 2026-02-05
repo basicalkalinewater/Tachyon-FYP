@@ -151,6 +151,16 @@ nlu:
       - helo
       - helloo
       - howdy
+  - intent: thanks
+    examples: |
+      - thanks
+      - thank you
+      - thank you so much
+      - thanks a lot
+      - thx
+      - cheers
+      - appreciate it
+      - appreciate your help
   - intent: goodbye
     examples: |
       - bye
@@ -549,3 +559,4 @@ nlu:
       - get me a real person
       - I want human support
       - route me to an agent
+

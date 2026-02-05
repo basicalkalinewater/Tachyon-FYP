@@ -57,6 +57,11 @@ rules:
       - intent: greet
       - action: utter_greet
 
+  - rule: Thank you
+    steps:
+      - intent: thanks
+      - action: utter_thanks
+
   - rule: Say goodbye
     steps:
       - intent: goodbye
