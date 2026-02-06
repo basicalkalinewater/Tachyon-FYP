@@ -43,11 +43,14 @@ def map_payment(row):
 
 def map_order(row):
     items = row.get("customer_order_item") or []
+    shipping_row = row.get("customer_shipping_address") or {}
+    shipping_address = map_address(shipping_row) if shipping_row else None
     return {
         "orderId": row.get("order_code"),
         "date": row.get("placed_at"),
         "status": row.get("status"),
         "total": float(row.get("total", 0)),
+        "shippingAddress": shipping_address,
         "items": [
             {
                 "name": item.get("product_name"),

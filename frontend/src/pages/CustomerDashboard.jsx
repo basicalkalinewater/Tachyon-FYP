@@ -582,14 +582,20 @@ const AddressesSection = ({
   );
 };
 
-const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress, myReviews }) => {
+const OrdersSection = ({ orders, loading, error, nextDelivery, myReviews }) => {
   const { list, filter, onFilterChange } = orders;
   const isInitial = list === null;
   const rows = list || [];
   const [expandedOrderId, setExpandedOrderId] = useState(null);
-  const formattedDefaultAddress = defaultAddress
-    ? `${defaultAddress.line1}${defaultAddress.line2 ? ", " + defaultAddress.line2 : ""}, ${defaultAddress.postalCode}`
-    : "Shipping Address";
+  const formatAddress = (address) => {
+    if (!address) return "Shipping address unavailable";
+    const parts = [address.line1];
+    if (address.line2) parts.push(address.line2);
+    const cityPostal = [address.city, address.postalCode].filter(Boolean).join(" ");
+    if (cityPostal) parts.push(cityPostal);
+    if (address.country) parts.push(address.country);
+    return parts.filter(Boolean).join(", ");
+  };
 
   return (
     <section className="dashboard-section card-saas">
@@ -637,7 +643,7 @@ const OrdersSection = ({ orders, loading, error, nextDelivery, defaultAddress, m
                 </div>
                 <div>
                   <div className="fw-semibold text-uppercase small">Delivered to</div>
-                  <div className="text-primary fw-semibold">{formattedDefaultAddress}</div>
+                  <div className="text-primary fw-semibold">{formatAddress(order.shippingAddress)}</div>
                 </div>
               </div>
                 <div className="text-end">
@@ -1278,7 +1284,6 @@ const CustomerDashboard = () => {
             loading={ordersLoading}
             error={ordersError}
             nextDelivery={nextDelivery}
-            defaultAddress={shippingAddresses.find((a) => a.isDefault) || shippingAddresses[0]}
             myReviews={myReviews}
           />
         );

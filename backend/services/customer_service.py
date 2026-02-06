@@ -46,7 +46,7 @@ def fetch_customer_profile(supabase, user: Dict[str, Any]) -> Dict[str, Any]:
 def fetch_customer_orders(supabase, user_id: str) -> List[Dict[str, Any]]:
     res = (
         supabase.table("customer_order")
-        .select("*, customer_order_item(*)")
+        .select("*, customer_order_item(*), customer_shipping_address!customer_order_shipping_address_id_fkey(*)")
         .eq("user_id", user_id)
         .order("placed_at", desc=True)
         .execute()

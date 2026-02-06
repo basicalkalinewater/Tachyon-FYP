@@ -1,42 +1,71 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import {
   selectCartItems,
   selectCartSubtotal,
   selectCartDiscount,
+  selectCartId,
   selectAppliedPromo,
   selectPromoStatus,
   selectPromoError,
   applyPromoCode,
   clearPromo,
+  clearCart,
 } from "../redux/cartSlice";
 import { hasActivePromotion } from "../utils/promo";
+import { selectCurrentUser } from "../redux/authSlice";
+import { fetchCustomerDashboard, createAddress, createPaymentMethod } from "../api/auth";
+import { placeOrder } from "../api/orders";
+import "../styles/checkout.css";
 
 const Checkout = () => {
   const items = useSelector(selectCartItems);
   const subtotal = useSelector(selectCartSubtotal);
   const discount = useSelector(selectCartDiscount);
+  const cartId = useSelector(selectCartId);
   const appliedPromo = useSelector(selectAppliedPromo);
   const promoStatus = useSelector(selectPromoStatus);
   const promoError = useSelector(selectPromoError);
+  const currentUser = useSelector(selectCurrentUser);
   const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const [promoInput, setPromoInput] = useState(appliedPromo?.code || "");
   const [promoValidationError, setPromoValidationError] = useState("");
-  const [form, setForm] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    address: "",
-    address2: "",
+  const [addresses, setAddresses] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [addressesLoading, setAddressesLoading] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [paymentError, setPaymentError] = useState("");
+  const [selectedAddressId, setSelectedAddressId] = useState("");
+  const [selectedPaymentId, setSelectedPaymentId] = useState("");
+  const [useNewAddress, setUseNewAddress] = useState(false);
+  const [useNewPayment, setUseNewPayment] = useState(false);
+  const [addressSaving, setAddressSaving] = useState(false);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [confirmedOrder, setConfirmedOrder] = useState(null);
+  const [addressForm, setAddressForm] = useState({
+    label: "Home",
+    recipient: "",
+    line1: "",
+    line2: "",
+    city: "",
+    postalCode: "",
     country: "",
-    state: "",
-    zip: "",
-    cardName: "",
+    phone: "",
+    isDefault: false,
+  });
+  const [paymentForm, setPaymentForm] = useState({
+    brand: "",
     cardNumber: "",
-    cardExp: "",
-    cardCvv: "",
+    expiry: "",
+    nickname: "",
+    isDefault: false,
   });
 
   const shipping = 30;
@@ -53,9 +82,14 @@ const Checkout = () => {
     });
   }, [items]);
 
-  const updateField = (key) => (e) => {
-    const value = e.target.value;
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const updateAddressField = (key) => (e) => {
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setAddressForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const updatePaymentField = (key) => (e) => {
+    const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setPaymentForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const sanitizePromoCode = (value) => value.replace(/[^A-Za-z0-9]/g, "");
@@ -78,7 +112,202 @@ const Checkout = () => {
     setPromoInput("");
   };
 
-  if (!items.length) {
+  useEffect(() => {
+    if (!currentUser?.id) return;
+
+    const loadAddresses = async () => {
+      setAddressesLoading(true);
+      setAddressError("");
+      try {
+        const response = await fetchCustomerDashboard(currentUser.id, "shipping");
+        const rows = response.shippingAddresses || [];
+        setAddresses(rows);
+        if (rows.length === 0) {
+          setUseNewAddress(true);
+        } else {
+          const defaultAddress = rows.find((addr) => addr.isDefault);
+          setSelectedAddressId(defaultAddress?.id || rows[0].id);
+        }
+      } catch (err) {
+        setAddressError(err.message || "Unable to load saved addresses");
+      } finally {
+        setAddressesLoading(false);
+      }
+    };
+
+    const loadPayments = async () => {
+      setPaymentsLoading(true);
+      setPaymentError("");
+      try {
+        const response = await fetchCustomerDashboard(currentUser.id, "payments");
+        const rows = response.savedPayments || [];
+        setPayments(rows);
+        if (rows.length === 0) {
+          setUseNewPayment(true);
+        } else {
+          const defaultPayment = rows.find((card) => card.isDefault);
+          setSelectedPaymentId(defaultPayment?.id || rows[0].id);
+        }
+      } catch (err) {
+        setPaymentError(err.message || "Unable to load saved cards");
+      } finally {
+        setPaymentsLoading(false);
+      }
+    };
+
+    loadAddresses();
+    loadPayments();
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!showConfirmModal) return;
+    const timer = setTimeout(() => {
+      navigate("/dashboard/customer/orders");
+    }, 2500);
+    return () => clearTimeout(timer);
+  }, [showConfirmModal, navigate]);
+
+  const saveAddress = async () => {
+    if (!currentUser?.id) return null;
+    const required = ["label", "recipient", "line1", "city", "postalCode", "country"];
+    for (const field of required) {
+      if (!addressForm[field]?.toString().trim()) {
+        setAddressError(`${field} is required`);
+        return null;
+      }
+    }
+    setAddressSaving(true);
+    setAddressError("");
+    try {
+      const created = await createAddress(currentUser.id, addressForm);
+      const nextAddresses = [created, ...addresses.filter((addr) => addr.id !== created.id)];
+      setAddresses(nextAddresses);
+      setSelectedAddressId(created.id);
+      setUseNewAddress(false);
+      toast.success("Address saved");
+      return created;
+    } catch (err) {
+      setAddressError(err.message || "Unable to save address");
+      return null;
+    } finally {
+      setAddressSaving(false);
+    }
+  };
+
+  const savePayment = async () => {
+    if (!currentUser?.id) return null;
+    const cardDigits = paymentForm.cardNumber.replace(/\D/g, "");
+    const last4 = cardDigits.slice(-4);
+    if (!paymentForm.brand.trim()) {
+      setPaymentError("brand is required");
+      return null;
+    }
+    if (!last4 || last4.length !== 4) {
+      setPaymentError("card number must include at least 4 digits");
+      return null;
+    }
+    if (!paymentForm.expiry.trim()) {
+      setPaymentError("expiry is required");
+      return null;
+    }
+    setPaymentSaving(true);
+    setPaymentError("");
+    try {
+      const created = await createPaymentMethod(currentUser.id, {
+        brand: paymentForm.brand,
+        last4,
+        expiry: paymentForm.expiry,
+        nickname: paymentForm.nickname,
+        isDefault: paymentForm.isDefault,
+      });
+      const nextPayments = [created, ...payments.filter((card) => card.id !== created.id)];
+      setPayments(nextPayments);
+      setSelectedPaymentId(created.id);
+      setUseNewPayment(false);
+      toast.success("Card saved");
+      return created;
+    } catch (err) {
+      setPaymentError(err.message || "Unable to save card");
+      return null;
+    } finally {
+      setPaymentSaving(false);
+    }
+  };
+
+  const placeOrderNow = async () => {
+    if (!currentUser?.id) return;
+    if (!cartId) {
+      toast.error("Unable to locate your cart.");
+      return;
+    }
+    setPlacingOrder(true);
+    try {
+      let addressId = selectedAddressId;
+      if (useNewAddress) {
+        const created = await saveAddress();
+        addressId = created?.id || "";
+      }
+      if (!addressId) {
+        toast.error("Please select a shipping address.");
+        setPlacingOrder(false);
+        return;
+      }
+      let paymentId = selectedPaymentId;
+      if (useNewPayment) {
+        const created = await savePayment();
+        paymentId = created?.id || "";
+      }
+      if (!paymentId) {
+        toast.error("Please select a payment method.");
+        setPlacingOrder(false);
+        return;
+      }
+      const response = await placeOrder({
+        cartId,
+        promoCode: appliedPromo?.code || "",
+        shipping,
+        addressId,
+        paymentId,
+        userId: currentUser.id,
+      });
+      setConfirmedOrder(response);
+      setShowConfirmModal(true);
+      dispatch(clearCart());
+      clearPromoAndInput();
+    } catch (err) {
+      toast.error(err.message || "Unable to place order");
+    } finally {
+      setPlacingOrder(false);
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="checkout-gate">
+        <div className="checkout-modal" role="dialog" aria-modal="true">
+          <div className="checkout-modal-card">
+            <h4 className="mb-2">Login required</h4>
+            <p className="text-muted mb-4">
+              Please log in or register to continue to checkout.
+            </p>
+            <div className="d-flex flex-wrap gap-2">
+              <Link to="/login" className="btn btn-primary-saas">
+                Log in
+              </Link>
+              <Link to="/register" className="btn btn-outline-saas">
+                Register
+              </Link>
+              <Link to="/cart" className="btn btn-outline-saas">
+                Back to cart
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!items.length && !showConfirmModal) {
     return (
       <div className="container my-3 py-3">
         <div className="row">
@@ -114,175 +343,290 @@ const Checkout = () => {
               <h5 className="mb-0">Billing & Shipping</h5>
             </div>
             <div className="card-body">
-              <form className="needs-validation" noValidate>
-                <div className="row g-3">
-                  <div className="col-md-6">
-                    <label htmlFor="firstName" className="form-label">First name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="firstName"
-                      value={form.firstName}
-                      onChange={updateField("firstName")}
-                      required
-                    />
-                    <div className="invalid-feedback">Valid first name is required.</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label htmlFor="lastName" className="form-label">Last name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="lastName"
-                      value={form.lastName}
-                      onChange={updateField("lastName")}
-                      required
-                    />
-                    <div className="invalid-feedback">Valid last name is required.</div>
-                  </div>
-                  <div className="col-12">
-                    <label htmlFor="email" className="form-label">Email</label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      id="email"
-                      placeholder="you@example.com"
-                      value={form.email}
-                      onChange={updateField("email")}
-                      required
-                    />
-                    <div className="invalid-feedback">Please enter a valid email for updates.</div>
-                  </div>
-                  <div className="col-12">
-                    <label htmlFor="address" className="form-label">Address</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="address"
-                      placeholder="1234 Main St"
-                      value={form.address}
-                      onChange={updateField("address")}
-                      required
-                    />
-                    <div className="invalid-feedback">Please enter your shipping address.</div>
-                  </div>
-                  <div className="col-12">
-                    <label htmlFor="address2" className="form-label">
-                      Address 2 <span className="text-muted">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="address2"
-                      placeholder="Apartment or suite"
-                      value={form.address2}
-                      onChange={updateField("address2")}
-                    />
-                  </div>
-                  <div className="col-md-5">
-                    <label htmlFor="country" className="form-label">Country</label>
-                    <select
-                      className="form-select"
-                      id="country"
-                      value={form.country}
-                      onChange={updateField("country")}
-                      required
+              <div className="checkout-section">
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <h5 className="mb-0">Shipping address</h5>
+                  {!useNewAddress && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-saas btn-sm"
+                      onClick={() => setUseNewAddress(true)}
                     >
-                      <option value="">Choose...</option>
-                      <option>India</option>
-                    </select>
-                    <div className="invalid-feedback">Please select a valid country.</div>
+                      Add new address
+                    </button>
+                  )}
+                </div>
+                {addressesLoading && <p className="text-muted small">Loading saved addresses...</p>}
+                {addressError && <p className="text-danger small">{addressError}</p>}
+                {!useNewAddress && addresses.length > 0 && (
+                  <div className="checkout-option-list">
+                    {addresses.map((address) => (
+                      <label className="checkout-option" key={address.id}>
+                        <input
+                          type="radio"
+                          name="shippingAddress"
+                          checked={selectedAddressId === address.id}
+                          onChange={() => setSelectedAddressId(address.id)}
+                        />
+                        <div>
+                          <div className="fw-semibold">{address.label}</div>
+                          <div className="text-muted small">
+                            {address.recipient} - {address.line1}
+                            {address.line2 ? `, ${address.line2}` : ""} - {address.city}{" "}
+                            {address.postalCode}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
                   </div>
-                  <div className="col-md-4">
-                    <label htmlFor="state" className="form-label">State</label>
-                    <select
-                      className="form-select"
-                      id="state"
-                      value={form.state}
-                      onChange={updateField("state")}
-                      required
+                )}
+                {useNewAddress && (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label htmlFor="address-label" className="form-label">Label</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-label"
+                        value={addressForm.label}
+                        onChange={updateAddressField("label")}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="address-recipient" className="form-label">Recipient</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-recipient"
+                        value={addressForm.recipient}
+                        onChange={updateAddressField("recipient")}
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label htmlFor="address-line1" className="form-label">Address line 1</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-line1"
+                        value={addressForm.line1}
+                        onChange={updateAddressField("line1")}
+                      />
+                    </div>
+                    <div className="col-12">
+                      <label htmlFor="address-line2" className="form-label">Address line 2</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-line2"
+                        value={addressForm.line2}
+                        onChange={updateAddressField("line2")}
+                      />
+                    </div>
+                    <div className="col-md-5">
+                      <label htmlFor="address-city" className="form-label">City</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-city"
+                        value={addressForm.city}
+                        onChange={updateAddressField("city")}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label htmlFor="address-postal" className="form-label">Postal code</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-postal"
+                        value={addressForm.postalCode}
+                        onChange={updateAddressField("postalCode")}
+                      />
+                    </div>
+                    <div className="col-md-3">
+                      <label htmlFor="address-country" className="form-label">Country</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-country"
+                        value={addressForm.country}
+                        onChange={updateAddressField("country")}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="address-phone" className="form-label">Phone (optional)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="address-phone"
+                        value={addressForm.phone}
+                        onChange={updateAddressField("phone")}
+                      />
+                    </div>
+                    <div className="col-md-6 d-flex align-items-end">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="address-default"
+                          checked={addressForm.isDefault}
+                          onChange={updateAddressField("isDefault")}
+                        />
+                        <label className="form-check-label" htmlFor="address-default">
+                          Set as default
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-12 d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary-saas"
+                        onClick={saveAddress}
+                        disabled={addressSaving}
+                      >
+                        {addressSaving ? "Saving..." : "Save address"}
+                      </button>
+                      {addresses.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-saas"
+                          onClick={() => setUseNewAddress(false)}
+                          disabled={addressSaving}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <hr className="my-4" />
+
+              <div className="checkout-section">
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <h5 className="mb-0">Payment method</h5>
+                  {!useNewPayment && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-saas btn-sm"
+                      onClick={() => setUseNewPayment(true)}
                     >
-                      <option value="">Choose...</option>
-                      <option>Punjab</option>
-                    </select>
-                    <div className="invalid-feedback">Please provide a valid state.</div>
-                  </div>
-                  <div className="col-md-3">
-                    <label htmlFor="zip" className="form-label">Zip</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="zip"
-                      value={form.zip}
-                      onChange={updateField("zip")}
-                      required
-                    />
-                    <div className="invalid-feedback">Zip code required.</div>
-                  </div>
+                      Add new card
+                    </button>
+                  )}
                 </div>
-
-                <hr className="my-4" />
-
-                <h5 className="mb-3">Payment</h5>
-                <div className="row gy-3">
-                  <div className="col-md-6">
-                    <label htmlFor="cc-name" className="form-label">Name on card</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="cc-name"
-                      value={form.cardName}
-                      onChange={updateField("cardName")}
-                      required
-                    />
-                    <small className="text-muted">Full name as displayed on card</small>
-                    <div className="invalid-feedback">Name on card is required</div>
+                {paymentsLoading && <p className="text-muted small">Loading saved cards...</p>}
+                {paymentError && <p className="text-danger small">{paymentError}</p>}
+                {!useNewPayment && payments.length > 0 && (
+                  <div className="checkout-option-list">
+                    {payments.map((card) => (
+                      <label className="checkout-option" key={card.id}>
+                        <input
+                          type="radio"
+                          name="paymentMethod"
+                          checked={selectedPaymentId === card.id}
+                          onChange={() => setSelectedPaymentId(card.id)}
+                        />
+                        <div>
+                          <div className="fw-semibold">
+                            {card.brand} **** {card.last4}
+                          </div>
+                          <div className="text-muted small">Expires {card.expiry}</div>
+                        </div>
+                      </label>
+                    ))}
                   </div>
-                  <div className="col-md-6">
-                    <label htmlFor="cc-number" className="form-label">Credit card number</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="cc-number"
-                      value={form.cardNumber}
-                      onChange={updateField("cardNumber")}
-                      required
-                    />
-                    <div className="invalid-feedback">Credit card number is required</div>
+                )}
+                {useNewPayment && (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label htmlFor="card-brand" className="form-label">Card brand</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="card-brand"
+                        value={paymentForm.brand}
+                        onChange={updatePaymentField("brand")}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="card-nickname" className="form-label">Nickname (optional)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="card-nickname"
+                        value={paymentForm.nickname}
+                        onChange={updatePaymentField("nickname")}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="card-number" className="form-label">Card number</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="card-number"
+                        value={paymentForm.cardNumber}
+                        onChange={updatePaymentField("cardNumber")}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label htmlFor="card-expiry" className="form-label">Expiry</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        id="card-expiry"
+                        value={paymentForm.expiry}
+                        onChange={updatePaymentField("expiry")}
+                      />
+                    </div>
+                    <div className="col-md-6 d-flex align-items-end">
+                      <div className="form-check">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id="card-default"
+                          checked={paymentForm.isDefault}
+                          onChange={updatePaymentField("isDefault")}
+                        />
+                        <label className="form-check-label" htmlFor="card-default">
+                          Set as default
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-12 d-flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-primary-saas"
+                        onClick={savePayment}
+                        disabled={paymentSaving}
+                      >
+                        {paymentSaving ? "Saving..." : "Save card"}
+                      </button>
+                      {payments.length > 0 && (
+                        <button
+                          type="button"
+                          className="btn btn-outline-saas"
+                          onClick={() => setUseNewPayment(false)}
+                          disabled={paymentSaving}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="col-md-3">
-                    <label htmlFor="cc-expiration" className="form-label">Expiration</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="cc-expiration"
-                      value={form.cardExp}
-                      onChange={updateField("cardExp")}
-                      required
-                    />
-                    <div className="invalid-feedback">Expiration date required</div>
-                  </div>
-                  <div className="col-md-3">
-                    <label htmlFor="cc-cvv" className="form-label">CVV</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      id="cc-cvv"
-                      value={form.cardCvv}
-                      onChange={updateField("cardCvv")}
-                      required
-                    />
-                    <div className="invalid-feedback">Security code required</div>
-                  </div>
-                </div>
+                )}
+              </div>
 
-                <hr className="my-4" />
+              <hr className="my-4" />
 
-                <button className="w-100 btn btn-primary-saas" type="submit" disabled>
-                  Continue to checkout
-                </button>
-                <p className="text-muted small mt-2 mb-0">Payments are disabled in this demo.</p>
-              </form>
+              <button
+                className="w-100 btn btn-primary-saas"
+                type="button"
+                onClick={placeOrderNow}
+                disabled={placingOrder}
+              >
+                {placingOrder ? "Placing order..." : "Place order"}
+              </button>
             </div>
           </div>
         </div>
@@ -387,6 +731,32 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+      {showConfirmModal && (
+        <div className="checkout-modal" role="dialog" aria-modal="true">
+          <div className="checkout-modal-card">
+            <h4 className="mb-2">Order confirmed</h4>
+            <p className="text-muted mb-3">
+              Your order {confirmedOrder?.orderId ? `#${confirmedOrder.orderId}` : ""} is now processing.
+            </p>
+            <div className="d-flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn btn-primary-saas"
+                onClick={() => navigate("/dashboard/customer/orders")}
+              >
+                View orders
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-saas"
+                onClick={() => setShowConfirmModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
