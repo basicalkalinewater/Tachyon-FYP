@@ -2693,7 +2693,7 @@ const renderInventory = () => (
           </button>
 
           <button
-            className="btn btn-outline-saas"
+            className="btn btn-primary-saas"
             onClick={openNewCategoryModal}
           >
             New Category

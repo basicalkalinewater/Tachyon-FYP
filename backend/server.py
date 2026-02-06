@@ -23,6 +23,7 @@ try:
     from .routes.customer import customer_bp, dashboard_bp
     from .routes.live_cust_support import live_cust_support_bp
     from .routes.promos import promos_bp
+    from .routes.orders import orders_bp
     from .routes.product_categories import product_categories_bp, admin_product_categories_bp
     from .routes.product_reviews import product_reviews_bp
     from .routes.gemini_llm import llm_bp
@@ -42,6 +43,7 @@ except ImportError:
     from routes.customer import customer_bp, dashboard_bp
     from routes.live_cust_support import live_cust_support_bp
     from routes.promos import promos_bp
+    from routes.orders import orders_bp
     from routes.product_categories import product_categories_bp, admin_product_categories_bp
     from routes.product_reviews import product_reviews_bp
     from routes.gemini_llm import llm_bp
@@ -106,6 +108,7 @@ def create_app() -> Flask:
     app.register_blueprint(products_bp, url_prefix="/api/products")
     app.register_blueprint(carts_bp, url_prefix="/api/carts")
     app.register_blueprint(promos_bp, url_prefix="/api/promo-codes")
+    app.register_blueprint(orders_bp, url_prefix="/api")
     app.register_blueprint(product_categories_bp, url_prefix="/api/product-categories")
     app.register_blueprint(product_reviews_bp, url_prefix="/api")
     app.register_blueprint(llm_bp, url_prefix="/api/llm")

@@ -202,6 +202,7 @@ export const selectCartCount = (state) =>
   state.cart.items.reduce((sum, item) => sum + item.qty, 0);
 export const selectCartSubtotal = (state) =>
   computeSubtotal(state.cart.items);
+export const selectCartId = (state) => state.cart.cartId;
 export const selectCartStatus = (state) => state.cart.status;
 export const selectCartError = (state) => state.cart.error;
 export const selectAppliedPromo = (state) => state.cart.promo;
