@@ -1,7 +1,10 @@
-language: en
+language: "en"
 
 pipeline:
+- name: custom_components.language_detector.LanguageDetector
 - name: WhitespaceTokenizer
+  intent_tokenization_flag: True
+  use_word_boundaries: False
 - name: RegexFeaturizer
 - name: LexicalSyntacticFeaturizer
 - name: CountVectorsFeaturizer
@@ -9,6 +12,9 @@ pipeline:
   analyzer: char_wb
   min_ngram: 1
   max_ngram: 4
+- name: LanguageModelFeaturizer
+  model_name: "bert"
+  model_weights: "rasa/LaBSE"
 - name: DIETClassifier
   epochs: 100
   constrain_similarities: true

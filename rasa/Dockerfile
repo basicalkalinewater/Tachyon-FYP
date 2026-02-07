@@ -3,6 +3,8 @@ WORKDIR /app
 COPY . .
 # Run action server and bot in same container; override entrypoint to shell so we can start both.
 USER root
+# Install custom component dependencies (fastText LID).
+RUN pip install --no-cache-dir -r requirements.txt
 RUN chown -R 1001:0 /app
 USER 1001
 EXPOSE 5005 5055

@@ -2,5 +2,6 @@ python-dotenv
 rasa==3.6.16
 rasa-sdk==3.6.2
 requests
+fasttext-wheel
 scipy==1.10.1
 numpy==1.23.3
