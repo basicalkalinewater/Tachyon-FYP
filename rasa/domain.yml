@@ -21,7 +21,17 @@ entities:
   - product_price
   - product_specs
   - product_brand
+  - lang
+
 slots:
+  # Added to capture the detected language from your custom component
+  lang:
+    type: text
+    influence_conversation: false
+    mappings:
+      - type: from_entity
+        entity: lang
+
   product_category:
     type: text
     influence_conversation: false
@@ -40,12 +50,8 @@ slots:
     type: text
     influence_conversation: false
     mappings:
-      # NLU extracts 'Wireless' or 'IPS' as product_specs
       - type: from_entity
         entity: product_specs
-      # Allow the user to type in specs if the entity extraction fails
-      # - type: from_text
-      #   ignore_if_not_set: true
 
   product_brand:
     type: text
@@ -64,20 +70,30 @@ slots:
 responses:
   utter_greet:
     - text: "Hello! How can I help you today?"
+    - text: "你好！今天有什么我可以帮你的吗？"
   utter_thanks:
     - text: "You're welcome! Anything else I can help with?"
+    - text: "不客气！还有其他我可以帮您的吗？"
   utter_goodbye:
     - text: "Goodbye! Have a nice day!"
+    - text: "再见！祝您生活愉快！"
   utter_shipping_info:
     - text: "You can find shipping & delivery details here: [Return Shipping Info]({link})"
   utter_default:
     - text: "I'm not sure I got that. Could you rephrase or choose a quick option below?"
+    - text: "抱歉，我没太听懂。您可以换个说法，或者选择下面的选项。"
+  
+  # Form Prompts (Localized)
   utter_ask_product_category:
     - text: "What category of products are you interested in?"
+    - text: "您想找哪类产品？（例如：键盘、显示器、耳机）"
   utter_ask_product_price:
     - text: "What is your budget or price range?"
+    - text: "您的预算或价格范围是多少？"
   utter_ask_product_specs:
     - text: "Do you have any specific requirements or specifications in mind?"
+    - text: "您对规格有什么具体要求吗？"
+
   utter_faq_link:
     - text: "I can help with that! Please click the link below to visit our dedicated FAQ page.\n[Frequently Asked Questions]({link})"
   utter_return_policy_link:
@@ -95,10 +111,8 @@ responses:
 
 forms:
   product_filter_form:
-    # Only the category is required for the initial search to prevent fetching ALL products.
     required_slots:
       - product_category
-    # product_price, product_brand and product_specs are now OPTIONAL for form submission.
 
 actions:
   - action_fetch_all_products
@@ -112,4 +126,3 @@ actions:
   - action_forward_to_agent
   - validate_product_filter_form
   - action_reset_handoff
-

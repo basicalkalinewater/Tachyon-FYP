@@ -1,5 +1,10 @@
 version: "3.1"
 nlu:
+  - intent: set_language
+    examples: |
+      - [zh](lang)
+      - [en](lang)
+
   - regex: product_price
     examples: |
       - (?i)\b(?:under|below|less than|up to|max|<=?)\s*\$?\d+\b
@@ -21,6 +26,10 @@ nlu:
       - laptops
       - speaker
       - speakers
+      - 键盘
+      - 鼠标
+      - 显示器
+      - 固态硬盘
   - lookup: product_specs
     examples: |
       - wireless
@@ -81,6 +90,13 @@ nlu:
       - ROG
       - PNY
       - Sony
+      - 华硕
+      - 戴尔
+      - 三星
+      - 罗技
+      - 雷蛇
+      - 外星人
+      - 西数
   - synonym: tkl
     examples: |
       - tenkeyless
@@ -116,12 +132,24 @@ nlu:
   - synonym: keyboard
     examples: |
       - keybaord
+      - 键盘
+      - 机械键盘
   - synonym: monitor
     examples: |
       - moniter
+      - 显示器
+      - 屏幕
+      - 监视器
   - synonym: mouse
     examples: |
       - mous
+      - 鼠标
+      - 滑鼠
+  - synonym: ssd
+    examples: |
+      - SSD
+      - 固态硬盘
+      - 固态盘
   - intent: greet
     examples: |
       - hi
@@ -410,6 +438,15 @@ nlu:
       - I want a [keyboard](product_category) from [Logitech](product_brand) below [200](product_price) that has [Wireless](product_specs) connection
       - I want to buy [Wireless](product_specs) [mouse](product_category) from [Razer](product_brand) under [150](product_price)
       - Show me [ssd](product_category) with [PCIe 4.0](product_specs) from [Samsung](product_brand) in the [300-400](product_price) range
+      - 我要[罗技](product_brand)的[鼠标](product_category)
+      - 我想看看[雷蛇](product_brand)的[键盘](product_category)
+      - 帮我找找[戴尔](product_brand)的[显示器](product_category)
+      - 有没有[三星](product_brand)的[固态硬盘](product_category)
+      - [外星人](product_brand)的[显示器](product_category)怎么样？
+      - [华硕](product_brand)的[显示器](product_category)好用吗？
+      - 你们有卖什么[键盘](product_category)
+      - [罗技](product_brand)[鼠标](product_category)
+      - [雷蛇](product_brand)[键盘](product_category)
   - intent: product_compare
     examples: |
       - compare [Logitech G Pro X Superlight](product_brand) vs [Razer Viper V2 Pro](product_brand)

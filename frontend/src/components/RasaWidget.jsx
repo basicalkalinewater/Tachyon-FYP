@@ -639,7 +639,7 @@ const RasaWidget = () => {
             {isLoggedIn && mode === "agent" && !agentReady && (
               <div className="px-3 py-2 text-muted small">
                 {queueInfo?.position
-                  ★ `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
+                  ? `You're #${queueInfo.position} in the queue. We'll notify you when an agent joins.`
                   : "Waiting for an agent to join. We'll notify you when they're ready."}
               </div>
             )}
@@ -674,8 +674,8 @@ const RasaWidget = () => {
                 type="text"
                 placeholder={
                   mode === "agent"
-                    ★ agentReady
-                      ★ "Message the agent..."
+                    ? agentReady
+                      ? "Message the agent..."
                       : "Connecting to an agent..."
                     : "Type a message..."
                 }

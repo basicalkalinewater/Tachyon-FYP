@@ -184,9 +184,59 @@ LLM_FALLBACK_ENDPOINT = os.getenv(
     f"{BACKEND_BASE_URL}/api/llm/fallback",
 )
 
+CHINESE_MAP = {
+    "categories": {
+        "键盘": "keyboard",
+        "鼠标": "mouse",
+        "显示器": "monitor",
+        "耳机": "headphones",
+        "笔记本": "laptop",
+        "音箱": "speaker",
+    },
+    "brands": {
+        "罗技": "Logitech",
+        "雷蛇": "Razer",
+        "华硕": "Asus",
+        "三星": "Samsung",
+        # Add more as needed
+    }
+}
+
+def _is_product_related(text: Text) -> bool:
+    if not text:
+        return False
+    # Added Chinese keywords to the set
+    keywords = {
+        "product", "products", "keyboard", "mouse", "monitor", "ssd", "laptop", "price",
+        "产品", "键盘", "鼠标", "显示器", "价格", "多少钱", "笔记本", "想要"
+    }
+    lowered = text.lower()
+    return any(word in lowered for word in keywords)
+
+
+# --- Translation Mapping (Place this at the top with your other constants) ---
+CHINESE_MAPPING = {
+    "categories": {
+        "键盘": "keyboard",
+        "鼠标": "mouse",
+        "显示器": "monitor",
+        "硬盘": "ssd",
+        "耳机": "headphones",
+        "笔记本": "laptop",
+        "音箱": "speaker",
+    },
+    "brands": {
+        "罗技": "Logitech",
+        "雷蛇": "Razer",
+        "华硕": "Asus",
+        "三星": "Samsung",
+        "戴尔": "Dell",
+        "惠普": "HP",
+    }
+}
 
 class ActionFetchProductsWithFilters(Action):
-    """Fetch products from Supabase and filter by category, brand, and price."""
+    """Fetch products from Supabase and filter by category, brand, and price with Chinese support."""
 
     def name(self) -> Text:
         return "action_fetch_products_with_filters"
@@ -194,14 +244,28 @@ class ActionFetchProductsWithFilters(Action):
     def run(
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
+        # 1. Detect language from entities provided by LanguageDetector
+        entities = tracker.latest_message.get("entities", [])
+        is_zh = any(e.get("entity") == "lang" and e.get("value") == "zh" for e in entities)
+
         product_category = tracker.get_slot("product_category")
         product_price = tracker.get_slot("product_price")
         product_specs_text = tracker.get_slot("product_specs")
         product_brand = tracker.get_slot("product_brand")
 
+        # 2. Chinese Translation/Normalization Layer
+        # Map Chinese user input to English DB values if zh is detected
+        if is_zh:
+            if product_category in CHINESE_MAPPING["categories"]:
+                product_category = CHINESE_MAPPING["categories"][product_category]
+            
+            if product_brand in CHINESE_MAPPING["brands"]:
+                product_brand = CHINESE_MAPPING["brands"][product_brand]
+
         category_key = product_category.lower() if product_category else None
         brand_key = _normalize_brand(product_brand)
 
+        # 3. Price Logic
         lower, upper = 0, float("inf")
         if product_price:
             numbers = sorted([float(n) for n in re.findall(r"\d+", product_price)])
@@ -209,150 +273,69 @@ class ActionFetchProductsWithFilters(Action):
                 upper = numbers[0] if len(numbers) == 1 else numbers[1]
                 lower = 0 if len(numbers) == 1 else numbers[0]
 
-        product_specs_key_value = {}
-        if product_specs_text and ":" in product_specs_text:
-            try:
-                product_specs_key_value = dict(
-                    item.split(":") for item in product_specs_text.split(",") if ":" in item
-                )
-            except Exception:
-                product_specs_key_value = {}
-
         try:
             data = _fetch_products()
             if not data:
-                dispatcher.utter_message(
-                    text="Product search is unavailable right now."
-                )
-                return [
-                    SlotSet("product_category", None),
-                    SlotSet("product_price", None),
-                    SlotSet("product_specs", None),
-                    SlotSet("product_brand", None),
-                ]
+                err_msg = "产品搜索服务暂时不可用。" if is_zh else "Product search is unavailable right now."
+                dispatcher.utter_message(text=err_msg)
+                return [SlotSet("product_category", None), SlotSet("product_price", None), 
+                        SlotSet("product_specs", None), SlotSet("product_brand", None)]
 
-            if not isinstance(data, list) or len(data) == 0:
-                dispatcher.utter_message(text="No products found in the database.")
-                return [
-                    SlotSet("product_category", None),
-                    SlotSet("product_price", None),
-                    SlotSet("product_specs", None),
-                    SlotSet("product_brand", None),
-                ]
-
+            # 4. Filtering Logic
             filtered_products = []
             for item in data:
+                # Category Filter
                 category = str(item.get("category") or "").lower()
                 if category_key and category_key not in category:
                     continue
 
+                # Brand Filter
                 brand = str(item.get("Brand") or item.get("brand") or "").lower()
                 if brand_key and brand_key not in brand:
                     continue
 
+                # Price Filter
                 price = _extract_price(item)
-                if price is None:
-                    continue
-
-                if product_price and not (lower <= price <= upper):
+                if price is None or (product_price and not (lower <= price <= upper)):
                     continue
 
                 filtered_products.append(item)
 
+            # 5. Response Generation
             if not filtered_products:
-                # Fallback: if brand filter is too strict, surface top items in the category
-                if brand_key and category_key:
-                    relaxed = []
-                    for item in data:
-                        category = str(item.get("category") or "").lower()
-                        if category_key and category_key not in category:
-                            continue
-                        relaxed.append(item)
-                    if relaxed:
-                        frontend_base = FRONTEND_BASE_URL
-                        product_links = []
-                        for item in relaxed[:5]:
-                            title = (item.get("title") or item.get("name") or item.get("product_name") or "").strip()
-                            product_id = item.get("id")
-                            if not title and not product_id:
-                                continue
-                            if not title:
-                                title = "Unnamed product"
-                            price = _format_price(_extract_price(item))
-                            stock = item.get("quantity_available", 0)
-                            stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
-                            if product_id:
-                                url = f"{frontend_base}/product/{product_id}"
-                                product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
-                            else:
-                                product_links.append(f"- {title} - ${price}{stock_msg}")
-                        dispatcher.utter_message(
-                            text=(
-                                f"I couldn't find {product_category} from {product_brand}. "
-                                f"Here are some popular {product_category} instead:\n"
-                                + "\n".join(product_links)
-                            )
-                        )
-                        return [
-                            SlotSet("product_category", None),
-                            SlotSet("product_price", None),
-                            SlotSet("product_specs", None),
-                            SlotSet("product_brand", None),
-                        ]
-                parts = []
-                if product_category:
-                    parts.append(f"category '{product_category}'")
-                if product_brand:
-                    parts.append(f"brand '{product_brand}'")
-                if product_price:
-                    if upper != float("inf") and lower == 0:
-                        parts.append(f"under ${upper}")
-                    elif lower > 0 and upper != float("inf"):
-                        parts.append(f"between ${lower} and ${upper}")
-                    elif lower > 0 and upper == float("inf"):
-                        parts.append(f"over ${lower}")
-                if product_specs_text:
-                    parts.append(f"with specifications '{product_specs_text}'")
-
-                dispatcher.utter_message(
-                    text=f"No products found matching {' and '.join(parts) if parts else 'your criteria'}."
-                )
-                return [
-                    SlotSet("product_category", None),
-                    SlotSet("product_price", None),
-                    SlotSet("product_specs", None),
-                    SlotSet("product_brand", None),
-                ]
-
-            frontend_base = FRONTEND_BASE_URL
-            product_links = []
-            for item in filtered_products:
-                title = (item.get("title") or item.get("name") or item.get("product_name") or "").strip()
-                product_id = item.get("id")
-                if not title and not product_id:
-                    continue
-                if not title:
-                    title = "Unnamed product"
-                price = _format_price(_extract_price(item))
-                stock = item.get("quantity_available", 0)
-                stock_msg = f" (In Stock: {stock})" if stock and stock > 0 else " (Out of Stock)"
-
-                if product_id:
-                    url = f"{frontend_base}/product/{product_id}"
-                    product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
+                if is_zh:
+                    msg = f"未找到符合条件的 {product_brand or ''} {product_category or '产品'}。"
                 else:
-                    product_links.append(f"- {title} - ${price}{stock_msg}")
+                    msg = f"No products found matching your criteria."
+                dispatcher.utter_message(text=msg)
+            else:
+                intro = "为您找到以下产品：\n" if is_zh else "Here is what I found:\n"
+                product_links = []
+                for item in filtered_products[:5]:
+                    title = (item.get("title") or item.get("name") or "Product").strip()
+                    product_id = item.get("id")
+                    price = _format_price(_extract_price(item))
+                    stock = item.get("quantity_available", 0)
+                    
+                    if is_zh:
+                        stock_msg = f" (有货: {stock})" if stock > 0 else " (无现货)"
+                    else:
+                        stock_msg = f" (In Stock: {stock})" if stock > 0 else " (Out of Stock)"
 
-            dispatcher.utter_message(
-                text="Here is what I found:\n" + "\n".join(product_links)
-            )
+                    if product_id:
+                        url = f"{FRONTEND_BASE_URL}/product/{product_id}"
+                        product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
+                    else:
+                        product_links.append(f"- {title} - ${price}{stock_msg}")
+
+                dispatcher.utter_message(text=intro + "\n".join(product_links))
 
         except Exception as exc:
             logger.error(f"Error in action_fetch_products_with_filters: {exc}", exc_info=True)
-            dispatcher.utter_message(
-                text="Error processing your request. Please try again."
-            )
+            err_ret = "处理请求时出错，请稍后重试。" if is_zh else "Error processing your request. Please try again."
+            dispatcher.utter_message(text=err_ret)
 
+        # 6. Reset Slots
         return [
             SlotSet("product_category", None),
             SlotSet("product_price", None),

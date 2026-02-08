@@ -1,65 +1,57 @@
-"""FastText-based language detector for Rasa (en/zh-ready).
+import logging
+from typing import Any, Text, Dict, List, Type
 
-Adds `lang` attribute to each Message so downstream components can route or choose responses.
-"""
-
-from __future__ import annotations
-
-import os
-from typing import Any, Dict, Optional, Text
-
-import fasttext
-from rasa.nlu.components import Component
-from rasa.nlu.model import Metadata
-from rasa.shared.nlu.constants import TEXT
+from rasa.engine.graph import GraphComponent, ExecutionContext
+from rasa.engine.recipes.default_recipe import DefaultV1Recipe
+from rasa.engine.storage.resource import Resource
+from rasa.engine.storage.storage import ModelStorage
 from rasa.shared.nlu.training_data.message import Message
+from rasa.shared.nlu.training_data.training_data import TrainingData
 
+logger = logging.getLogger(__name__)
 
-class LanguageDetector(Component):
-    """Lightweight language detector using fastText lid.176 model."""
-
-    defaults = {
-        "model_path": "models/lid.176.bin",  # fastText LID model (covers 176 langs)
-        "fallback_lang": "en",
-        "min_prob": 0.6,
-    }
-    provides = ["lang"]
-
-    def __init__(self, component_config: Optional[Dict[Text, Any]] = None) -> None:
-        super().__init__(component_config)
-        self.model_path: Text = self.component_config["model_path"]
-        self.fallback_lang: Text = self.component_config["fallback_lang"]
-        self.min_prob: float = float(self.component_config["min_prob"])
-        self.model: Optional[fasttext.FastText] = None
-
-    def load_model(self) -> None:
-        if self.model is not None:
-            return
-        if not os.path.exists(self.model_path):
-            raise FileNotFoundError(
-                f"Language id model not found at {self.model_path}; "
-                "download lid.176.bin from fastText and update model_path if needed."
-            )
-        self.model = fasttext.load_model(self.model_path)
-
-    def process(self, message: Message, **kwargs: Any) -> None:
-        self.load_model()
-        text = message.get(TEXT) or ""
-        if not text.strip():
-            message.set("lang", self.fallback_lang)
-            return
-
-        label, prob = self.model.predict(text.replace("\n", " "))
-        lang = label[0].replace("__label__", "")
-        message.set("lang", lang if prob[0] >= self.min_prob else self.fallback_lang)
-
+@DefaultV1Recipe.register(
+    DefaultV1Recipe.ComponentType.MESSAGE_FEATURIZER, is_trainable=False
+)
+class LanguageDetector(GraphComponent):
     @classmethod
-    def load(
+    def create(
         cls,
-        meta: Metadata,
-        model_dir: Optional[Text] = None,
-        model_metadata: Optional[Metadata] = None,
-        cached_component: Optional[Component] = None,
-        **kwargs: Any,
+        config: Dict[Text, Any],
+        model_storage: ModelStorage,
+        resource: Resource,
+        execution_context: ExecutionContext,
     ) -> "LanguageDetector":
-        return cls(meta)
+        return cls(config)
+
+    def __init__(self, config: Dict[Text, Any]) -> None:
+        self.config = config
+
+    def train(self, training_data: TrainingData) -> Resource:
+        pass
+
+    def process_training_data(self, training_data: TrainingData) -> TrainingData:
+        return training_data
+
+    def process(self, messages: List[Message]) -> List[Message]:
+        for message in messages:
+            text = message.get("text")
+            if text:
+                # Detect Chinese characters using Unicode range
+                if any('\u4e00' <= char <= '\u9fff' for char in text):
+                    detected_lang = "zh"
+                else:
+                    detected_lang = "en"
+                
+                # Set the 'lang' entity/slot for Rasa to use in domain logic
+                message.set("entities", [
+                    {
+                        "entity": "lang",
+                        "value": detected_lang,
+                        "extractor": "LanguageDetector"
+                    }
+                ], add_to_output=True)
+                
+                logger.info(f"Detected language: {detected_lang} for text: {text}")
+        
+        return messages
