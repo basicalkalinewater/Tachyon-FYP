@@ -1,6 +1,7 @@
 ﻿import logging
 import os
 import re
+import json
 from pathlib import Path
 from typing import Any, Dict, List, Text, Optional
 
@@ -184,24 +185,6 @@ LLM_FALLBACK_ENDPOINT = os.getenv(
     f"{BACKEND_BASE_URL}/api/llm/fallback",
 )
 
-CHINESE_MAP = {
-    "categories": {
-        "键盘": "keyboard",
-        "鼠标": "mouse",
-        "显示器": "monitor",
-        "耳机": "headphones",
-        "笔记本": "laptop",
-        "音箱": "speaker",
-    },
-    "brands": {
-        "罗技": "Logitech",
-        "雷蛇": "Razer",
-        "华硕": "Asus",
-        "三星": "Samsung",
-        # Add more as needed
-    }
-}
-
 def _is_product_related(text: Text) -> bool:
     if not text:
         return False
@@ -214,136 +197,124 @@ def _is_product_related(text: Text) -> bool:
     return any(word in lowered for word in keywords)
 
 
-# --- Translation Mapping (Place this at the top with your other constants) ---
 CHINESE_MAPPING = {
     "categories": {
-        "键盘": "keyboard",
-        "鼠标": "mouse",
-        "显示器": "monitor",
-        "硬盘": "ssd",
-        "耳机": "headphones",
-        "笔记本": "laptop",
-        "音箱": "speaker",
+        "键盘": "keyboard", "鼠标": "mouse", "显示器": "monitor",
+        "硬盘": "ssd", "固态": "ssd", "屏幕": "monitor"
     },
-    "brands": {
-        "罗技": "Logitech",
-        "雷蛇": "Razer",
-        "华硕": "Asus",
-        "三星": "Samsung",
-        "戴尔": "Dell",
-        "惠普": "HP",
+    "specs": {
+        # Panel & Switch Types
+        "ips": "IPS", "oled": "WOLED", "woled": "WOLED",
+        "段落轴": "Tactile", "线性轴": "Linear", "茶轴": "Tactile", "红轴": "Linear",
+        # Connection
+        "无线": "Wireless", "有线": "Wired", "蓝牙": "Bluetooth",
+        # Sizes/Interfaces
+        "全尺寸": "100%", "接口": "PCIe"
     }
 }
 
 class ActionFetchProductsWithFilters(Action):
-    """Fetch products from Supabase and filter by category, brand, and price with Chinese support."""
-
     def name(self) -> Text:
         return "action_fetch_products_with_filters"
 
-    def run(
-        self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
-    ) -> List[EventType]:
-        # 1. Detect language from entities provided by LanguageDetector
-        entities = tracker.latest_message.get("entities", [])
-        is_zh = any(e.get("entity") == "lang" and e.get("value") == "zh" for e in entities)
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[EventType]:
+        user_msg = tracker.latest_message.get("text", "").lower()
+        slot_cat = tracker.get_slot("product_category")
+        slot_spec = tracker.get_slot("product_specs")
+        slot_brand = tracker.get_slot("product_brand")
+        slot_price = tracker.get_slot("product_price") # New Slot
+        is_zh = any("\u4e00" <= char <= "\u9fff" for char in user_msg)
 
-        product_category = tracker.get_slot("product_category")
-        product_price = tracker.get_slot("product_price")
-        product_specs_text = tracker.get_slot("product_specs")
-        product_brand = tracker.get_slot("product_brand")
+        # 1. Category Resolution
+        category_target = None
+        if slot_cat:
+            category_target = CHINESE_MAPPING["categories"].get(slot_cat, slot_cat).lower()
+        else:
+            for cn, en in CHINESE_MAPPING["categories"].items():
+                if cn in user_msg: category_target = en; break
 
-        # 2. Chinese Translation/Normalization Layer
-        # Map Chinese user input to English DB values if zh is detected
-        if is_zh:
-            if product_category in CHINESE_MAPPING["categories"]:
-                product_category = CHINESE_MAPPING["categories"][product_category]
-            
-            if product_brand in CHINESE_MAPPING["brands"]:
-                product_brand = CHINESE_MAPPING["brands"][product_brand]
+        # 2. Spec Cleanup
+        spec_keyword = None
+        if slot_spec:
+            clean_val = re.sub(r'(?i)hz|赫兹|刷新率|面板|%|tb|gb|个|布局|ms|毫秒|g|克|寸|英寸|mb/s| ', '', str(slot_spec).lower()).strip()
+            spec_keyword = CHINESE_MAPPING["specs"].get(clean_val, clean_val)
 
-        category_key = product_category.lower() if product_category else None
-        brand_key = _normalize_brand(product_brand)
-
-        # 3. Price Logic
-        lower, upper = 0, float("inf")
-        if product_price:
-            numbers = sorted([float(n) for n in re.findall(r"\d+", product_price)])
-            if numbers:
-                upper = numbers[0] if len(numbers) == 1 else numbers[1]
-                lower = 0 if len(numbers) == 1 else numbers[0]
+        # 3. Price Cleanup (Extracting the max budget)
+        max_budget = None
+        if slot_price:
+            try:
+                # Remove currency symbols and get raw number
+                clean_price = re.sub(r'[^\d.]', '', str(slot_price))
+                max_budget = float(clean_price)
+            except:
+                max_budget = None
 
         try:
+            from actions import _fetch_products, _extract_price, _format_price
             data = _fetch_products()
+            
             if not data:
-                err_msg = "产品搜索服务暂时不可用。" if is_zh else "Product search is unavailable right now."
-                dispatcher.utter_message(text=err_msg)
-                return [SlotSet("product_category", None), SlotSet("product_price", None), 
-                        SlotSet("product_specs", None), SlotSet("product_brand", None)]
+                dispatcher.utter_message(text="Database empty.")
+                return []
 
-            # 4. Filtering Logic
-            filtered_products = []
+            filtered = []
             for item in data:
-                # Category Filter
-                category = str(item.get("category") or "").lower()
-                if category_key and category_key not in category:
-                    continue
+                # --- Brand Filter ---
+                if slot_brand:
+                    if str(slot_brand).lower() not in str(item.get("brand", "")).lower() and \
+                       str(slot_brand).lower() not in str(item.get("title", "")).lower():
+                        continue
 
-                # Brand Filter
-                brand = str(item.get("Brand") or item.get("brand") or "").lower()
-                if brand_key and brand_key not in brand:
-                    continue
+                # --- Category Filter ---
+                db_cat = str(item.get("category", "")).lower()
+                if category_target and category_target not in db_cat:
+                    if not (category_target == "monitor" and "display" in db_cat):
+                        continue
 
-                # Price Filter
-                price = _extract_price(item)
-                if price is None or (product_price and not (lower <= price <= upper)):
-                    continue
+                # --- Price Filter (NEW) ---
+                if max_budget is not None:
+                    item_price = _extract_price(item)
+                    if item_price is None or item_price > max_budget:
+                        continue
 
-                filtered_products.append(item)
+                # --- Strict Spec Matcher ---
+                if spec_keyword:
+                    db_specs = item.get("specs") or {}
+                    if isinstance(db_specs, str):
+                        try: db_specs = json.loads(db_specs)
+                        except: db_specs = {}
 
-            # 5. Response Generation
-            if not filtered_products:
-                if is_zh:
-                    msg = f"未找到符合条件的 {product_brand or ''} {product_category or '产品'}。"
-                else:
-                    msg = f"No products found matching your criteria."
-                dispatcher.utter_message(text=msg)
-            else:
-                intro = "为您找到以下产品：\n" if is_zh else "Here is what I found:\n"
-                product_links = []
-                for item in filtered_products[:5]:
-                    title = (item.get("title") or item.get("name") or "Product").strip()
-                    product_id = item.get("id")
-                    price = _format_price(_extract_price(item))
-                    stock = item.get("quantity_available", 0)
+                    db_values_cleaned = [re.sub(r'(?i)hz|tb|gb|ms| ', '', str(v)).strip() for v in db_specs.values()]
+                    db_title = str(item.get('title', '')).lower()
                     
-                    if is_zh:
-                        stock_msg = f" (有货: {stock})" if stock > 0 else " (无现货)"
-                    else:
-                        stock_msg = f" (In Stock: {stock})" if stock > 0 else " (Out of Stock)"
+                    is_in_specs = spec_keyword in db_values_cleaned
+                    is_in_title = re.search(rf"\b{spec_keyword}\b", db_title, re.IGNORECASE)
+                    if not (is_in_specs or is_in_title):
+                        continue 
 
-                    if product_id:
-                        url = f"{FRONTEND_BASE_URL}/product/{product_id}"
-                        product_links.append(f"- [{title}]({url}) - ${price}{stock_msg}")
-                    else:
-                        product_links.append(f"- {title} - ${price}{stock_msg}")
+                filtered.append(item)
 
-                dispatcher.utter_message(text=intro + "\n".join(product_links))
+            # 4. Final Response with Formatted Links
+            if not filtered:
+                dispatcher.utter_message(text="抱歉，没找到符合条件的产品。" if is_zh else "No matching products found.")
+            else:
+                intro = "为您找到以下产品：\n" if is_zh else "I found these for you:\n"
+                links = []
+                for i in filtered[:5]:
+                    p_id = i.get('id')
+                    title = i.get('title') or "Product"
+                    price = _format_price(_extract_price(i))
+                    url = f"{FRONTEND_BASE_URL}/product/{p_id}"
+                    links.append(f"- [{title}]({url}) - **${price}**")
+                
+                dispatcher.utter_message(text=intro + "\n".join(links))
 
-        except Exception as exc:
-            logger.error(f"Error in action_fetch_products_with_filters: {exc}", exc_info=True)
-            err_ret = "处理请求时出错，请稍后重试。" if is_zh else "Error processing your request. Please try again."
-            dispatcher.utter_message(text=err_ret)
+        except Exception as e:
+            logger.error(f"Search Action Error: {e}")
+            dispatcher.utter_message(text="An error occurred.")
 
-        # 6. Reset Slots
-        return [
-            SlotSet("product_category", None),
-            SlotSet("product_price", None),
-            SlotSet("product_specs", None),
-            SlotSet("product_brand", None),
-        ]
-
-
+        return [SlotSet(s, None) for s in ["product_category", "product_brand", "product_price", "product_specs"]]
+    
 class ActionFetchAllProducts(Action):
     """Fetch and list all products."""
 
@@ -532,9 +503,8 @@ def _call_llm(dispatcher: CollectingDispatcher, endpoint: str, message: str) -> 
             text="I couldn't reach the assistant right now. Please try again."
         )
 
-
 class ActionLLMCompare(Action):
-    """Use LLM for product comparisons."""
+    """Use LLM for product comparisons with bilingual support."""
 
     def name(self) -> Text:
         return "action_llm_compare"
@@ -543,12 +513,22 @@ class ActionLLMCompare(Action):
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
         message = tracker.latest_message.get("text", "")
-        _call_llm(dispatcher, LLM_COMPARE_ENDPOINT, message)
+        
+        # Detect if the input contains Chinese characters
+        is_zh = any("\u4e00" <= char <= "\u9fff" for char in message)
+        
+        # Construct a bilingual-aware prompt
+        if is_zh:
+            prompt = f"你是一位专业的电脑硬件专家。请用中文回答这个对比问题：{message}"
+        else:
+            prompt = f"You are a professional PC hardware expert. Please answer this comparison question in English: {message}"
+        
+        logger.info(f"Calling LLM Compare with prompt: {prompt}")
+        _call_llm(dispatcher, LLM_COMPARE_ENDPOINT, prompt)
         return []
 
-
 class ActionLLMFallback(Action):
-    """Use LLM on NLU fallback for general product guidance."""
+    """Use LLM on NLU fallback for general product guidance with bilingual support."""
 
     def name(self) -> Text:
         return "action_llm_fallback"
@@ -557,12 +537,29 @@ class ActionLLMFallback(Action):
         self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]
     ) -> List[EventType]:
         message = tracker.latest_message.get("text", "")
+        
+        # Detect language
+        is_zh = any("\u4e00" <= char <= "\u9fff" for char in message)
+
         if not _is_product_related(message):
-            dispatcher.utter_message(
-                text="I can help with products, shipping & returns, or FAQs. Which one do you need?"
-            )
+            if is_zh:
+                dispatcher.utter_message(
+                    text="我可以帮您了解产品详情、物流退换货政策或常见问题。请问您需要哪方面的帮助？"
+                )
+            else:
+                dispatcher.utter_message(
+                    text="I can help with products, shipping & returns, or FAQs. Which one do you need?"
+                )
             return []
-        _call_llm(dispatcher, LLM_FALLBACK_ENDPOINT, message)
+
+        # Construct a bilingual-aware prompt for general questions
+        if is_zh:
+            prompt = f"请用中文回答这个关于电脑硬件或购物的问题：{message}"
+        else:
+            prompt = f"Please answer this PC hardware or shopping related question in English: {message}"
+
+        logger.info(f"Calling LLM Fallback with prompt: {prompt}")
+        _call_llm(dispatcher, LLM_FALLBACK_ENDPOINT, prompt)
         return []
 
 

@@ -1,10 +1,14 @@
-language: "en"
+recipe: default.v1
+assistant_id: 20260209-151957-smoggy-contract
+language: "zh"
 
 pipeline:
 - name: custom_components.language_detector.LanguageDetector
-- name: WhitespaceTokenizer
-  intent_tokenization_flag: True
-  use_word_boundaries: False
+
+# 1. Jieba is the standard for Chinese.
+- name: JiebaTokenizer
+
+# 2. These featurizers will now match Jieba perfectly.
 - name: RegexFeaturizer
 - name: LexicalSyntacticFeaturizer
 - name: CountVectorsFeaturizer
@@ -12,31 +16,32 @@ pipeline:
   analyzer: char_wb
   min_ngram: 1
   max_ngram: 4
-- name: LanguageModelFeaturizer
-  model_name: "bert"
-  model_weights: "rasa/LaBSE"
+
+# 3. Instead of LaBSE (which crashes), we use the DIETClassifier 
+# to learn the meaning directly from your NLU examples.
 - name: DIETClassifier
-  epochs: 100
+  epochs: 200
   constrain_similarities: true
-- name: RegexEntityExtractor
+  model_confidence: softmax
+  bilou_flag: true 
+
 - name: EntitySynonymMapper
 - name: ResponseSelector
   epochs: 100
   constrain_similarities: true
+
 - name: FallbackClassifier
-  threshold: 0.7
-  ambiguity_threshold: 0.2
+  threshold: 0.3
 
 policies:
 - name: MemoizationPolicy
 - name: RulePolicy
   core_fallback_threshold: 0.4
-  core_fallback_action_name: "action_default_fallback"
+  core_fallback_action_name: "action_llm_fallback"
   enable_fallback_prediction: true
-- name: UnexpecTEDIntentPolicy
-  max_history: 5
-  epochs: 100
 - name: TEDPolicy
   max_history: 5
   epochs: 100
-assistant_id: 20251203-135032-vertical-stain
+- name: UnexpecTEDIntentPolicy
+  max_history: 5
+  epochs: 100

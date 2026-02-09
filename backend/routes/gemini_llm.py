@@ -93,29 +93,46 @@ def _rate_limited(key: str) -> bool:
 
 
 def _build_prompt(user_text: str, mode: str, catalog_context: str) -> str:
-    if mode == "compare":
-        return (
-            "You are a product expert for this store only. "
-            "Use ONLY the provided store catalog below. "
-            "Do not browse the web or use external knowledge. "
-            "If a requested product is not in the catalog, say it is not available in this store. "
-            "Do not request or use personal data, orders, or payments.\n\n"
-            "Respond in concise markdown. Use bullet points only when listing. "
-            "When recommending, include exact product names from the catalog. "
-            "Use stock, ratings, and promotions when relevant.\n\n"
-            f"Store catalog:\n{catalog_context}\n\n"
-            f"User request: {user_text}"
+    # 1. Detect if the user is asking in Chinese
+    is_zh = any("\u4e00" <= char <= "\u9fff" for char in user_text)
+
+    # 2. Define instructions based on Language and Mode
+    if is_zh:
+        role = "产品专家" if mode == "compare" else "购物助手"
+        personal_data_rule = (
+            "不要请求或使用个人数据、订单或支付信息。" if mode == "compare" else
+            "不要处理个人数据、账户、订单或支付。如果被问及，请拒绝并引导用户登录并联系支持人员。"
         )
+        
+        instruction = (
+            f"你仅为本商店担任{role}。请务必使用中文回答。\n"
+            "仅使用下方提供的商店目录。不要浏览网页或使用外部知识。\n"
+            "如果请求的产品不在目录中，请说明该产品在本店不可用。\n"
+            f"{personal_data_rule}\n\n"
+            "使用简洁的 markdown 回答。仅在列表时使用项目符号。\n"
+            "推荐时，请包含目录中的准确产品名称。\n"
+            "在相关时使用库存、评分和促销信息。"
+        )
+    else:
+        role = "product expert" if mode == "compare" else "shopping assistant"
+        personal_data_rule = (
+            "Do not request or use personal data, orders, or payments." if mode == "compare" else
+            "Do not handle personal data, accounts, orders, or payments. If asked about those, refuse and direct the user to log in and contact support."
+        )
+
+        instruction = (
+            f"You are a {role} for this store only. Respond in English.\n"
+            "Use ONLY the provided store catalog below. Do not browse the web or use external knowledge.\n"
+            "If a requested product is not in the catalog, say it is not available in this store.\n"
+            f"{personal_data_rule}\n\n"
+            "Respond in concise markdown. Use bullet points only when listing.\n"
+            "When recommending, include exact product names from the catalog.\n"
+            "Use stock, ratings, and promotions when relevant."
+        )
+
+    # 3. Return the combined prompt
     return (
-        "You are a shopping assistant for this store only. "
-        "Use ONLY the provided store catalog below. "
-        "Do not browse the web or use external knowledge. "
-        "If a requested product is not in the catalog, say it is not available in this store. "
-        "Do not handle personal data, accounts, orders, or payments. "
-        "If asked about those, refuse and direct the user to log in and contact support.\n\n"
-        "Respond in concise markdown. Use bullet points only when listing. "
-        "When recommending, include exact product names from the catalog. "
-        "Use stock, ratings, and promotions when relevant.\n\n"
+        f"{instruction}\n\n"
         f"Store catalog:\n{catalog_context}\n\n"
         f"User request: {user_text}"
     )

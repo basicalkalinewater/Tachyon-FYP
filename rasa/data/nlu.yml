@@ -4,6 +4,10 @@ nlu:
     examples: |
       - [zh](lang)
       - [en](lang)
+      - 中文
+      - 英文
+      - 切换到[中文](lang)
+      - switch to [en](lang)
 
   - regex: product_price
     examples: |
@@ -11,6 +15,8 @@ nlu:
       - (?i)\b(?:over|above|more than|at least|>=?)\s*\$?\d+\b
       - (?i)\b\$?\d+\s*-\s*\$?\d+\b
       - (?i)\bbetween\s*\$?\d+\s*(?:and|to)\s*\$?\d+\b
+      - \d+\s*(?:元|块|以内|以下|左右)
+
   - lookup: product_category
     examples: |
       - keyboard
@@ -30,6 +36,10 @@ nlu:
       - 鼠标
       - 显示器
       - 固态硬盘
+      - 硬盘
+      - 耳机
+      - 音箱
+
   - lookup: product_specs
     examples: |
       - wireless
@@ -69,9 +79,35 @@ nlu:
       - gaming
       - 1tb
       - 2tb
+      - 27 inch
+      - 32 inch
+      - 34 inch
+      - 1ms
+      - low profile
+      - num pad
+      - 7000
+      - 5000
+      - 2000hz
+      - 1000hz
+      - lightspeed
+      - analog
+      - hdr
+      - 165hz
+      - pixart 3395
+      - rtx
+      - 无线
+      - 有线
+      - 蓝牙
+      - 机械
+      - 矮轴
+      - 热插拔
+      - 全尺寸
+      - 降噪
+
   - regex: product_brand
     examples: |
       - (?i)\b(?:brand|from|by)\s+([a-z0-9][a-z0-9&\-]{1,30})(?:\s+[a-z0-9][a-z0-9&\-]{1,30}){0,2}\b
+
   - lookup: product_brand
     examples: |
       - Logitech
@@ -97,59 +133,80 @@ nlu:
       - 雷蛇
       - 外星人
       - 西数
+
   - synonym: tkl
     examples: |
       - tenkeyless
       - ten key less
       - t k l
+      - 80%键盘
+      - 87键
+
   - synonym: 65%
     examples: |
       - 65 percent
       - 65 pct
+
   - synonym: 75%
     examples: |
       - 75 percent
       - 75 pct
+
   - synonym: full size
     examples: |
       - full-size
       - fullsize
+      - 全尺寸
+
   - synonym: hot swap
     examples: |
       - hotswap
       - hot-swappable
       - hot swappable
+      - 热插拔
+
   - synonym: wireless
     examples: |
       - wireless connection
       - cordless
+      - 无线
+
   - synonym: bluetooth
     examples: |
       - bt
+      - 蓝牙
+
   - synonym: ultralight
     examples: |
       - ultra light
+      - 轻量化
+
   - synonym: keyboard
     examples: |
       - keybaord
       - 键盘
       - 机械键盘
-  - synonym: monitor
+      - 板子
+
+  - synonym: 
     examples: |
       - moniter
       - 显示器
       - 屏幕
       - 监视器
+
   - synonym: mouse
     examples: |
       - mous
       - 鼠标
       - 滑鼠
+
   - synonym: ssd
     examples: |
       - SSD
       - 固态硬盘
       - 固态盘
+
   - intent: greet
     examples: |
       - hi
@@ -171,7 +228,7 @@ nlu:
       - greetings
       - hiya
       - heyyo
-      - heyy
+      - heyyo
       - hello!
       - hey!
       - hi!
@@ -179,6 +236,14 @@ nlu:
       - helo
       - helloo
       - howdy
+      - 你好
+      - 嗨
+      - 在吗
+      - 早上好
+      - 午安
+      - 晚上好
+      - 哈喽
+
   - intent: thanks
     examples: |
       - thanks
@@ -189,6 +254,11 @@ nlu:
       - cheers
       - appreciate it
       - appreciate your help
+      - 谢谢
+      - 多谢
+      - 麻烦你了
+      - 感恩
+
   - intent: goodbye
     examples: |
       - bye
@@ -216,6 +286,11 @@ nlu:
       - gotta go
       - got to go
       - brb
+      - 再见
+      - 拜拜
+      - 走了
+      - 晚安
+
   - intent: fetch_all_products
     examples: |
       - Show me all products
@@ -239,6 +314,12 @@ nlu:
       - all products pls
       - list all stock
       - show inventory
+      - 看看所有产品
+      - 我想看你们卖什么
+      - 列出全部商品
+      - 产品列表
+      - 展示所有东西
+
   - intent: fetch_products_with_filters
     examples: |
       - Show me [monitor](product_category)
@@ -312,6 +393,11 @@ nlu:
       - Do you have any [Razer](product_brand) products?
       - Show me products from [Logitech](product_brand)
       - I want to see [Dell](product_brand) items
+      - I want to buy a [monitor](product_category)
+      - I want to buy [monitors](product_category)
+      - looking for [keyboards](product_category)
+      - do you have any [ssd](product_category)
+      - show me [mice](product_category)
       - List all [LG](product_brand) products
       - Can I see products under [300](product_price)?
       - Show me items below [150](product_price)
@@ -410,7 +496,7 @@ nlu:
       - [keyboard](product_category) around [120](product_price)
       - [mouse](product_category) around [60](product_price)
       - [ssd](product_category) around [150](product_price)
-      - any [monitor](product_category) under [400](product_price)?
+      - [any monitor](product_category) under [400](product_price)?
       - any [keyboard](product_category) below [150](product_price)?
       - any [mouse](product_category) under [100](product_price)?
       - any [ssd](product_category) under [200](product_price)?
@@ -430,14 +516,23 @@ nlu:
       - Show me a [Dell](product_brand) keyboard below [200](product_price) that has [Tactile](product_specs) switches
       - I want a [Samsung](product_brand) ssd in the [250-400](product_price) range with [PCIe 4.0](product_specs) interface
       - Do you have a [Logitech](product_brand) mouse under [150](product_price) with [2000](product_specs) polling_hz?
-      - I want a [Logitech](product_brand) keyboard(product_category) under [200](product_price) that has [Wireless](product_specs) connection
-      - Show me a [Dell](product_brand) monitor(product_category) below [500](product_price) with [1920x1080](product_specs) resolution
-      - Find me a [Samsung](product_brand) ssd(product_category) in the [300-400](product_price) range with [PCIe 4.0](product_specs) interface
-      - Do you have a [Razer](product_brand) mouse(product_category) under [150](product_price) with [2000](product_specs) polling_hz?
+      - I want a [Logitech](product_brand) [keyboard](product_category) under [200](product_price) that has [Wireless](product_specs) connection
+      - Show me a [Dell](product_brand) [monitor](product_category) below [500](product_price) with [1920x1080](product_specs) resolution
+      - Find me a [Samsung](product_brand) [ssd](product_category) in the [300-400](product_price) range with [PCIe 4.0](product_specs) interface
+      - Do you have a [Razer](product_brand) [mouse](product_category) under [150](product_price) with [2000](product_specs) polling_hz?
       - Give me [monitor](product_category) from [Dell](product_brand) under [500](product_price) with [1920x1080](product_specs) resolution
       - I want a [keyboard](product_category) from [Logitech](product_brand) below [200](product_price) that has [Wireless](product_specs) connection
       - I want to buy [Wireless](product_specs) [mouse](product_category) from [Razer](product_brand) under [150](product_price)
       - Show me [ssd](product_category) with [PCIe 4.0](product_specs) from [Samsung](product_brand) in the [300-400](product_price) range
+      - 我想买[雷蛇](product_brand)的[键盘](product_category)
+      - 看看[雷蛇](product_brand)[键盘](product_category)
+      - 找一个[雷蛇](product_brand)的[鼠标](product_category)
+      - 有没有[罗技](product_brand)的[显示器](product_category)
+      - 帮我找[华硕](product_brand)的[固态硬盘](product_category)
+      - [三星](product_brand)的[键盘](product_category)
+      - [戴尔](product_brand)
+      - [鼠标](product_category)
+      - 我要买[键盘](product_category)
       - 我要[罗技](product_brand)的[鼠标](product_category)
       - 我想看看[雷蛇](product_brand)的[键盘](product_category)
       - 帮我找找[戴尔](product_brand)的[显示器](product_category)
@@ -447,6 +542,51 @@ nlu:
       - 你们有卖什么[键盘](product_category)
       - [罗技](product_brand)[鼠标](product_category)
       - [雷蛇](product_brand)[键盘](product_category)
+      - [无线](product_specs)[耳机](product_category)
+      - [三星](product_brand)的[1TB](product_specs)[固态硬盘](product_category)
+      - 帮我找一个[65%布局](product_specs)的[键盘](product_category)
+      - 有没有[罗技](product_brand)的[无线](product_specs)[鼠标](product_category)
+      - 想要个[热插拔](product_specs)的[键盘](product_category)
+      - 搜索[4k](product_specs)[显示器](product_category)
+      - 找个[轻量化](product_specs)的[鼠标](product_category)
+      - [240](product_specs)赫兹
+      - [240](product_specs)刷新率的显示器
+      - [240](product_specs)赫兹的显示器
+      - [360](product_specs)赫兹屏幕
+      - 我要买[360](product_specs)赫兹的显示器
+      - 我要找[240](product_specs)刷新率的显示器
+      - 我想看看[240](product_specs)赫兹的显示器
+      - 帮我找个[240](product_specs)赫兹的显示器
+      - 你们有卖[360](product_specs)赫兹的显示器吗
+      - 找个[54](product_specs)克的[鼠标](product_category)
+      - 有没有[8000](product_specs)回报率的[鼠标](product_category)
+      - 想要[轻量化](product_specs)的[鼠标](product_category)
+      - [1000](product_specs)gb的[固态硬盘](product_category)
+      - [2000](product_specs)gb的[硬盘](product_category)
+      - 读速[7450](product_specs)mb/s的[固态](product_category)
+      - [pcie 5.0](product_specs)的[硬盘](product_category) 
+      - [27](product_specs)寸的[显示器](product_category)
+      - [24.5](product_specs)英寸的[屏幕](product_category)
+      - [IPS](product_specs)面板的[显示器](product_category)
+      - [480](product_specs)赫兹的[显示器](product_category)
+      - [1080p](product_specs)分辨率的[屏幕](product_category)
+      - [机械](product_specs)轴的[键盘](product_category)
+      - [矮轴](product_specs)的[键盘](product_category)
+      - [无线](product_specs)连接的[鼠标](product_category)
+      - [蓝牙](product_specs)的[键盘](product_category)
+      - [罗技](product_brand)的[无线](product_specs)鼠标
+      - [雷蛇](product_brand)的[机械](product_specs)键盘
+      - [三星](product_brand)的[pcie 4.0](product_specs)固态硬盘
+      - [1000](product_price)块以内的产品
+      - 我想买[600](product_price)以下的[无线](product_specs)[鼠标](product_category)
+      - 你们有[1000](product_price)以内[240](product_specs)赫兹刷新率的[ips](product_specs)[屏幕](product_category)吗
+      - [500](product_price)元以下的[ssd](product_category)
+      - 找个[3000](product_price)块以下的[27](product_specs)寸[显示器](product_category)
+      - 我想要个[200](product_price)块以下的[机械](product_specs)[键盘](product_category)
+      - 有没有[150](product_price)以内的[轻量化](product_specs)[鼠标](product_category)
+      - 给我看看[400](product_price)以下的[键盘](product_category)
+      - 帮我找个[250](product_price)块以下的[ssd](product_category)
+
   - intent: product_compare
     examples: |
       - compare [Logitech G Pro X Superlight](product_brand) vs [Razer Viper V2 Pro](product_brand)
@@ -481,6 +621,12 @@ nlu:
       - which [keyboard](product_category) is quieter?
       - is [bluetooth](product_specs) or [wireless](product_specs) better for keyboard?
       - should I get [tkl](product_specs) or [65 percent](product_specs) keyboard for gaming?
+      - [罗技](product_brand)和[雷蛇](product_brand)哪个好？
+      - [三星990 Pro](product_brand)对比[西数黑盘](product_brand)
+      - 打游戏买[144hz](product_specs)还是[240hz](product_specs)好？
+      - [4k](product_specs)和[2k](product_specs)区别大吗
+      - [IPS](product_specs)还是[OLED](product_specs)屏更好？
+
   - intent: out_of_scope
     examples: |
       - I love you
@@ -498,6 +644,10 @@ nlu:
       - what time is it
       - play music
       - do you like me
+      - 讲个笑话
+      - 谁是世界上最帅的人
+      - 今天天气怎么样
+
   - intent: faq_link
     examples: |
       - Where can I find more information?
@@ -507,6 +657,9 @@ nlu:
       - Where is the FAQ page?
       - faq
       - FAQs
+      - 常见问题在哪里
+      - 有FAQ吗
+
   - intent: faq/returns
     examples: |
       - what is your return policy
@@ -514,19 +667,33 @@ nlu:
       - can I get a refund
       - return window
       - returns policy
+      - 怎么退货
+      - 退换货政策
+      - 可以退款吗
+      - 退货窗口期是多久
+
   - intent: faq/shipping
     examples: |
       - how long is shipping
       - shipping time
       - delivery time
-      - when will my order arrive
       - shipping speed
+      - 多久发货
+      - 快递要几天
+      - 什么时候能送到
+
   - intent: faq/warranty
     examples: |
       - do you have warranty
       - warranty policy
       - product warranty
       - how long is the warranty
+      - 保修多久
+      - 保修
+      - 质保政策
+      - 产品保修
+
+
   - intent: shipping_info
     examples: |
       - shipping info
@@ -537,6 +704,17 @@ nlu:
       - delivery time
       - when will my order arrive
       - tell me about shipping
+      - 运费信息
+      - 配送详情
+      - 运输信息
+      - 送货时间
+      - 我的订单什么时候到
+      - 运费多少
+      - 发货信息
+      - 配送员电话
+      - 快递员电话
+
+
   - intent: restricted_request
     examples: |
       - order status
@@ -573,6 +751,11 @@ nlu:
       - account help
       - I need support with my account
       - my account is locked
+      - 订单查询
+      - 我的货物在哪
+      - 修改订单
+      - 退款申请
+
   - intent: return_policy_link
     examples: |
       - What is your return policy?
@@ -581,6 +764,10 @@ nlu:
       - Where can I find the return policy?
       - return policy
       - returns
+      - 退货政策
+      - 怎么退货
+      - 我想退货
+
   - intent: request_live_agent
     examples: |
       - I want to speak with a live agent
@@ -596,4 +783,8 @@ nlu:
       - get me a real person
       - I want human support
       - route me to an agent
-
+      - 找人工
+      - 转人工服务
+      - 呼叫客服
+      - 我要和真人聊
+      - 我要找人工客服

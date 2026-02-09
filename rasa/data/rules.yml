@@ -1,57 +1,6 @@
 version: "3.1"
 
 rules:
-  - rule: Fetch all products without filters
-    steps:
-      - intent: fetch_all_products
-      - action: action_fetch_all_products
-
-  - rule: Activate product filter form
-    steps:
-      - intent: fetch_products_with_filters
-      - action: product_filter_form
-      - active_loop: product_filter_form
-
-  - rule: Submit product filter form
-    steps:
-      - action: product_filter_form
-      - active_loop: null
-      - action: action_fetch_products_with_filters
-
-  - rule: Provide FAQ link
-    steps:
-      - intent: faq_link
-      - action: action_faq_link
-
-  - rule: Answer FAQ
-    steps:
-      - intent: faq
-      - action: utter_faq
-
-  - rule: Provide return policy link
-    steps:
-      - intent: return_policy_link
-      - action: action_return_policy_link
-
-  - rule: Handoff to live agent
-    steps:
-      - intent: request_live_agent
-      - action: action_handoff_to_agent
-
-  - rule: Product comparison via LLM
-    steps:
-      - intent: product_compare
-      - action: action_llm_compare
-
-  - rule: Forward messages during handoff
-    condition:
-      - slot_was_set:
-          - handoff_active: true
-    steps:
-      - intent: nlu_fallback
-      - action: action_forward_to_agent
-      - action: action_listen
-
   - rule: Greet user
     steps:
       - intent: greet
@@ -67,24 +16,53 @@ rules:
       - intent: goodbye
       - action: utter_goodbye
 
+  # --- PRODUCT SEARCH LOGIC ---
+  # Combined Rule: This handles BOTH full sentences and partial ones.
+  # If entities are missing, the Action/Form will handle the follow-up.
+  - rule: Handle product search with filters
+    steps:
+      - intent: fetch_products_with_filters
+      - action: action_fetch_products_with_filters
+
+  - rule: Fetch all products without filters
+    steps:
+      - intent: fetch_all_products
+      - action: action_fetch_all_products
+
+  # --- FAQ & INFO ---
+  - rule: Answer FAQ
+    steps:
+      - intent: faq
+      - action: utter_faq
+
+  - rule: Provide FAQ link
+    steps:
+      - intent: faq_link
+      - action: action_faq_link
+
+  - rule: Provide return policy link
+    steps:
+      - intent: return_policy_link
+      - action: action_return_policy_link
+
   - rule: Provide shipping info
     steps:
       - intent: shipping_info
       - action: action_shipping_info_link
 
-  - rule: Restricted request
+  # --- AGENT HANDOFF ---
+  - rule: Handoff to live agent
     steps:
-      - intent: restricted_request
-      - action: utter_restricted_request
-  - rule: Out of scope
-    steps:
-      - intent: out_of_scope
-      - action: utter_out_of_scope
+      - intent: request_live_agent
+      - action: action_handoff_to_agent
 
-  - rule: Fallback
+  - rule: Forward messages during handoff
+    condition:
+      - slot_was_set:
+          - handoff_active: true
     steps:
       - intent: nlu_fallback
-      - action: action_llm_fallback
+      - action: action_forward_to_agent
       - action: action_listen
 
   - rule: Reset handoff when user says goodbye
@@ -95,4 +73,26 @@ rules:
       - intent: goodbye
       - action: action_reset_handoff
       - action: utter_goodbye
+      - action: action_listen
+
+  # --- ADVANCED & FALLBACK ---
+  - rule: Product comparison via LLM
+    steps:
+      - intent: product_compare
+      - action: action_llm_compare
+
+  - rule: Restricted request
+    steps:
+      - intent: restricted_request
+      - action: utter_restricted_request
+
+  - rule: Out of scope
+    steps:
+      - intent: out_of_scope
+      - action: utter_out_of_scope
+
+  - rule: Fallback
+    steps:
+      - intent: nlu_fallback
+      - action: action_llm_fallback
       - action: action_listen
