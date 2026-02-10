@@ -417,13 +417,7 @@ const Navbar = () => {
                   onClick={() => setIsCartOpen(true)}
                 >
                   <i className="fa fa-shopping-cart" />
-                  <span className="d-none d-md-inline">Cart</span>
-                  {cartCount > 0 && (
-                    <span className="position-absolute top-0 start-100 translate-middle badge cart-badge">
-                      {cartCount}
-                      <span className="visually-hidden">items in cart</span>
-                    </span>
-                  )}
+                  <span>{cartCount > 0 ? `Cart (${cartCount})` : "Cart"}</span>
                 </button>
               )}
             </div>
