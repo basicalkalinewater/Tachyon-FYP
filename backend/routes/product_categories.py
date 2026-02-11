@@ -1,6 +1,11 @@
 import re
 from flask import Blueprint, current_app, jsonify, request
 
+try:
+    from ..utils.auth_middleware import require_session
+except ImportError:
+    from utils.auth_middleware import require_session
+
 product_categories_bp = Blueprint("product_categories", __name__)
 admin_product_categories_bp = Blueprint("admin_product_categories", __name__)
 
@@ -24,6 +29,7 @@ def list_categories():
 
 
 @admin_product_categories_bp.post("/product-categories")
+@require_session(allowed_roles=["admin"])
 def create_category():
     supabase = current_app.config["SUPABASE"]
     payload = request.get_json(silent=True) or {}
@@ -53,6 +59,7 @@ def create_category():
 
 
 @admin_product_categories_bp.delete("/product-categories/<category_id>")
+@require_session(allowed_roles=["admin"])
 def delete_category(category_id):
     supabase = current_app.config["SUPABASE"]
     existing = (

@@ -198,17 +198,19 @@ def update_admin_profile():
 
 
 @auth_bp.post("/profile/update")
+@require_session(allowed_roles=["support", "admin"])
 @maybe_limit("30 per minute")
 def update_profile():
     """Allow an agent to update email/password and display name."""
     supabase = current_app.config["SUPABASE"]
     try:
         payload = request.get_json(force=True) or {}
-        user_id = payload.get("user_id")
+        current_user = getattr(g, "current_user", {}) or {}
+        user_id = current_user.get("id")
         email = (payload.get("email") or "").strip().lower()
         password = payload.get("password")
         full_name = (payload.get("fullName") or "").strip()
-        role = payload.get("role") or ""
+        role = current_user.get("role") or ""
 
         if not user_id:
             return jsonify({"error": "user_id is required"}), 400

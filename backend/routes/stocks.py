@@ -1,10 +1,16 @@
 from flask import Blueprint, current_app, jsonify, request
 import logging
 
+try:
+    from ..utils.auth_middleware import require_session
+except ImportError:
+    from utils.auth_middleware import require_session
+
 stocks_bp = Blueprint("stocks", __name__)
 
 # Matches: GET /api/admin/stocks/ (Called by admin.js listProductStockView)
 @stocks_bp.get("/")
+@require_session(allowed_roles=["admin"])
 def get_inventory_view():
     supabase = current_app.config.get("SUPABASE")
     try:
@@ -15,6 +21,7 @@ def get_inventory_view():
 
 # Matches: POST /api/admin/stocks/adjust/ (Matches admin.js adjustStock)
 @stocks_bp.post("/adjust/")
+@require_session(allowed_roles=["admin"])
 def adjust_stock():
     supabase = current_app.config.get("SUPABASE")
     try:
@@ -41,6 +48,7 @@ def adjust_stock():
         return jsonify({"error": str(err)}), 500
     
 @stocks_bp.patch("/<product_id>")
+@require_session(allowed_roles=["admin"])
 def update_stock_settings(product_id):
     supabase = current_app.config.get("SUPABASE")
     try:

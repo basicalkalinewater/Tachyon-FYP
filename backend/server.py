@@ -10,6 +10,7 @@ from werkzeug.exceptions import HTTPException
 # 1. IMPORT BLUEPRINTS
 try:
     from .supabase_client import get_supabase
+    from .limiter import init_limiter
     from .routes.stocks import stocks_bp
     from .routes.products import products_bp
     from .routes.carts import carts_bp
@@ -30,6 +31,7 @@ try:
     # Import other blueprints as needed
 except ImportError:
     from supabase_client import get_supabase
+    from limiter import init_limiter
     from routes.stocks import stocks_bp
     from routes.products import products_bp
     from routes.carts import carts_bp
@@ -55,6 +57,7 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.url_map.strict_slashes = False
+    init_limiter(app)
     
     # 3. CORS CONFIGURATION (Fixes 401 Unauthorized)
     allowed_origin = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
