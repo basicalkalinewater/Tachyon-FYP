@@ -69,11 +69,11 @@ class RateLimitedRestInput(RestInput):
                 "Access-Control-Allow-Credentials": "true",
             }
 
-        @bp.options("/webhooks/rest/webhook")
+        @bp.options("/webhook")
         async def preflight(request: Request):
             return response.text("", headers=_cors_headers(request), status=204)
 
-        @bp.post("/webhooks/rest/webhook")
+        @bp.post("/webhook")
         async def receive(request: Request):
             if len(request.body or b"") > self.max_body:
                 return response.json({"error": "Payload too large"}, status=413, headers=_cors_headers(request))
