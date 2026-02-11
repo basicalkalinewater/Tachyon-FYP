@@ -60,10 +60,23 @@ class RateLimitedRestInput(RestInput):
 
         bp = Blueprint("ratelimited_rest", __name__)
 
+        def _cors_headers(request: Request) -> Dict[str, str]:
+            origin = request.headers.get("origin", "*")
+            return {
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+                "Access-Control-Allow-Credentials": "true",
+            }
+
+        @bp.options("/webhooks/rest/webhook")
+        async def preflight(request: Request):
+            return response.text("", headers=_cors_headers(request), status=204)
+
         @bp.post("/webhooks/rest/webhook")
         async def receive(request: Request):
             if len(request.body or b"") > self.max_body:
-                return response.json({"error": "Payload too large"}, status=413)
+                return response.json({"error": "Payload too large"}, status=413, headers=_cors_headers(request))
 
             payload = request.json or {}
             sender_id = payload.get("sender") or payload.get("sender_id") or "anonymous"
@@ -71,12 +84,12 @@ class RateLimitedRestInput(RestInput):
 
             key = f"{sender_id}"
             if not self._allow(key):
-                return response.json({"error": "Too many requests"}, status=429)
+                return response.json({"error": "Too many requests"}, status=429, headers=_cors_headers(request))
 
             if not text or not isinstance(text, str):
-                return response.json({"error": "Message text is required"}, status=400)
+                return response.json({"error": "Message text is required"}, status=400, headers=_cors_headers(request))
             if len(text) > 1000:
-                return response.json({"error": "Message too long"}, status=413)
+                return response.json({"error": "Message too long"}, status=413, headers=_cors_headers(request))
 
             metadata = payload.get("metadata") or {}
 
@@ -91,6 +104,6 @@ class RateLimitedRestInput(RestInput):
                     metadata=metadata,
                 )
             )
-            return response.json(collector.messages)
+            return response.json(collector.messages, headers=_cors_headers(request))
 
         return bp
