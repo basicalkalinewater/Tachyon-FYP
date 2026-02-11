@@ -87,6 +87,7 @@ const RasaWidget = () => {
   const [csatFeedback, setCsatFeedback] = useState("");
   const [csatSubmitting, setCsatSubmitting] = useState(false);
   const [csatSubmitted, setCsatSubmitted] = useState(false);
+  const [csatSessionId, setCsatSessionId] = useState(null);
   const senderId = currentUser?.id || null;
   const historyKey = senderId ? `chat_history:${senderId}` : null;
   const historyMetaKey = senderId ? `chat_history_meta:${senderId}` : null;
@@ -203,6 +204,7 @@ const RasaWidget = () => {
         setAgentName(name);
       }
       if (sessionStatus === "closed") {
+        setCsatSessionId(sessId);
         setMode("bot");
         setAgentReady(false);
         setQueueInfo(null);
@@ -272,6 +274,7 @@ const RasaWidget = () => {
           if (data?.data?.session_id) {
             setMode("agent");
             setSessionId(data.data.session_id);
+            setCsatSessionId(data.data.session_id);
             setAgentReady(data.data.status === "in_progress");
             fetchSessionMessages(data.data.session_id);
             setHydrating(false);
@@ -284,6 +287,7 @@ const RasaWidget = () => {
       // Fallback: try the last stored session id
       setMode("agent");
       setSessionId(storedSessionId);
+      setCsatSessionId(storedSessionId);
       setAgentReady(true);
       fetchSessionMessages(storedSessionId);
       setHydrating(false);
@@ -306,6 +310,7 @@ const RasaWidget = () => {
         setQueueInfo(data.data);
         if (data.data.session_id && !sessionId) {
           setSessionId(data.data.session_id);
+          setCsatSessionId(data.data.session_id);
           localStorage.setItem("support_session_id", data.data.session_id);
         }
         const ready = data.data.status === "in_progress";
@@ -393,10 +398,16 @@ const RasaWidget = () => {
   };
 
   const submitCsat = async () => {
-    if (!sessionId || !csatRating) return;
+    const targetSessionId = sessionId || csatSessionId;
+    if (!targetSessionId || !csatRating) {
+      if (!targetSessionId) {
+        appendMessage("bot", "Couldn't identify the session for your feedback. Please try again.");
+      }
+      return;
+    }
     setCsatSubmitting(true);
     try {
-      await fetch(`${SUPPORT_SESSIONS_URL}/${sessionId}/csat`, {
+      await fetch(`${SUPPORT_SESSIONS_URL}/${targetSessionId}/csat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating: csatRating, feedback: csatFeedback }),
@@ -418,6 +429,10 @@ const RasaWidget = () => {
     setAgentReady(false);
     setQueueInfo(null);
     setSessionId(null); // reset any previous closed session
+    setCsatSessionId(null);
+    setCsatSubmitted(false);
+    setCsatRating(0);
+    setCsatFeedback("");
     setMode("agent");
     setSending(true);
     try {
@@ -435,6 +450,7 @@ const RasaWidget = () => {
       const ticketNum = data?.data?.ticket_number;
       if (newSessionId) {
         setSessionId(newSessionId);
+        setCsatSessionId(newSessionId);
         localStorage.setItem("support_session_id", newSessionId);
         if (ticketNum) appendMessage("bot", `Ticket ${ticketNum} created.`);
         setAgentReady(true); // allow messaging immediately; backend will queue if not yet claimed
