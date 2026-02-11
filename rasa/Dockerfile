@@ -9,4 +9,4 @@ RUN chown -R 1001:0 /app
 USER 1001
 EXPOSE 5005
 ENTRYPOINT ["/bin/sh","-c"]
-CMD ["rasa run actions --host 127.0.0.1 --port 5055 & exec rasa run --enable-api --connector rest --cors '*' --credentials /app/credentials.yml --port ${PORT:-5005} --model /app/models/current.tar.gz"]
+CMD ["python /app/run_action_server.py & exec rasa run --enable-api --connector rest --cors '*' --credentials /app/credentials.yml --port ${PORT:-5005} --model /app/models/current.tar.gz"]
