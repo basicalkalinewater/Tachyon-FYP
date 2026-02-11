@@ -3,12 +3,16 @@ version: "3.1"
 intents:
   - greet
   - thanks
+  - end_conversation
   - goodbye
   - fetch_all_products
   - fetch_products_with_filters
   - product_compare
   - shipping_info
   - faq
+  - faq/returns
+  - faq/shipping
+  - faq/warranty
   - faq_link
   - return_policy_link
   - request_live_agent
@@ -84,6 +88,14 @@ responses:
       text: "不客气！还有其他我可以帮您的吗？"
     - text: "You're welcome! Anything else I can help with?"
 
+  utter_end_conversation:
+    - condition:
+        - name: lang
+          type: value
+          value: "zh"
+      text: "好的，已为您处理完毕。如需更多帮助，随时告诉我。"
+    - text: "Great, glad I could help. If you need anything else later, just ask."
+
   utter_goodbye:
     - condition:
         - name: lang
@@ -156,6 +168,30 @@ responses:
           type: value
           value: "zh"
       text: "我可以回答一些常见问题。您想了解什么？"
+
+  utter_faq/returns:
+    - text: "You can read our returns policy here: [Returns & Refunds]({link})"
+    - condition:
+        - name: lang
+          type: value
+          value: "zh"
+      text: "您可以在这里查看退货与退款政策：[退货与退款]({link})"
+
+  utter_faq/shipping:
+    - text: "You can read shipping and delivery details here: [Shipping & Returns]({link})"
+    - condition:
+        - name: lang
+          type: value
+          value: "zh"
+      text: "您可以在这里查看配送与运输说明：[配送与退货]({link})"
+
+  utter_faq/warranty:
+    - text: "Warranty details are listed on our policy pages. You can start here: [FAQ]({link})"
+    - condition:
+        - name: lang
+          type: value
+          value: "zh"
+      text: "保修详情在政策页面中可查看，可先从这里开始：[常见问题]({link})"
 
   utter_out_of_scope:
     - text: "I'm sorry, I'm built to help with store and product inquiries. I might not be able to help with that."

@@ -11,6 +11,11 @@ rules:
       - intent: thanks
       - action: utter_thanks
 
+  - rule: End conversation
+    steps:
+      - intent: end_conversation
+      - action: utter_end_conversation
+
   - rule: Say goodbye
     steps:
       - intent: goodbye
@@ -34,6 +39,21 @@ rules:
     steps:
       - intent: faq
       - action: utter_faq
+
+  - rule: Answer FAQ returns
+    steps:
+      - intent: faq/returns
+      - action: utter_faq/returns
+
+  - rule: Answer FAQ shipping
+    steps:
+      - intent: faq/shipping
+      - action: utter_faq/shipping
+
+  - rule: Answer FAQ warranty
+    steps:
+      - intent: faq/warranty
+      - action: utter_faq/warranty
 
   - rule: Provide FAQ link
     steps:
@@ -73,6 +93,16 @@ rules:
       - intent: goodbye
       - action: action_reset_handoff
       - action: utter_goodbye
+      - action: action_listen
+
+  - rule: Reset handoff when user ends conversation
+    condition:
+      - slot_was_set:
+          - handoff_active: true
+    steps:
+      - intent: end_conversation
+      - action: action_reset_handoff
+      - action: utter_end_conversation
       - action: action_listen
 
   # --- ADVANCED & FALLBACK ---

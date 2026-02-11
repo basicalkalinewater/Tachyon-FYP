@@ -188,7 +188,7 @@ nlu:
       - 机械键盘
       - 板子
 
-  - synonym: 
+  - synonym: monitor
     examples: |
       - moniter
       - 显示器
@@ -258,6 +258,45 @@ nlu:
       - 多谢
       - 麻烦你了
       - 感恩
+
+  - intent: end_conversation
+    examples: |
+      - that's all
+      - thats all
+      - that'll be all
+      - thatll be all
+      - that is all
+      - all good
+      - all set
+      - i'm all set
+      - im all set
+      - no that's all
+      - no thats all
+      - no more questions
+      - nothing else
+      - nothing else for now
+      - that's it
+      - thats it
+      - that's it for now
+      - done
+      - we're done
+      - i am done
+      - okay that's all
+      - ok that's all
+      - thanks that's all
+      - thank you that's all
+      - 就这样
+      - 就这样吧
+      - 就这些
+      - 就这些了
+      - 没有其他问题了
+      - 暂时没有了
+      - 不用了谢谢
+      - 好了谢谢
+      - 我没问题了
+      - 没问题了
+      - 结束吧
+      - 先这样吧
 
   - intent: goodbye
     examples: |
@@ -706,7 +745,6 @@ nlu:
       - shipping information
       - how much is shipping
       - shipping cost
-      - delivery time
       - when will my order arrive
       - tell me about shipping
       - 运费信息
@@ -763,15 +801,15 @@ nlu:
 
   - intent: return_policy_link
     examples: |
-      - What is your return policy?
-      - How do I return a product?
-      - Can you provide information on returns?
-      - Where can I find the return policy?
-      - return policy
-      - returns
-      - 退货政策
-      - 怎么退货
-      - 我想退货
+      - return policy link
+      - returns policy link
+      - link to return policy
+      - where can I find the return policy page?
+      - show return policy page
+      - where is the returns page
+      - 退货政策链接
+      - 退货页面在哪里
+      - 我想看退货政策页面
 
   - intent: request_live_agent
     examples: |

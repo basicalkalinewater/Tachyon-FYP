@@ -27,16 +27,19 @@ live_cust_support_bp = Blueprint("live_cust_support", __name__)
 @sock.route("/support/sessions/<session_id>/ws")
 def stream_session_ws(ws, session_id):
     """WebSocket stream of new messages for a session."""
+    current_app.logger.info("[ws] connect attempt session_id=%s", session_id)
     try:
         # Auth via session token (query param; browsers can't set WS headers).
         token = (request.args.get("token") or request.args.get("sessionToken") or "").strip()
         if not token:
+            current_app.logger.warning("[ws] missing token session_id=%s", session_id)
             ws.close(code=1008, reason="missing token")
             return
 
         supabase = current_app.config["SUPABASE"]
         session_row, err = session_service.get_session(supabase, token)
         if err or not session_row:
+            current_app.logger.warning("[ws] invalid session session_id=%s err=%s", session_id, err)
             ws.close(code=1008, reason="invalid session")
             return
 
@@ -47,9 +50,12 @@ def stream_session_ws(ws, session_id):
         except Exception as exc:
             role = None
         if role not in ("support", "admin"):
+            current_app.logger.warning("[ws] forbidden role=%s session_id=%s", role, session_id)
             ws.close(code=1008, reason="forbidden role")
             return
+        current_app.logger.info("[ws] connected session_id=%s role=%s", session_id, role)
     except Exception as exc:
+        current_app.logger.exception("[ws] handshake error session_id=%s", session_id)
         try:
             ws.close(code=1011, reason="server error")
         except Exception:
@@ -66,6 +72,7 @@ def stream_session_ws(ws, session_id):
             time.sleep(0.35)
         except Exception:
             # Client disconnected or send failed.
+            current_app.logger.info("[ws] disconnected session_id=%s", session_id)
             break
 
 
