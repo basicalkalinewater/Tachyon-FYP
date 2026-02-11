@@ -173,7 +173,6 @@ def normalize_payment_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
         "brand": payload["brand"].strip(),
         "last4": last4,
         "expiry": payload["expiry"].strip(),
-        "nickname": (payload.get("nickname") or "").strip(),
         "is_default": bool(payload.get("isDefault")),
     }
 
@@ -183,7 +182,6 @@ def build_payment_update(payload: Dict[str, Any]) -> Dict[str, Any]:
         "brand": "brand",
         "last4": "last4",
         "expiry": "expiry",
-        "nickname": "nickname",
     }
     body = {}
     for key, column in mapping.items():

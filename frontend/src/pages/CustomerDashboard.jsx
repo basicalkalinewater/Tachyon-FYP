@@ -351,7 +351,7 @@ const PaymentsSection = ({
           )}
         </>
       )}
-      {error && rows.length === 0 && <p className="text-danger small mt-3">{error}</p>}
+      {error && list.length === 0 && <p className="text-danger small mt-3">{error}</p>}
     </section>
   );
 };

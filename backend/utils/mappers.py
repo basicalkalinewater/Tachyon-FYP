@@ -36,7 +36,6 @@ def map_payment(row):
         "brand": row.get("brand"),
         "last4": row.get("last4"),
         "expiry": row.get("expiry"),
-        "nickname": row.get("nickname") or "",
         "isDefault": row.get("is_default", False),
     }
 

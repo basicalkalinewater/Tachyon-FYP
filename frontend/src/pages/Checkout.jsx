@@ -64,7 +64,6 @@ const Checkout = () => {
     brand: "",
     cardNumber: "",
     expiry: "",
-    nickname: "",
     isDefault: false,
   });
 
@@ -217,7 +216,6 @@ const Checkout = () => {
         brand: paymentForm.brand,
         last4,
         expiry: paymentForm.expiry,
-        nickname: paymentForm.nickname,
         isDefault: paymentForm.isDefault,
       });
       const nextPayments = [created, ...payments.filter((card) => card.id !== created.id)];
@@ -547,16 +545,6 @@ const Checkout = () => {
                         id="card-brand"
                         value={paymentForm.brand}
                         onChange={updatePaymentField("brand")}
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label htmlFor="card-nickname" className="form-label">Nickname (optional)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="card-nickname"
-                        value={paymentForm.nickname}
-                        onChange={updatePaymentField("nickname")}
                       />
                     </div>
                     <div className="col-md-6">
