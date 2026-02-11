@@ -704,7 +704,7 @@ nlu:
       - 常见问题在哪里
       - 有FAQ吗
 
-  - intent: faq/returns
+  - intent: faq_returns
     examples: |
       - what is your return policy
       - how do I return an item
@@ -716,7 +716,7 @@ nlu:
       - 可以退款吗
       - 退货窗口期是多久
 
-  - intent: faq/shipping
+  - intent: faq_shipping
     examples: |
       - how long is shipping
       - shipping time
@@ -726,7 +726,7 @@ nlu:
       - 快递要几天
       - 什么时候能送到
 
-  - intent: faq/warranty
+  - intent: faq_warranty
     examples: |
       - do you have warranty
       - warranty policy

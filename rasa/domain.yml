@@ -10,9 +10,9 @@ intents:
   - product_compare
   - shipping_info
   - faq
-  - faq/returns
-  - faq/shipping
-  - faq/warranty
+  - faq_returns
+  - faq_shipping
+  - faq_warranty
   - faq_link
   - return_policy_link
   - request_live_agent
@@ -169,7 +169,7 @@ responses:
           value: "zh"
       text: "我可以回答一些常见问题。您想了解什么？"
 
-  utter_faq/returns:
+  utter_faq_returns:
     - text: "You can read our returns policy here: [Returns & Refunds]({link})"
     - condition:
         - name: lang
@@ -177,7 +177,7 @@ responses:
           value: "zh"
       text: "您可以在这里查看退货与退款政策：[退货与退款]({link})"
 
-  utter_faq/shipping:
+  utter_faq_shipping:
     - text: "You can read shipping and delivery details here: [Shipping & Returns]({link})"
     - condition:
         - name: lang
@@ -185,7 +185,7 @@ responses:
           value: "zh"
       text: "您可以在这里查看配送与运输说明：[配送与退货]({link})"
 
-  utter_faq/warranty:
+  utter_faq_warranty:
     - text: "Warranty details are listed on our policy pages. You can start here: [FAQ]({link})"
     - condition:
         - name: lang

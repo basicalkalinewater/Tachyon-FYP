@@ -42,18 +42,18 @@ rules:
 
   - rule: Answer FAQ returns
     steps:
-      - intent: faq/returns
-      - action: utter_faq/returns
+      - intent: faq_returns
+      - action: utter_faq_returns
 
   - rule: Answer FAQ shipping
     steps:
-      - intent: faq/shipping
-      - action: utter_faq/shipping
+      - intent: faq_shipping
+      - action: utter_faq_shipping
 
   - rule: Answer FAQ warranty
     steps:
-      - intent: faq/warranty
-      - action: utter_faq/warranty
+      - intent: faq_warranty
+      - action: utter_faq_warranty
 
   - rule: Provide FAQ link
     steps:
