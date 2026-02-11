@@ -210,6 +210,13 @@ CHINESE_MAPPING = {
         "无线": "Wireless", "有线": "Wired", "蓝牙": "Bluetooth",
         # Sizes/Interfaces
         "全尺寸": "100%", "接口": "PCIe"
+    },
+    "brands": {
+        "罗技": "Logitech",
+        "雷蛇": "Razer",
+        "戴尔": "Dell",
+        "三星": "Samsung",
+        "华硕": "ASUS"
     }
 }
 
@@ -233,13 +240,21 @@ class ActionFetchProductsWithFilters(Action):
             for cn, en in CHINESE_MAPPING["categories"].items():
                 if cn in user_msg: category_target = en; break
 
-        # 2. Spec Cleanup
+        # 2. Brand Cleanup
+        brand_target = None
+        if slot_brand:
+            brand_target = CHINESE_MAPPING["brands"].get(slot_brand, slot_brand)
+        else:
+            for cn, en in CHINESE_MAPPING["brands"].items():
+                if cn in user_msg: brand_target = en; break
+
+        # 3. Spec Cleanup
         spec_keyword = None
         if slot_spec:
             clean_val = re.sub(r'(?i)hz|赫兹|刷新率|面板|%|tb|gb|个|布局|ms|毫秒|g|克|寸|英寸|mb/s| ', '', str(slot_spec).lower()).strip()
             spec_keyword = CHINESE_MAPPING["specs"].get(clean_val, clean_val)
 
-        # 3. Price Cleanup (Extracting the max budget)
+        # 4. Price Cleanup (Extracting the max budget)
         max_budget = None
         if slot_price:
             try:
@@ -260,9 +275,10 @@ class ActionFetchProductsWithFilters(Action):
             filtered = []
             for item in data:
                 # --- Brand Filter ---
-                if slot_brand:
-                    if str(slot_brand).lower() not in str(item.get("brand", "")).lower() and \
-                       str(slot_brand).lower() not in str(item.get("title", "")).lower():
+                if brand_target:
+                    db_brand = str(item.get("brand") or "").lower()
+                    db_title = str(item.get("title") or "").lower()
+                    if brand_target.lower() not in db_brand and brand_target.lower() not in db_title:
                         continue
 
                 # --- Category Filter ---

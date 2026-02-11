@@ -530,6 +530,8 @@ nlu:
       - 有没有[罗技](product_brand)的[显示器](product_category)
       - 帮我找[华硕](product_brand)的[固态硬盘](product_category)
       - [三星](product_brand)的[键盘](product_category)
+      - [雷蛇](product_brand)[鼠标](product_category)
+      - 我要买[华硕](product_brand)[显示器](product_category)
       - [戴尔](product_brand)
       - [鼠标](product_category)
       - 我要买[键盘](product_category)
@@ -647,6 +649,9 @@ nlu:
       - 讲个笑话
       - 谁是世界上最帅的人
       - 今天天气怎么样
+      - 你喜欢我吗
+      - 我爱你
+
 
   - intent: faq_link
     examples: |
