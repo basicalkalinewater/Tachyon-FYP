@@ -7,6 +7,6 @@ USER root
 RUN pip install --no-cache-dir -r requirements.txt
 RUN chown -R 1001:0 /app
 USER 1001
-EXPOSE 5005 5055
+EXPOSE 5005
 ENTRYPOINT ["/bin/sh","-c"]
-CMD ["rasa run actions --port 5055 & exec rasa run --enable-api --connector rest --cors '*' --credentials /app/credentials.yml --port ${PORT:-5005} --model /app/models/current.tar.gz"]
+CMD ["rasa run actions --host 127.0.0.1 --port 5055 & exec rasa run --enable-api --connector rest --cors '*' --credentials /app/credentials.yml --port ${PORT:-5005} --model /app/models/current.tar.gz"]
