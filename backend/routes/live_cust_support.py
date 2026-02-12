@@ -63,13 +63,22 @@ def stream_session_ws(ws, session_id):
         return
 
     last_id = 0
+    idle_loops = 0
     while True:
         try:
             rows = service.fetch_messages_since(session_id, last_id)
             if rows:
                 last_id = rows[-1]["id"]
                 ws.send(json.dumps(rows, default=str))
-            time.sleep(0.35)
+                idle_loops = 0
+                # Stay responsive while chat is active.
+                time.sleep(0.1)
+                continue
+
+            # Back off while idle to reduce DB load.
+            idle_loops = min(idle_loops + 1, 20)
+            sleep_s = min(0.5, 0.12 + (idle_loops * 0.02))
+            time.sleep(sleep_s)
         except Exception:
             # Client disconnected or send failed.
             current_app.logger.info("[ws] disconnected session_id=%s", session_id)
