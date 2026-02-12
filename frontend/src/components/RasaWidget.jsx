@@ -1,7 +1,7 @@
 ﻿import React, { useEffect, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectCurrentUser } from "../redux/authSlice";
-import { SUPPORT_BASE_URL } from "../api/client";
+import { SUPPORT_BASE_URL, getSessionToken } from "../api/client";
 import { fetchFaqs, searchFaqs } from "../api/content";
 import "../styles/RasaWidget.css";
 
@@ -80,6 +80,7 @@ const RasaWidget = () => {
   const [agentName, setAgentName] = useState("");
   const [queueInfo, setQueueInfo] = useState(null);
   const messagesEndRef = useRef(null);
+  const wsRef = useRef(null);
   const [isDark, setIsDark] = useState(() =>
     typeof document !== "undefined" && document.body.classList.contains("theme-dark")
   );
@@ -247,12 +248,86 @@ const RasaWidget = () => {
     }
   };
 
+  const mergeIncomingSessionMessages = (incoming) => {
+    if (!Array.isArray(incoming) || incoming.length === 0) return;
+    const mapped = incoming.map((m) => {
+      const ts = m.created_at || m.timestamp || Date.now();
+      const text = m.message;
+      const isCsat = isCsatPrompt(text);
+      const isAgent = m.sender_role === "agent";
+      const displayAgent = (agentName || "Support Agent").trim();
+      return {
+        from: m.sender_role === "system" || isAgent ? "bot" : "user",
+        author: isAgent ? `${displayAgent} - Support Agent` : "",
+        text,
+        id: m.id,
+        timestamp: ts,
+        type: isCsat ? "csat" : "text",
+      };
+    });
+    setMessages((prev) => {
+      const existingIds = new Set(prev.filter((p) => p.id).map((p) => p.id));
+      const deduped = mapped.filter((m) => !m.id || !existingIds.has(m.id));
+      if (!deduped.length) return prev;
+      return [...prev, ...deduped];
+    });
+  };
+
+  useEffect(() => {
+    if (mode !== "agent" || !sessionId) return;
+    const token = getSessionToken();
+    if (!token) return;
+
+    const wsBase = SUPPORT_BASE_URL.replace(/^http/, "ws");
+    const streamUrl = `${wsBase}/sessions/${sessionId}/ws?token=${encodeURIComponent(token)}`;
+
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
+    }
+
+    const ws = new WebSocket(streamUrl);
+    ws.onmessage = (ev) => {
+      try {
+        const payload = JSON.parse(ev.data);
+        mergeIncomingSessionMessages(Array.isArray(payload) ? payload : []);
+      } catch {
+        // ignore malformed websocket payloads
+      }
+    };
+    ws.onerror = () => {
+      ws.close();
+    };
+    wsRef.current = ws;
+
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, [mode, sessionId, agentName]);
+
   useEffect(() => {
     if (mode !== "agent" || !sessionId) return;
     fetchSessionMessages(sessionId);
-    const interval = setInterval(() => fetchSessionMessages(sessionId), 4000);
+    const interval = setInterval(() => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        fetchSessionMessages(sessionId);
+      }
+    }, 4000);
     return () => clearInterval(interval);
   }, [mode, sessionId]);
+
+  useEffect(() => {
+    return () => {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
+    };
+  }, []);
 
   // Restore active support session after refresh (if any)
   useEffect(() => {
