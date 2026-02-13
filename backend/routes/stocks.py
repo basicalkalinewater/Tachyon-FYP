@@ -73,24 +73,27 @@ def adjust_stock():
             return jsonify({"error": "Missing productId or adjustment"}), 400
 
         # Fetch current stock row (new products may not have one yet).
-        curr = (
+        curr_res = (
             supabase.table("product_stock")
             .select("quantity_available")
             .eq("product_id", p_id)
             .maybe_single()
             .execute()
         )
+        curr_data = getattr(curr_res, "data", None)
+        curr_row = curr_data if isinstance(curr_data, dict) else None
 
-        if not curr.data:
+        if not curr_row:
             # Validate product exists before creating a default stock row.
-            product = (
+            product_res = (
                 supabase.table("products")
                 .select("id")
                 .eq("id", p_id)
-                .maybe_single()
+                .limit(1)
                 .execute()
             )
-            if not product.data:
+            product_rows = getattr(product_res, "data", None) or []
+            if not product_rows:
                 return jsonify({"error": "Product not found"}), 404
 
             base_qty = 0
@@ -104,7 +107,8 @@ def adjust_stock():
             ).execute()
             return jsonify({"message": "Success", "new_total": new_total}), 200
 
-        new_total = curr.data["quantity_available"] + int(adj)
+        current_qty = int(curr_row.get("quantity_available") or 0)
+        new_total = current_qty + int(adj)
         
         # Update
         supabase.table("product_stock").update({"quantity_available": new_total}).eq("product_id", p_id).execute()
