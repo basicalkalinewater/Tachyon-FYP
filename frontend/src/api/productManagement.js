@@ -1,7 +1,7 @@
-import { request } from "./client";
+import { API_BASE_URL, getSessionToken, request } from "./client";
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:4000/api/products";
+const PRODUCTS_API_BASE_URL = `${API_BASE_URL}/products`;
 
 const buildQuery = (params = {}) =>
   Object.entries(params)
@@ -13,15 +13,23 @@ export const listProducts = () => request("/products/?include_promotions=true");
 export const getProduct = (id) => request(`/products/${id}?include_promotions=true`);
 
 export const createProduct = async (formData) => {
-  const response = await axios.post(API_BASE_URL, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+  const token = getSessionToken();
+  const response = await axios.post(PRODUCTS_API_BASE_URL, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   return response.data;
 };
 
 export const updateProduct = async (id, formData) => {
-  const response = await axios.put(`${API_BASE_URL}/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
+  const token = getSessionToken();
+  const response = await axios.put(`${PRODUCTS_API_BASE_URL}/${id}`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
   });
   return response.data;
 };
