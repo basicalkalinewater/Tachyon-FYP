@@ -286,9 +286,6 @@ const ProductsList = () => {
             <p className="text-muted mb-1">
               No products found in <strong>{formatCategoryLabel(selectedCategory)}</strong> yet.
             </p>
-            <p className="small text-muted mb-0">
-              Add products in this category to see items and spec filters.
-            </p>
           </div>
         )}
 
