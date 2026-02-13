@@ -733,7 +733,13 @@ const AdminDashboard = () => {
   };
 
   const handleDeleteCategory = async (categoryId, label) => {
-    if (!window.confirm(`Delete category "${label}"? Products using this category must be updated first.`)) return;
+    if (
+      !window.confirm(
+        `Delete category "${label}"? Products in this category will be moved to "Uncategorized".`
+      )
+    ) {
+      return;
+    }
     try {
       await deleteProductCategory(categoryId);
       toast.success("Category removed");
@@ -3082,6 +3088,49 @@ const renderInventory = () => (
             </button>
           </div>
         </form>
+        <hr className="my-4" />
+        <div>
+          <div className="d-flex justify-content-between align-items-center mb-2">
+            <label className="form-label mb-0">Existing categories</label>
+            {categoriesLoading && <span className="small text-muted">Loading...</span>}
+          </div>
+          {categories.length === 0 ? (
+            <p className="small text-muted mb-0">No categories found.</p>
+          ) : (
+            <div className="d-flex flex-column gap-2">
+              {categories
+                .slice()
+                .sort((a, b) => {
+                  const la = (a?.name || a?.slug || "").toLowerCase();
+                  const lb = (b?.name || b?.slug || "").toLowerCase();
+                  return la.localeCompare(lb);
+                })
+                .map((cat) => {
+                  const catId = cat?.id || cat?.slug;
+                  const catLabel = cat?.name || getCategoryLabel(cat?.slug || cat?.name);
+                  return (
+                    <div
+                      key={catId}
+                      className="d-flex justify-content-between align-items-center border rounded px-3 py-2"
+                    >
+                      <div>
+                        <div className="fw-semibold">{catLabel}</div>
+                        <div className="small text-muted">{cat?.slug || normalizeCategoryValue(catLabel)}</div>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger btn-sm"
+                        onClick={() => handleDeleteCategory(catId, catLabel)}
+                        disabled={categoriesLoading}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

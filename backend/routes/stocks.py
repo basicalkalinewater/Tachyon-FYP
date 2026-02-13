@@ -19,7 +19,46 @@ def get_inventory_view():
     except Exception as err:
         return jsonify({"error": str(err)}), 500
 
+@stocks_bp.post("/")
+@require_session(allowed_roles=["admin"])
+def create_stock_entry():
+    supabase = current_app.config.get("SUPABASE")
+    try:
+        payload = request.get_json(force=True)
+        product_id = payload.get("product_id") or payload.get("productId")
+        quantity = payload.get("quantity_available")
+        threshold = payload.get("low_stock_threshold", 10)
+
+        if not product_id or quantity is None:
+            return jsonify({"error": "Missing product_id or quantity_available"}), 400
+
+        existing = (
+            supabase.table("product_stock")
+            .select("product_id")
+            .eq("product_id", product_id)
+            .maybe_single()
+            .execute()
+        )
+        if existing.data:
+            return jsonify({"error": "Stock entry already exists for this product"}), 409
+
+        res = (
+            supabase.table("product_stock")
+            .insert(
+                {
+                    "product_id": product_id,
+                    "quantity_available": int(quantity),
+                    "low_stock_threshold": int(threshold),
+                }
+            )
+            .execute()
+        )
+        return jsonify((res.data or [{}])[0]), 201
+    except Exception as err:
+        return jsonify({"error": str(err)}), 500
+
 # Matches: POST /api/admin/stocks/adjust/ (Matches admin.js adjustStock)
+@stocks_bp.post("/adjust")
 @stocks_bp.post("/adjust/")
 @require_session(allowed_roles=["admin"])
 def adjust_stock():

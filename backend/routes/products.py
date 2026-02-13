@@ -1,7 +1,8 @@
-import os
 import logging
 import json
 import re
+import mimetypes
+from uuid import uuid4
 from flask import Blueprint, current_app, jsonify, request
 from werkzeug.utils import secure_filename
 
@@ -15,10 +16,7 @@ except ImportError:
     from services import promotion_service
 
 products_bp = Blueprint("products", __name__)
-
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-FRONTEND_ASSETS_PATH = os.path.join(project_root, "frontend", "public", "assets", "products")
+PRODUCT_IMAGES_BUCKET = "product-images"
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -62,12 +60,32 @@ def safe_category_folder(category):
     return raw
 
 
-def _image_folder_warning(category, category_folder):
-    if not category:
-        return None
-    if category_folder == "uncategorized":
-        return f"Image saved to 'uncategorized' because category '{category}' could not be normalized."
-    return None
+def _upload_product_image(supabase, file, category_slug):
+    filename = secure_filename(file.filename or "")
+    if not filename or not allowed_file(filename):
+        return None, "Invalid image file type"
+
+    ext = filename.rsplit(".", 1)[1].lower()
+    storage_name = f"{uuid4().hex}.{ext}"
+    folder = safe_category_folder(category_slug)
+    storage_path = f"{folder}/{storage_name}"
+    content_type = file.mimetype or mimetypes.guess_type(filename)[0] or "application/octet-stream"
+
+    try:
+        file.stream.seek(0)
+        data = file.read()
+        if not data:
+            return None, "Empty image file"
+
+        bucket = supabase.storage.from_(PRODUCT_IMAGES_BUCKET)
+        bucket.upload(storage_path, data, {"content-type": content_type, "upsert": "false"})
+        public_result = bucket.get_public_url(storage_path)
+        public_url = public_result.get("publicUrl") if isinstance(public_result, dict) else str(public_result)
+        if not public_url:
+            return None, "Failed to resolve uploaded image URL"
+        return public_url, None
+    except Exception as exc:
+        return None, f"Storage upload failed: {exc}"
 
 @products_bp.get("/")
 def list_products():
@@ -116,21 +134,14 @@ def create_product():
             except json.JSONDecodeError:
                 return jsonify({"error": "Invalid specs JSON"}), 400
 
-        warning = None
         # Image handling
         if "image" in request.files:
             file = request.files["image"]
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                category_folder = safe_category_folder(payload.get("category"))
-                warning = _image_folder_warning(payload.get("category"), category_folder)
-                category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
-                os.makedirs(category_path, exist_ok=True)
-                save_path = os.path.join(category_path, filename)
-                file.save(save_path)
-                payload["image_url"] = f"/assets/products/{category_folder}/{filename}"
-            else:
-                return jsonify({"error": "Invalid image file type"}), 400
+            if file:
+                image_url, upload_error = _upload_product_image(supabase, file, payload.get("category"))
+                if upload_error:
+                    return jsonify({"error": upload_error}), 400
+                payload["image_url"] = image_url
 
         if "title" not in payload or "price" not in payload:
             return jsonify({"error": "Missing required fields: title and price"}), 400
@@ -140,9 +151,6 @@ def create_product():
             return jsonify({"error": "Create failed in Database"}), 500
 
         product = map_product(res.data[0])
-        if warning:
-            logging.warning(warning)
-            product["warning"] = warning
         return jsonify(product), 201
     except Exception as err:
         logging.error(f"Create Product Error: {err}", exc_info=True)
@@ -173,7 +181,6 @@ def update_product(product_id):
         print(f"Files received: {request.files.keys()}") # <--- CHECK THIS IN YOUR TERMINAL
 
         update_payload = {}
-        warning = None
 
         # Text fields
         for field in ["title", "category", "price", "Brand", "description"]:
@@ -191,29 +198,19 @@ def update_product(product_id):
             update_payload["specs"] = json.loads(request.form.get("specs"))
 
         # --- IMAGE HANDLING ---
-        # We check for the key 'image' specifically
         if 'image' in request.files:
             file = request.files['image']
-            if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-
+            if file:
                 category_for_image = update_payload.get("category")
                 if not category_for_image:
                     existing = supabase.table("products").select("category").eq("id", product_id).maybe_single().execute()
                     if existing.data:
                         category_for_image = existing.data.get("category")
 
-                category_folder = safe_category_folder(category_for_image)
-                warning = _image_folder_warning(category_for_image, category_folder)
-                category_path = os.path.join(FRONTEND_ASSETS_PATH, category_folder)
-                os.makedirs(category_path, exist_ok=True)
-                save_path = os.path.join(category_path, filename)
-                file.save(save_path)
-
-                print(f"SUCCESS: Saved image to {save_path}")
-                update_payload["image_url"] = f"/assets/products/{category_folder}/{filename}"
-            else:
-                print("WARNING: File present but extension not allowed or file empty.")
+                image_url, upload_error = _upload_product_image(supabase, file, category_for_image)
+                if upload_error:
+                    return jsonify({"error": upload_error}), 400
+                update_payload["image_url"] = image_url
         else:
             print("DEBUG: No file found under the key 'image'.")
 
@@ -224,9 +221,6 @@ def update_product(product_id):
             return jsonify({"error": "Update failed in Database"}), 404
 
         product = map_product(res.data[0])
-        if warning:
-            logging.warning(warning)
-            product["warning"] = warning
         return jsonify(product), 200
     except Exception as err:
         print(f"CRITICAL ERROR: {str(err)}")
