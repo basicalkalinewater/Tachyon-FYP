@@ -150,7 +150,24 @@ def create_product():
         if not res.data:
             return jsonify({"error": "Create failed in Database"}), 500
 
-        product = map_product(res.data[0])
+        created_row = res.data[0]
+        created_id = created_row.get("id")
+
+        # Ensure inventory row exists for newly created products.
+        if created_id:
+            try:
+                supabase.table("product_stock").insert(
+                    {
+                        "product_id": created_id,
+                        "quantity_available": 0,
+                        "low_stock_threshold": 10,
+                    }
+                ).execute()
+            except Exception:
+                # Non-fatal: stock can still be initialized via stock adjust endpoint.
+                logging.warning("Failed to create initial stock row for product %s", created_id, exc_info=True)
+
+        product = map_product(created_row)
         return jsonify(product), 201
     except Exception as err:
         logging.error(f"Create Product Error: {err}", exc_info=True)

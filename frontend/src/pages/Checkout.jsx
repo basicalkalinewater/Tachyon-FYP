@@ -672,7 +672,7 @@ const Checkout = () => {
                 {orderRows.map(({ item, price, original, showPromo }) => (
                   <li
                     key={item.id}
-                    className="list-group-item d-flex align-items-start px-0 border-0 pb-3"
+                    className="list-group-item d-flex align-items-start px-0 border-0 pb-3 checkout-order-row"
                   >
                     <img
                       src={item.image}
@@ -680,7 +680,7 @@ const Checkout = () => {
                       className="rounded me-3"
                       style={{ width: 60, height: 60, objectFit: "contain", background: "#f8f9fa" }}
                     />
-                    <div className="flex-grow-1">
+                    <div className="flex-grow-1 checkout-order-main">
                       <div className="fw-semibold text-truncate">{item.title}</div>
                       <div className="text-muted small">
                         {showPromo && (
@@ -691,7 +691,9 @@ const Checkout = () => {
                         <div>Qty {item.qty} - ${price.toFixed(2)} each</div>
                       </div>
                     </div>
-                    <div className="fw-bold">${(Number(item.price || 0) * item.qty).toFixed(2)}</div>
+                    <div className="fw-bold checkout-order-total">
+                      ${(Number(item.price || 0) * item.qty).toFixed(2)}
+                    </div>
                   </li>
                 ))}
                 <li className="list-group-item d-flex justify-content-between px-0">
