@@ -796,13 +796,25 @@ const AdminDashboard = () => {
     });
   };
 
+  const normalizeSpecLabel = (value) =>
+    String(value || "").trim().replace(/\s+/g, " ");
+
+  const hasSpecLabelCollision = (specs, candidate, excludeKey = null) => {
+    const normalizedCandidate = normalizeSpecLabel(candidate).toLowerCase();
+    if (!normalizedCandidate) return false;
+    return Object.keys(specs || {}).some((key) => {
+      if (excludeKey !== null && key === excludeKey) return false;
+      return normalizeSpecLabel(key).toLowerCase() === normalizedCandidate;
+    });
+  };
+
   const handleSpecKeyChange = (oldKey, newKey) => {
-    const cleanedKey = String(newKey || "").trim().replace(/\s+/g, "_");
+    const cleanedKey = normalizeSpecLabel(newKey);
     if (cleanedKey === "" && oldKey !== "" && newProduct.specs[""] !== undefined) {
       toast.error("Please finish the existing empty spec before adding another.");
       return;
     }
-    if (cleanedKey && cleanedKey !== oldKey && newProduct.specs[cleanedKey] !== undefined) {
+    if (cleanedKey && cleanedKey !== oldKey && hasSpecLabelCollision(newProduct.specs, cleanedKey, oldKey)) {
       toast.error("That spec already exists. Choose another.");
       return;
     }
@@ -835,11 +847,11 @@ const AdminDashboard = () => {
   };
 
   const handleEditSpecKeyChange = (oldKey, newKey) => {
-    const cleanedKey = String(newKey || "").trim().replace(/\s+/g, "_");
+    const cleanedKey = normalizeSpecLabel(newKey);
     setEditProductForm((prev) => {
       if (!prev) return prev;
       const specs = { ...(prev.specs || {}) };
-      if (cleanedKey && cleanedKey !== oldKey && specs[cleanedKey] !== undefined) {
+      if (cleanedKey && cleanedKey !== oldKey && hasSpecLabelCollision(specs, cleanedKey, oldKey)) {
         toast.error("That spec already exists. Choose another.");
         return prev;
       }

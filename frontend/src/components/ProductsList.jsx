@@ -65,6 +65,7 @@ const ProductsList = () => {
 
   const applyFilters = (category, nextSpecFilters = specFilters) => {
     let list = data;
+    const specGroups = buildSpecGroups(category);
     if (category) {
       list = list.filter((item) => item.category === category);
     }
@@ -73,9 +74,14 @@ const ProductsList = () => {
       if (!value) return;
       list = list.filter((item) => {
         const specs = item.specs || {};
-        const specVal = specs[key];
-        if (Array.isArray(specVal)) return specVal.includes(value);
-        return specVal === value;
+        const aliases = specGroups[key]?.aliases || [key];
+        return aliases.some((alias) => {
+          const specVal = specs[alias];
+          if (Array.isArray(specVal)) {
+            return specVal.some((v) => compareSpecValues(v, value));
+          }
+          return compareSpecValues(specVal, value);
+        });
       });
     });
 
@@ -95,52 +101,107 @@ const ProductsList = () => {
     applyFilters(selectedCategory, next);
   };
 
-  const getSpecOptions = (category) => {
+  const normalizeSpecGroupKey = (key) =>
+    String(key || "")
+      .trim()
+      .toLowerCase()
+      .replace(/([a-z0-9])([A-Z])/g, "$1$2")
+      .replace(/[^a-z0-9]+/g, "");
+
+  const prettifySpecKey = (key) =>
+    String(key || "")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const compareSpecValues = (a, b) => {
+    if (a === null || a === undefined || b === null || b === undefined) return false;
+    const numA = Number(a);
+    const numB = Number(b);
+    if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numA === numB;
+    return String(a) === String(b);
+  };
+
+  const buildSpecGroups = (category) => {
     const inCategory = data.filter((item) => item.category === category);
-    const collect = (getter) => {
-      const values = Array.from(
-        new Set(
-          inCategory
-            .map((p) => getter(p.specs || {}))
-            .flat()
-            .filter(Boolean)
-        )
-      );
+    const groups = {};
+
+    inCategory.forEach((item) => {
+      const specs = item.specs || {};
+      Object.entries(specs).forEach(([rawKey, rawValue]) => {
+        const key = String(rawKey || "").trim();
+        const groupKey = normalizeSpecGroupKey(key);
+        if (!groupKey) return;
+        if (!groups[groupKey]) {
+          groups[groupKey] = {
+            key: groupKey,
+            label: prettifySpecKey(key),
+            aliases: new Set(),
+            values: new Set(),
+          };
+        }
+        const current = groups[groupKey];
+        const candidateLabel = prettifySpecKey(key);
+        // Prefer labels that are more readable (contains spaces).
+        if (candidateLabel.includes(" ") && !current.label.includes(" ")) {
+          current.label = candidateLabel;
+        }
+        current.aliases.add(key);
+
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+        values.forEach((v) => {
+          if (v === null || v === undefined || v === "") return;
+          current.values.add(v);
+        });
+      });
+    });
+
+    const sortValues = (values) => {
       return values.sort((a, b) => {
         if (typeof a === "number" && typeof b === "number") return a - b;
+        const numA = Number(a);
+        const numB = Number(b);
+        if (!Number.isNaN(numA) && !Number.isNaN(numB)) return numA - numB;
         return String(a).localeCompare(String(b));
       });
     };
 
-    switch ((category || "").toLowerCase()) {
-      case "monitor":
-        return {
-          refresh_hz: collect((s) => s.refresh_hz),
-          screen_size_inches: collect((s) => s.screen_size_inches),
-          panel_type: collect((s) => s.panel_type),
+    const normalized = {};
+    Object.values(groups)
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .forEach((group) => {
+        normalized[group.key] = {
+          key: group.key,
+          label: group.label,
+          aliases: Array.from(group.aliases),
+          values: sortValues(Array.from(group.values)),
         };
-      case "keyboard":
-        return {
-          size: collect((s) => s.size),
-          switch_type: collect((s) => s.switch_type),
-          connection: collect((s) => s.connection),
-        };
-      case "mouse":
-        return {
-          connection: collect((s) => s.connection),
-          polling_hz: collect((s) => s.polling_hz),
-        };
-      case "ssd":
-        return {
-          interface: collect((s) => s.interface),
-          capacity_gb: collect((s) => s.capacity_gb),
-        };
-      default:
-        return {};
-    }
+      });
+
+    return normalized;
   };
 
-  const specOptions = selectedCategory ? getSpecOptions(selectedCategory) : {};
+  const formatSpecLabel = (key) => {
+    if (key === "capacitygb") return "Capacity";
+    if (key === "pollinghz") return "Polling Rate";
+    return prettifySpecKey(key);
+  };
+
+  const formatSpecValue = (key, value) => {
+    if (key === "capacitygb") {
+      const num = Number(value);
+      if (!Number.isNaN(num)) {
+        return num >= 1000 ? `${num / 1000}TB` : `${num}GB`;
+      }
+    }
+    if (key === "pollinghz") {
+      return `${value}Hz`;
+    }
+    return value;
+  };
+
+  const specOptions = selectedCategory ? buildSpecGroups(selectedCategory) : {};
   const isBestseller = (product) =>
     !!product?.isBestseller || Number(product?.ratingCount || 0) >= 1500;
 
@@ -192,22 +253,11 @@ const ProductsList = () => {
             {Object.entries(specOptions).map(([key, options]) => (
               <div key={key} className="mb-2">
                 <span className="mr-2 text-uppercase small fw-bold text-muted">
-                  {key === "capacity_gb"
-                    ? "Capacity"
-                    : key === "polling_hz"
-                      ? "Polling Rate"
-                      : key.replace(/_/g, " ")}
+                  {specOptions[key]?.label || formatSpecLabel(key)}
                   :
                 </span>
-                {options.map((opt) => {
-                  const label =
-                    key === "capacity_gb"
-                      ? opt >= 1000
-                        ? `${opt / 1000}TB`
-                        : `${opt}GB`
-                      : key === "polling_hz"
-                        ? `${opt}Hz`
-                        : opt;
+                {(specOptions[key]?.values || options).map((opt) => {
+                  const label = formatSpecValue(key, opt);
                   return (
                     <button
                       key={opt}
