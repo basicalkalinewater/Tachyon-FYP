@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useDispatch } from "react-redux";
 import { addItem } from "../redux/cartSlice";
 import { fetchProducts } from "../api/products";
+import { listProductCategories } from "../api/categories";
 import { formatPromotionBadge, hasActivePromotion } from "../utils/promo";
 import { formatCategoryLabel } from "../utils/category";
 
@@ -26,16 +27,22 @@ const ProductsList = () => {
     const getProducts = async () => {
       setLoading(true);
       try {
-        const products = await fetchProducts();
+        const [products, categoriesRes] = await Promise.all([
+          fetchProducts(),
+          listProductCategories().catch(() => []),
+        ]);
         setData(products);
         setFilter(products);
+        const fromProducts = products
+          .map((item) => item.category)
+          .filter((cat) => cat && cat !== "uncategorized");
+        const categoryList = categoriesRes?.data || categoriesRes || [];
+        const fromCategories = categoryList
+          .map((c) => c?.slug || c?.name)
+          .filter((cat) => cat && cat !== "uncategorized");
         setCategories(
-          Array.from(
-            new Set(
-              products
-                .map((item) => item.category)
-                .filter((cat) => cat && cat !== "uncategorized")
-            )
+          Array.from(new Set([...fromProducts, ...fromCategories])).sort((a, b) =>
+            String(a).localeCompare(String(b))
           )
         );
       } catch (err) {
@@ -271,6 +278,17 @@ const ProductsList = () => {
                 })}
               </div>
             ))}
+          </div>
+        )}
+
+        {selectedCategory && filter.length === 0 && (
+          <div className="text-center pb-4">
+            <p className="text-muted mb-1">
+              No products found in <strong>{formatCategoryLabel(selectedCategory)}</strong> yet.
+            </p>
+            <p className="small text-muted mb-0">
+              Add products in this category to see items and spec filters.
+            </p>
           </div>
         )}
 
