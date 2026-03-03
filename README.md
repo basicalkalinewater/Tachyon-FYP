@@ -1,32 +1,90 @@
-# Tachyon Chatbot
-Conversational storefront and support assistant with a Flask backend, Rasa, and a React/Vite frontend backed by Supabase.
+## :wave: 1) Tachyon - AI Powered Chatbot
+Tachyon is our AI-powered e-commerce customer support and shopping-assistance platform.
 
-## Technologies
+From our team analysis, e-commerce support teams face high ticket volume, repetitive FAQs, and inconsistent response speed during peak periods. Customers expect immediate, accurate, and always-available support, but human-only workflows do not scale efficiently.
+
+### Project Goal
+Our goal was to build a production-oriented chatbot platform that:
+- Provides real-time support for common e-commerce queries
+- Reduces repetitive workload for human agents
+- Escalates unresolved/high-complexity issues to live support with context continuity
+- Maintains safe and scope-controlled AI behavior
+
+As a team, we designed Tachyon to combine:
+- Product discovery and shopping support
+- Policy/FAQ assistance
+- Live human handoff for complex issues
+- A support dashboard workflow for agents
+
+The implemented architecture uses React (Vite) frontend, Flask backend services, Rasa for deterministic conversational orchestration, Gemini for scoped generative responses, and Supabase/PostgreSQL for persistence.
+
+## :hammer_and_wrench: 2) Technologies / Stack Used
 - Frontend: React 18, Vite 7, React Router, Redux Toolkit
-- UI: Bootstrap 5 and custom CSS
+- UI: Bootstrap 5 + custom CSS
 - Backend: Flask, Gunicorn, Flask-Sock (REST + WebSocket)
-- AI/NLU: Rasa Open Source 3.6 with custom language detector
-- Data: Supabase (Postgres + Auth)
-- LLM Integration: Gemini API
-- Deployment: Render (Backend Web Service, Frontend Static Site, Rasa Docker Service)
+- AI/NLU: Rasa Open Source 3.6 + custom language detector
+- LLM: Gemini API integration for fallback/product-assist responses
+- Data: Supabase (Postgres + Auth-related data)
+- Deployment target: Render
 
-## Core Features
-- Embedded shopping assistant for product discovery and support
-- Policy/FAQ guidance (shipping, returns, warranty, terms, privacy)
-- Human handoff from bot to support dashboard
-- Ticket-aware support flow (ticket number, subject, priority)
-- Real-time support conversation loop and CSAT collection
-- Supabase-backed persistence for sessions, carts, orders, and support context
+## :robot: 3) Features of the AI Chatbot and Platform
+### AI Chatbot
+- Product search, recommendation, and comparison support
+- FAQ and policy guidance (shipping, returns, warranty, terms, privacy)
+- Escalation path from chatbot to human support
+- Session-aware flow with ticket context
+- Quick-reply guided interaction for common intents
+- Bilingual support (English + Chinese)
 
-## Render Deployment
-This repository is configured for Render via `render.yaml` with 3 services:
-- `FYP-25-S4-25-backend` (Python web service)
-- `FYP-25-S4-25-frontend` (Static site)
-- `FYP-25-S4-25-rasa` (Docker web service)
+### Platform
+- Customer dashboard features (profile/orders/addresses/payments)
+- Admin operations (content, product, analytics, user management)
+- Live support queue and real-time message updates
+- CSAT collection for support quality tracking
 
-## Local Testing
+### Safety, Scope, and Quality Controls
+- Scope-controlled chatbot behavior (product/support scope only)
+- Safety checks for restricted request types and jailbreak-style prompts
+- Transparent AI behavior (assistant identity and controlled fallback behavior)
+- Designed with performance/availability targets in mind:
+  - Short informational responses under normal load: ~1-2s target
+  - Monthly API availability target: 99.9%
 
-### Backend (Flask)
+## :compass: 4) The Process
+This was our team process at a high level:
+1. Defined user journeys for customer, support agent, and admin roles.
+2. Documented functional and non-functional requirements before implementation.
+3. Built core storefront and backend APIs first.
+4. Implemented hybrid chatbot architecture:
+   - Rasa for intents, entities, dialogue control, escalation logic
+   - Gemini for scoped product comparison and fallback Q&A
+5. Connected chatbot escalation into live support workflows.
+6. Added role-based dashboards and operational tooling.
+7. Iterated through testing and edge-case handling (queue flow, session behavior, errors, rate limits, and safety controls).
+
+We followed an iterative delivery approach (Scrum-style sprints) because conversational quality, safety behavior, and integration reliability required continuous validation.
+
+## :mortar_board: 5) What I Learned
+Working on this project taught me:
+- How to design role-based architecture across frontend, API, and data layers
+- How chatbot logic and production support workflows must work together
+- How important operational concerns are (auth/session handling, observability, failure paths, and rate limiting)
+- How much team alignment matters when integrating multiple services (frontend/backend/Rasa/DB)
+
+### How Can It Be Improved?
+- Improve monitoring and alerting for production incidents
+- Strengthen chatbot evaluation with measurable conversation quality metrics (resolution rate, escalation rate, CSAT trend)
+- Expand multilingual coverage and model tuning for mixed-language prompts
+- Add omnichannel support (messaging channels) as a future scope extension
+- Add proactive support triggers and richer retrieval grounding for product/policy responses
+
+## :rocket: 6) Running the Project (Local Test)
+### Prerequisites
+- Python 3.10
+- Node.js 18+
+- npm
+
+### Start Backend
 ```bash
 cd backend
 py -3.10 -m venv .venv
@@ -35,14 +93,15 @@ pip install -r requirements.txt
 python -m flask --app server run --port 4000
 ```
 
-### Frontend (Vite)
+### Start Frontend
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-### Rasa (Local)
+### Start Rasa
+Train model:
 ```bash
 cd rasa
 py -3.10 -m venv .venv
@@ -51,65 +110,22 @@ pip install -r requirements.txt
 rasa train --fixed-model-name current
 ```
 
-Run bot and action server in separate terminals:
+Run in two terminals:
 ```bash
 # Terminal 1
 cd rasa
 .\.venv\Scripts\activate
 rasa run --enable-api --cors "*" --credentials credentials.yml
+```
 
+```bash
 # Terminal 2
 cd rasa
 .\.venv\Scripts\activate
 rasa run actions --port 5055
 ```
 
-## Required Environment Variables
+## :movie_camera: 7) Demo Video
+Add the demo link here for team sharing:
 
-### Frontend
-- `VITE_API_BASE_URL`
-- `VITE_RASA_URL`
-
-### Backend
-- `CORS_ALLOWED_ORIGINS`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-- `RASA_RELAY_URL`
-- `RASA_PUSH_URL`
-- `RASA_FORWARD_URL`
-- `LIVE_CUST_SUPPORT_FALLBACK_CUSTOMER_ID`
-- `LIVE_CUST_SUPPORT_FALLBACK_AGENT_ID`
-- `LIVE_AGENT_AVG_HANDLE_SECONDS`
-- `SESSION_TTL_HOURS`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL` (optional; default configured in code)
-
-### Rasa
-- `PORT`
-- `BACKEND_BASE_URL`
-- `FRONTEND_BASE_URL`
-- `LIVE_AGENT_HANDOFF_URL`
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `DB_HOST`
-- `DB_PORT`
-- `DB_NAME`
-- `DB_USER`
-- `DB_PASSWORD`
-
-## Rasa Model Requirement
-Rasa runtime expects a trained model at:
-- `rasa/models/current.tar.gz`
-
-Before deploying Rasa, ensure this artifact exists in the service build context.
-
-## Production Notes
-- Keep all secrets in Render environment variables only.
-- Do not commit `.env`.
-- Use a single canonical backend URL across frontend, backend, and rasa envs.
-- Ensure static rewrite for SPA routes is configured (`/* -> /index.html`).
+`[Watch Demo](https://your-demo-link-here)`
