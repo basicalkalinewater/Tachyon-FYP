@@ -7,6 +7,7 @@ import {
   selectCartSubtotal,
   selectCartDiscount,
   selectCartId,
+  selectCartToken,
   selectAppliedPromo,
   selectPromoStatus,
   selectPromoError,
@@ -25,6 +26,7 @@ const Checkout = () => {
   const subtotal = useSelector(selectCartSubtotal);
   const discount = useSelector(selectCartDiscount);
   const cartId = useSelector(selectCartId);
+  const cartToken = useSelector(selectCartToken);
   const appliedPromo = useSelector(selectAppliedPromo);
   const promoStatus = useSelector(selectPromoStatus);
   const promoError = useSelector(selectPromoError);
@@ -238,6 +240,10 @@ const Checkout = () => {
       toast.error("Unable to locate your cart.");
       return;
     }
+    if (!cartToken) {
+      toast.error("Unable to validate your cart.");
+      return;
+    }
     setPlacingOrder(true);
     try {
       let addressId = selectedAddressId;
@@ -262,6 +268,7 @@ const Checkout = () => {
       }
       const response = await placeOrder({
         cartId,
+        cartToken,
         promoCode: appliedPromo?.code || "",
         shipping,
         addressId,

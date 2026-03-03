@@ -6,9 +6,11 @@ from flask import Blueprint, current_app, jsonify, request, g
 try:
     from ..utils.auth_middleware import require_session
     from ..services import cart_service, promo_service
+    from ..utils.cart_token import verify_cart_token
 except ImportError:
     from utils.auth_middleware import require_session
     from services import cart_service, promo_service
+    from utils.cart_token import verify_cart_token
 
 orders_bp = Blueprint("orders", __name__)
 
@@ -34,8 +36,15 @@ def place_order():
     supabase = current_app.config["SUPABASE"]
     payload = request.get_json(force=True) or {}
     cart_id = payload.get("cartId")
+    cart_token = (payload.get("cartToken") or "").strip()
     if not cart_id:
         return jsonify({"error": "cartId is required"}), 400
+
+    user_id = (getattr(g, "current_user", None) or {}).get("id")
+    if not user_id:
+        return jsonify({"error": "Unauthorized"}), 401
+    if not verify_cart_token(str(user_id), str(cart_id), cart_token):
+        return jsonify({"error": "Invalid cart token"}), 403
 
     items = cart_service.map_cart_items(supabase, cart_id)
     if not items:
@@ -60,9 +69,6 @@ def place_order():
     placed_at = datetime.now(timezone.utc).isoformat()
 
     order_code = _generate_order_code(supabase)
-    user_id = (getattr(g, "current_user", None) or {}).get("id") or payload.get("userId")
-    if not user_id:
-        return jsonify({"error": "userId is required"}), 400
     address_id = payload.get("addressId")
     if not address_id:
         return jsonify({"error": "addressId is required"}), 400

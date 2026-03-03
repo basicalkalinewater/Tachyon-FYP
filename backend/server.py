@@ -94,7 +94,7 @@ def create_app() -> Flask:
         logging.error(f"!!! SERVER ERROR !!!\n{traceback.format_exc()}")
         response = jsonify({
             "error": "Internal Server Error",
-            "message": str(e),
+            "message": "Unexpected server error",
             "route": request.path
         })
         response.status_code = 500

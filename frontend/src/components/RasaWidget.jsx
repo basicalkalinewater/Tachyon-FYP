@@ -8,7 +8,7 @@ import "../styles/RasaWidget.css";
 const RASA_ENDPOINT = import.meta.env.VITE_RASA_URL || "http://localhost:5005/webhooks/rest/webhook";
 // Support routes for customer widget
 const SUPPORT_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions`;          // POSTs etc.
-const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // public GET
+const SUPPORT_PUBLIC_SESSIONS_URL = `${SUPPORT_BASE_URL}/sessions_public`; // customer-authenticated GET
 const QUICK_REPLIES = [
   { title: "FAQs", payload: "FAQ" },
   { title: "Shipping & Returns", payload: "Shipping & Returns" },
@@ -62,6 +62,15 @@ const CsatBlock = ({ submitting, submitted, rating, feedback, onSelect, onFeedba
 const buildDefaultMessages = () => ([
   { from: "bot", text: "Hi, I'm Tachyon. Your virtual assistant! How can I help?", timestamp: Date.now() },
 ]);
+
+const buildAuthHeaders = (includeJson = true) => {
+  const headers = includeJson ? { "Content-Type": "application/json" } : {};
+  const token = getSessionToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 const RasaWidget = () => {
   const currentUser = useSelector(selectCurrentUser);
@@ -193,7 +202,10 @@ const RasaWidget = () => {
   const fetchSessionMessages = async (sessId) => {
     const controller = new AbortController();
     try {
-      const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`, { signal: controller.signal });
+      const res = await fetch(`${SUPPORT_PUBLIC_SESSIONS_URL}/${sessId}`, {
+        signal: controller.signal,
+        headers: buildAuthHeaders(false),
+      });
       const data = await res.json();
       const sessionData = data?.data?.session || data?.session || {};
       const sessionStatus = sessionData.status;
@@ -279,7 +291,7 @@ const RasaWidget = () => {
     if (!token) return;
 
     const wsBase = SUPPORT_BASE_URL.replace(/^http/, "ws");
-    const streamUrl = `${wsBase}/sessions/${sessionId}/ws?token=${encodeURIComponent(token)}`;
+    const streamUrl = `${wsBase}/sessions/${sessionId}/ws`;
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -287,6 +299,9 @@ const RasaWidget = () => {
     }
 
     const ws = new WebSocket(streamUrl);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: "auth", token }));
+    };
     ws.onmessage = (ev) => {
       try {
         const payload = JSON.parse(ev.data);
@@ -343,7 +358,9 @@ const RasaWidget = () => {
       }
       try {
         // Check queue status first to see if a session is active
-        const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
+        const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`, {
+          headers: buildAuthHeaders(false),
+        });
         if (res.ok) {
           const data = await res.json();
           if (data?.data?.session_id) {
@@ -373,7 +390,9 @@ const RasaWidget = () => {
   const fetchQueueStatus = async () => {
     if (!senderId) return;
     try {
-      const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`);
+      const res = await fetch(`${SUPPORT_BASE_URL}/queue/${senderId}`, {
+        headers: buildAuthHeaders(false),
+      });
       if (res.status === 404) {
         setQueueInfo(null);
         setAgentReady(false);
@@ -458,7 +477,7 @@ const RasaWidget = () => {
     try {
       const res = await fetch(`${SUPPORT_SESSIONS_URL}/${sessionId}/customer/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildAuthHeaders(true),
         body: JSON.stringify({ message: text }),
       });
       if (!res.ok) {
@@ -484,7 +503,7 @@ const RasaWidget = () => {
     try {
       await fetch(`${SUPPORT_SESSIONS_URL}/${targetSessionId}/csat`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildAuthHeaders(true),
         body: JSON.stringify({ rating: csatRating, feedback: csatFeedback }),
       });
       setCsatSubmitted(true);
@@ -513,7 +532,7 @@ const RasaWidget = () => {
     try {
       const res = await fetch(`${SUPPORT_SESSIONS_URL}/from_rasa`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildAuthHeaders(true),
         body: JSON.stringify({
           sender_id: senderId,
           last_message: initialText || "Need a human agent",
@@ -597,10 +616,11 @@ const RasaWidget = () => {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
     const escaped = escapeHtml(text);
-    const withLinks = escaped.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
+    const withLinks = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label, href) => {
+      const normalizedHref = String(href || "").trim();
+      const safeHref = /^(https?:\/\/|mailto:|tel:)/i.test(normalizedHref) ? normalizedHref : "#";
+      return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
     const withInline = withLinks
       .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
       .replace(/\*([^*]+)\*/g, "<em>$1</em>")

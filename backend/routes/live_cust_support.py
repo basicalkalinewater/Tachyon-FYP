@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from flask import Blueprint, request
 
@@ -24,13 +25,52 @@ from flask import current_app, g, jsonify
 # Blueprint for live customer support chat; mounted under /support
 live_cust_support_bp = Blueprint("live_cust_support", __name__)
 
+
+def _require_rasa_secret():
+    """
+    Optional shared-secret guard for Rasa/webhook-facing endpoints.
+    Reject when secret is missing or invalid to prevent public abuse.
+    """
+    expected = (os.getenv("RASA_WEBHOOK_SECRET") or "").strip()
+    if not expected:
+        return service.error("Rasa webhook secret is not configured", status=503)
+    provided = (request.headers.get("X-Rasa-Secret") or request.headers.get("X-Webhook-Secret") or "").strip()
+    if provided != expected:
+        return service.error("Forbidden", status=403)
+    return None
+
 @sock.route("/support/sessions/<session_id>/ws")
 def stream_session_ws(ws, session_id):
     """WebSocket stream of new messages for a session."""
     current_app.logger.info("[ws] connect attempt session_id=%s", session_id)
     try:
-        # Auth via session token (query param; browsers can't set WS headers).
+        # Prefer auth payload over URL query params to avoid token leakage in logs/history.
+        token = ""
+
+        # Legacy fallback for older clients.
         token = (request.args.get("token") or request.args.get("sessionToken") or "").strip()
+
+        if not token:
+            raw = None
+            try:
+                raw = ws.receive(timeout=5)
+            except TypeError:
+                # Some WS backends may not support timeout kwarg.
+                raw = None
+            except Exception:
+                raw = None
+
+            if isinstance(raw, bytes):
+                raw = raw.decode("utf-8", errors="ignore")
+
+            if isinstance(raw, str) and raw.strip():
+                try:
+                    payload = json.loads(raw)
+                    if isinstance(payload, dict):
+                        token = (payload.get("token") or "").strip()
+                except Exception:
+                    token = ""
+
         if not token:
             current_app.logger.warning("[ws] missing token session_id=%s", session_id)
             ws.close(code=1008, reason="missing token")
@@ -89,6 +129,9 @@ def stream_session_ws(ws, session_id):
 @maybe_limit("30 per minute")
 def create_session_from_rasa():
     # Create a new session when Rasa hands off to a human
+    guard = _require_rasa_secret()
+    if guard:
+        return guard
     data, error = validate_body(RasaHandoffPayload)
     if error:
         return error
@@ -99,6 +142,9 @@ def create_session_from_rasa():
 @maybe_limit("60 per minute")
 def append_message_from_rasa():
     # Append a customer message to the latest open session for a sender
+    guard = _require_rasa_secret()
+    if guard:
+        return guard
     data, error = validate_body(RasaHandoffPayload)
     if error:
         return error
@@ -106,22 +152,24 @@ def append_message_from_rasa():
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/customer/messages")
+@require_session(allowed_roles=["customer"])
 @maybe_limit("60 per minute")
 def send_customer_message(session_id):
-    # Direct customer message to a session (bypasses Rasa)
+    # Direct customer message to a session (authenticated customer-owned session only)
     data = request.get_json(force=True, silent=True) or {}
     message = data.get("message")
-    customer_id = data.get("customer_id")
+    customer_id = g.current_user["id"]
     if not message:
         return service.error("message is required")
     return service.send_customer_message(session_id, message, customer_id)
 
 
 @live_cust_support_bp.get("/queue/<sender_id>")
+@require_session(allowed_roles=["customer"], match_user_param="sender_id")
 @maybe_limit("120 per minute")
 def get_queue_status(sender_id):
-    # Return queue position/status for a Rasa sender_id
-    return service.queue_status(sender_id)
+    # Return queue position/status for the authenticated customer.
+    return service.queue_status_for_customer(g.current_user["id"])
 
 
 @live_cust_support_bp.get("/sessions")
@@ -141,22 +189,20 @@ def get_session(session_id):
 
 
 @live_cust_support_bp.get("/sessions_public/<session_id>")
+@require_session(allowed_roles=["customer"])
 def get_session_public(session_id):
     """
-    Public read-only endpoint used by the customer widget to poll session + messages.
+    Customer read-only endpoint used by the widget to poll session + messages.
     """
     limit = request.args.get("limit", 200)
-    return service.get_session(session_id, limit)
+    return service.get_session_for_customer(session_id, g.current_user["id"], limit)
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/claim")
 @require_session(allowed_roles=["support"])
 def claim_session(session_id):
     # Claim a session for an agent and notify the user
-    data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
-    if not agent_id:
-        return service.error("agent_id is required")
+    agent_id = g.current_user["id"]
     return service.claim_session(session_id, agent_id)
 
 
@@ -166,10 +212,10 @@ def claim_session(session_id):
 def send_agent_message(session_id):
     # Send a live agent message and mirror it to Rasa
     data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
+    agent_id = g.current_user["id"]
     message = data.get("message")
-    if not agent_id or not message:
-        return service.error("agent_id and message are required")
+    if not message:
+        return service.error("message is required")
     return service.send_agent_message(session_id, agent_id, message)
 
 
@@ -178,10 +224,8 @@ def send_agent_message(session_id):
 def resolve_session(session_id):
     # Close a session with a resolution tag
     data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
+    agent_id = g.current_user["id"]
     resolution_tag = data.get("resolution_tag", "")
-    if not agent_id:
-        return service.error("agent_id is required")
     return service.resolve_session(session_id, agent_id, resolution_tag)
 
 
@@ -190,29 +234,32 @@ def resolve_session(session_id):
 def flag_question(session_id):
     # Flag a message the bot struggled with for follow-up
     data = request.get_json(force=True, silent=True) or {}
-    agent_id = data.get("agent_id")
+    agent_id = g.current_user["id"]
     message_id = data.get("message_id")
     reason = data.get("reason")
-    if not agent_id or not message_id or not reason:
-        return service.error("agent_id, message_id and reason are required")
+    if not message_id or not reason:
+        return service.error("message_id and reason are required")
     return service.flag_question(session_id, agent_id, message_id, reason)
 
 
 @live_cust_support_bp.post("/sessions/<session_id>/csat")
+@require_session(allowed_roles=["customer"])
 @maybe_limit("20 per minute")
 def submit_csat(session_id):
-    """Public CSAT submission endpoint (can be called by Rasa or email link)."""
+    """Authenticated CSAT submission endpoint for customer-owned sessions."""
     data, error = validate_body(CSATPayload)
     if error:
         return error
-    token = request.args.get("token")  # reserved for future signed links
-    return service.submit_csat(session_id, data.rating, data.feedback, token)
+    return service.submit_csat_for_customer(session_id, g.current_user["id"], data.rating, data.feedback)
 
 
 @live_cust_support_bp.post("/sessions/from_rasa/csat")
 @maybe_limit("30 per minute")
 def submit_csat_from_rasa():
     """Rasa webhook: expects sender_id and rating (1-5), optional feedback."""
+    guard = _require_rasa_secret()
+    if guard:
+        return guard
     data, error = validate_body(CSATPayload)
     if error:
         return error
@@ -224,15 +271,8 @@ def submit_csat_from_rasa():
 
 @live_cust_support_bp.post("/guest/escalate")
 def guest_escalate():
-    """Public endpoint: collect guest name/email, create ticket+session, return ids."""
-    data = request.get_json(force=True, silent=True) or {}
-    full_name = (data.get("full_name") or "").strip()
-    email = (data.get("email") or "").strip().lower()
-    last_message = (data.get("last_message") or "").strip() or "Need a human agent"
-    sender_id = (data.get("sender_id") or "").strip()
-    if not full_name or not email:
-        return service.error("full_name and email are required", status=400)
-    return service.create_guest_ticket(full_name=full_name, email=email, sender_id=sender_id, last_message=last_message)
+    """Hard-disabled guest escalation endpoint."""
+    return service.error("Guest escalation is disabled", status=403)
 
 
 @live_cust_support_bp.get("/csat/summary")

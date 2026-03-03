@@ -9,6 +9,7 @@ import {
 import { validatePromoCode } from '../api/promo';
 
 const storageKey = 'cart_id';
+const tokenStorageKey = 'cart_token';
 
 const loadStoredCartId = () => {
   try {
@@ -27,8 +28,26 @@ const persistCartId = (id) => {
   }
 };
 
+const loadStoredCartToken = () => {
+  try {
+    return localStorage.getItem(tokenStorageKey);
+  } catch (err) {
+    console.warn('Unable to read cart token from storage', err);
+    return null;
+  }
+};
+
+const persistCartToken = (token) => {
+  try {
+    localStorage.setItem(tokenStorageKey, token || '');
+  } catch (err) {
+    console.warn('Unable to persist cart token', err);
+  }
+};
+
 const initialState = {
   cartId: loadStoredCartId(),
+  cartToken: loadStoredCartToken(),
   items: [],
   status: 'idle',
   error: null,
@@ -39,9 +58,11 @@ const initialState = {
 
 const ensureCartId = async (getState) => {
   const existing = getState().cart.cartId || loadStoredCartId();
-  if (existing) return existing;
-  const { cartId } = await createCart();
+  const existingToken = getState().cart.cartToken || loadStoredCartToken();
+  if (existing && existingToken) return existing;
+  const { cartId, cartToken } = await createCart();
   persistCartId(cartId);
+  persistCartToken(cartToken);
   return cartId;
 };
 
@@ -61,14 +82,15 @@ export const bootstrapCart = createAsyncThunk('cart/bootstrap', async (_, { getS
   try {
     const data = await fetchCart(cartId);
     persistCartId(cartId);
-    return { cartId, items: normalizeItems(data.items) };
+    return { cartId, items: normalizeItems(data.items), cartToken: loadStoredCartToken() };
   } catch (err) {
     // If stored cart is gone, start a fresh one
-    if (err.message === 'Cart not found') {
+    if (err.message === 'Cart not found' || err.message === 'Invalid cart token') {
       const created = await createCart();
       cartId = created.cartId;
       persistCartId(cartId);
-      return { cartId, items: [] };
+      persistCartToken(created.cartToken);
+      return { cartId, items: [], cartToken: created.cartToken };
     }
     throw err;
   }
@@ -81,9 +103,11 @@ export const addItem = createAsyncThunk('cart/addItem', async (product, { getSta
   try {
     await addItemToCart(cartId, { productId: product.id, quantity: nextQty });
   } catch (err) {
-    if (err.message === 'Cart not found') {
+    if (err.message === 'Cart not found' || err.message === 'Invalid cart token') {
       const created = await createCart();
       cartId = created.cartId;
+      persistCartToken(created.cartToken);
+      persistCartId(cartId);
       await addItemToCart(cartId, { productId: product.id, quantity: nextQty });
     } else {
       throw err;
@@ -91,7 +115,7 @@ export const addItem = createAsyncThunk('cart/addItem', async (product, { getSta
   }
   const data = await fetchCart(cartId);
   persistCartId(cartId);
-  return { cartId, items: normalizeItems(data.items) };
+  return { cartId, items: normalizeItems(data.items), cartToken: loadStoredCartToken() };
 });
 
 export const decreaseItem = createAsyncThunk('cart/decreaseItem', async (productId, { getState }) => {
@@ -109,14 +133,14 @@ export const decreaseItem = createAsyncThunk('cart/decreaseItem', async (product
   }
 
   const data = await fetchCart(cartId);
-  return { cartId, items: normalizeItems(data.items) };
+  return { cartId, items: normalizeItems(data.items), cartToken: loadStoredCartToken() };
 });
 
 export const removeItem = createAsyncThunk('cart/removeItem', async (productId, { getState }) => {
   const cartId = await ensureCartId(getState);
   await removeCartItem(cartId, productId);
   const data = await fetchCart(cartId);
-  return { cartId, items: normalizeItems(data.items) };
+  return { cartId, items: normalizeItems(data.items), cartToken: loadStoredCartToken() };
 });
 
 export const applyPromoCode = createAsyncThunk('cart/applyPromoCode', async (code, { getState }) => {
@@ -134,6 +158,8 @@ const cartSlice = createSlice({
       state.items = [];
       state.cartId = null;
       persistCartId('');
+      state.cartToken = null;
+      persistCartToken('');
       state.promo = null;
       state.promoStatus = 'idle';
       state.promoError = null;
@@ -149,6 +175,7 @@ const cartSlice = createSlice({
       state.status = 'succeeded';
       state.error = null;
       state.cartId = action.payload.cartId;
+      state.cartToken = action.payload.cartToken || loadStoredCartToken();
       state.items = action.payload.items;
       if (state.items.length === 0) {
         state.promo = null;
@@ -203,6 +230,7 @@ export const selectCartCount = (state) =>
 export const selectCartSubtotal = (state) =>
   computeSubtotal(state.cart.items);
 export const selectCartId = (state) => state.cart.cartId;
+export const selectCartToken = (state) => state.cart.cartToken;
 export const selectCartStatus = (state) => state.cart.status;
 export const selectCartError = (state) => state.cart.error;
 export const selectAppliedPromo = (state) => state.cart.promo;

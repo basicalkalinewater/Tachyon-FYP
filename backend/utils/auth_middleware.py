@@ -24,8 +24,8 @@ def require_session(allowed_roles: Optional[Iterable[str]] = None, match_user_pa
     def decorator(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
-            # Allow opting out of session validation in local/dev environments where Supabase isn't reachable
-            if os.getenv("SKIP_SESSION_AUTH", "0") == "1" or not os.getenv("SUPABASE_URL"):
+            # Allow opt-out only when explicitly enabled.
+            if os.getenv("SKIP_SESSION_AUTH", "0") == "1":
                 return fn(*args, **kwargs)
 
             supabase = current_app.config["SUPABASE"]

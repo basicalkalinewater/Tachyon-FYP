@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fetchPolicies } from "../api/content";
+import { sanitizeHtml } from "../utils/sanitizeHtml";
 
 const Privacy = () => {
   const [policies, setPolicies] = useState([]);
@@ -40,7 +41,7 @@ const Privacy = () => {
           <div className="mb-4" key={item.id}>
             <div
               className="text-muted"
-              dangerouslySetInnerHTML={{ __html: item.content || "" }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.content || "") }}
             />
           </div>
         ))}

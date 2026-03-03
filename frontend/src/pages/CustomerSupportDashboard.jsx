@@ -99,7 +99,7 @@ const CustomerSupportDashboard = () => {
     const token = getSessionToken();
     if (!token) return;
     const wsBase = SUPPORT_BASE_URL.replace(/^http/, "ws");
-    const streamUrl = `${wsBase}/sessions/${sessionId}/ws?token=${encodeURIComponent(token)}`;
+    const streamUrl = `${wsBase}/sessions/${sessionId}/ws`;
 
     if (wsRef.current) {
       wsRef.current.close();
@@ -109,6 +109,7 @@ const CustomerSupportDashboard = () => {
     const ws = new WebSocket(streamUrl);
     ws.onopen = () => {
       reconnectRef.current.attempt = 0;
+      ws.send(JSON.stringify({ type: "auth", token }));
       console.log("[ws] open", streamUrl);
     };
     ws.onmessage = (ev) => {

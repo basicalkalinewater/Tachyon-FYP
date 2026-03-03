@@ -304,7 +304,9 @@ def append_message_from_rasa(sender_id: str, last_message: str):
 
 def send_customer_message(session_id: str, message: str, customer_id: Optional[str]):
     """Append a direct customer message to a session."""
-    customer_id = customer_id
+    customer_id = (customer_id or "").strip()
+    if not customer_id:
+        return error("Unauthorized customer", status=401)
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -314,11 +316,12 @@ def send_customer_message(session_id: str, message: str, customer_id: Optional[s
                 FROM chat_sessions
                 WHERE id = %s
                   AND status IN ('pending', 'in_progress')
+                  AND customer_id = %s
                 """,
-                (session_id,),
+                (session_id, customer_id),
             )
             if not cur.fetchone():
-                return error("Session not found or closed", status=409)
+                return error("Session not found, closed, or not owned by customer", status=403)
 
             cur.execute(
                 """
@@ -489,6 +492,77 @@ def get_session(session_id: str, limit: Optional[int] = 200):
     return ok({"session": session, "messages": messages})
 
 
+def get_session_for_customer(session_id: str, customer_id: str, limit: Optional[int] = 200):
+    """Fetch a session/messages only when owned by the authenticated customer."""
+    customer_id = (customer_id or "").strip()
+    if not customer_id:
+        return error("Unauthorized customer", status=401)
+    limit = _normalize_limit(limit)
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT
+              s.id,
+              s.customer_id,
+              s.agent_id,
+              s.status,
+              s.resolution_tag,
+              s.ticket_number,
+              s.subject,
+              s.priority,
+              s.closed_at,
+              s.ended_at,
+              s.created_at,
+              s.last_updated,
+              s.notes,
+              s.rasa_sender_id,
+              s.guest_name,
+              s.guest_email,
+              CASE
+                WHEN s.status = 'pending'
+                  THEN row_number() OVER (PARTITION BY s.status ORDER BY s.last_updated ASC)
+                ELSE NULL
+              END AS queue_position,
+              coalesce(s.guest_email, cu.email, s.rasa_sender_id) AS customer_email,
+              ag.email AS agent_email,
+              coalesce(s.guest_name, cp.full_name, cu.email, s.rasa_sender_id, 'Guest')  AS customer_full_name,
+              coalesce(lap.full_name, ag.email) AS agent_full_name
+            FROM chat_sessions s
+            LEFT JOIN app_user cu ON cu.id = s.customer_id
+            LEFT JOIN app_user ag ON ag.id = s.agent_id
+            LEFT JOIN customer_profile cp ON cp.user_id = s.customer_id
+            LEFT JOIN live_agent_profile lap ON lap.user_id = s.agent_id
+            WHERE s.id = %s AND s.customer_id = %s;
+            """,
+            (session_id, customer_id),
+        )
+        session = cur.fetchone()
+        if not session:
+            return error("Session not found", status=404)
+
+        cur.execute(
+            """
+            SELECT
+              id,
+              sender_role,
+              sender_id,
+              message,
+              is_bot,
+              created_at
+            FROM chat_messages
+            WHERE session_id = %s
+            ORDER BY id DESC
+            LIMIT %s;
+            """,
+            (session_id, limit),
+        )
+        messages_desc = cur.fetchall() or []
+        messages = list(reversed(messages_desc))
+
+    return ok({"session": session, "messages": messages})
+
+
 def claim_session(session_id: str, agent_id: str):
     """Assign a session to an agent and notify the user via Rasa if possible."""
     print(f"[claim] attempting claim session_id={session_id} agent_id={agent_id}")
@@ -559,10 +633,14 @@ def send_agent_message(session_id: str, agent_id: str, message: str):
     try:
         with get_db() as conn:
             cur = conn.cursor(cursor_factory=RealDictCursor)
-            cur.execute("SELECT id, rasa_sender_id FROM chat_sessions WHERE id = %s;", (session_id,))
+            cur.execute("SELECT id, rasa_sender_id, agent_id, status FROM chat_sessions WHERE id = %s;", (session_id,))
             session_row = cur.fetchone()
             if not session_row:
                 return error("Session not found", status=404)
+            if session_row.get("status") == "closed":
+                return error("Session is closed", status=409)
+            if str(session_row.get("agent_id") or "") != str(agent_id):
+                return error("Forbidden", status=403)
             rasa_sender_id = session_row.get("rasa_sender_id")
 
             try:
@@ -631,9 +709,11 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
                     ended_at = NOW(),
                     resolution_tag = NULLIF(%s, '')::text
                 WHERE id = %s
+                  AND agent_id = %s
+                  AND status <> 'closed'
                 RETURNING *;
                 """,
-                (resolution_tag, session_id),
+                (resolution_tag, session_id, agent_id),
             )
         except psycopg2.errors.UndefinedColumn:
             conn.rollback()
@@ -646,14 +726,16 @@ def resolve_session(session_id: str, agent_id: str, resolution_tag: str):
                     closed_at = NOW(),
                     ended_at = NOW()
                 WHERE id = %s
+                  AND agent_id = %s
+                  AND status <> 'closed'
                 RETURNING *;
                 """,
-                (session_id,),
+                (session_id, agent_id),
             )
 
         row = cur.fetchone()
         if not row:
-            return error("Session not found", status=404)
+            return error("Session not found or not assigned to this agent", status=404)
 
         cur.execute(
             """
@@ -747,6 +829,17 @@ def flag_question(session_id: str, agent_id: str, message_id, reason: str):
     """Flag a message the bot struggled with for follow-up analysis."""
     with get_db() as conn:
         cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT 1
+            FROM chat_sessions
+            WHERE id = %s AND agent_id = %s;
+            """,
+            (session_id, agent_id),
+        )
+        if not cur.fetchone():
+            return error("Session not found or not assigned to this agent", status=404)
+
         cur.execute(
             """
             SELECT 1
@@ -1011,6 +1104,72 @@ def queue_status(rasa_sender_id: str):
             }
         )
 
+
+def queue_status_for_customer(customer_id: str):
+    """Return queue status scoped to the authenticated customer."""
+    customer_id = (customer_id or "").strip()
+    if not customer_id:
+        return error("Unauthorized customer", status=401)
+
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            """
+            SELECT id, status
+            FROM chat_sessions
+            WHERE customer_id = %s
+              AND status IN ('pending', 'in_progress')
+            ORDER BY last_updated DESC
+            LIMIT 1;
+            """,
+            (customer_id,),
+        )
+        session = cur.fetchone()
+        if not session:
+            return error("No active session for this customer", status=404)
+
+        if session["status"] == "in_progress":
+            return ok(
+                {
+                    "session_id": session["id"],
+                    "status": "in_progress",
+                    "position": 0,
+                    "estimated_wait_seconds": 0,
+                }
+            )
+
+        cur.execute(
+            """
+            WITH ordered AS (
+              SELECT id,
+                     row_number() OVER (ORDER BY last_updated ASC) AS position,
+                     count(*) OVER () AS total
+              FROM chat_sessions
+              WHERE status = 'pending'
+            )
+            SELECT id, position, total
+            FROM ordered
+            WHERE id = %s;
+            """,
+            (session["id"],),
+        )
+        row = cur.fetchone()
+        if not row:
+            return error("Session not in queue", status=404)
+
+        position = row["position"]
+        estimated_wait = max(position - 1, 0) * AVERAGE_HANDLE_SECONDS
+
+        return ok(
+            {
+                "session_id": session["id"],
+                "status": "pending",
+                "position": position,
+                "queue_size": row["total"],
+                "estimated_wait_seconds": estimated_wait,
+            }
+        )
+
 def submit_csat(session_id: str, rating: int, feedback: str, token: Optional[str]):
     if rating is None or not (1 <= int(rating) <= 5):
         return error("rating must be 1-5")
@@ -1051,6 +1210,24 @@ def submit_csat(session_id: str, rating: int, feedback: str, token: Optional[str
     except Exception as exc:
         print("ERROR submit_csat:", exc)
         return error(str(exc), 500)
+
+
+def submit_csat_for_customer(session_id: str, customer_id: str, rating: int, feedback: str):
+    """Submit CSAT only for sessions owned by the authenticated customer."""
+    customer_id = (customer_id or "").strip()
+    if not customer_id:
+        return error("Unauthorized customer", status=401)
+
+    with get_db() as conn:
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute("SELECT customer_id FROM chat_sessions WHERE id = %s;", (session_id,))
+        row = cur.fetchone()
+        if not row:
+            return error("Session not found", status=404)
+        if str(row.get("customer_id") or "") != customer_id:
+            return error("Forbidden", status=403)
+
+    return submit_csat(session_id, rating, feedback, token=None)
 
 
 def get_csat_summary(window_days: int, agent_id: Optional[str]):
