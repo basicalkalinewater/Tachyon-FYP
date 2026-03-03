@@ -126,6 +126,9 @@ rasa run actions --port 5055
 ```
 
 ## :movie_camera: 7) Demo Video
-Add the demo link here for team sharing:
 
-`[Watch Demo](https://your-demo-link-here)`
+
+https://github.com/user-attachments/assets/2d96cd60-2f89-4901-89d2-727882982724
+
+
+
