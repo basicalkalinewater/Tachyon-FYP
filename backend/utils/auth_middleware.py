@@ -11,12 +11,11 @@ except ImportError:
 
 
 def _extract_token() -> str:
-    """Pull a bearer token from Authorization header or ?token= query param."""
+    """Pull a bearer token from Authorization header only."""
     header = (request.headers.get("Authorization") or "").strip()
     if header.lower().startswith("bearer "):
         return header.split(" ", 1)[1].strip()
-    token = request.args.get("token") or ""
-    return token.strip()
+    return ""
 
 
 def require_session(allowed_roles: Optional[Iterable[str]] = None, match_user_param: Optional[str] = None):
